@@ -11,10 +11,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/GuoMonth/dsh-isolated-runtime/internal/version"
 	"github.com/GuoMonth/dsh-isolated-runtime/pkg/gateway"
 )
 
 func main() {
+	log.Printf("gateway %s", version.String())
 	// TODO(M4): wire a real Authorizer + SessionResolver. nil → deny-all.
 	admitter := gateway.NewAdmitter(nil, nil)
 	server := gateway.NewServer(admitter)
