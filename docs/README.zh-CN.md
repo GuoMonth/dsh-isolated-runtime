@@ -10,9 +10,14 @@
 - [CONTRIBUTING](../CONTRIBUTING.zh-CN.md) — 开发方式（规格驱动 + 测试驱动）
 - [ROADMAP](../ROADMAP.zh-CN.md) — 里程碑与状态
 
+## 规格与分析
+
+- [架构 —— 六层](./specs/architecture.zh-CN.md) — 全局六层图
+
 ## 互补项目
 
 - [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant) —
   面向共享 DSH 运行时的应用层多租户（Shared Runtime）
 
-规格与 ADR 会随着组件落地而陆续出现在这里；计划内容参见 [ROADMAP](../ROADMAP.zh-CN.md)。
+更多规格与 ADR 会随着组件落地而陆续出现在这里；计划内容参见
+[ROADMAP](../ROADMAP.zh-CN.md)。
