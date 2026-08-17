@@ -9,12 +9,14 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/GuoMonth/dsh-isolated-runtime/internal/version"
 	"github.com/GuoMonth/dsh-isolated-runtime/pkg/controlplane"
 	"github.com/GuoMonth/dsh-isolated-runtime/pkg/runtime/kubernetes"
 	"github.com/GuoMonth/dsh-isolated-runtime/pkg/scheduling"
 )
 
 func main() {
+	log.Printf("controller %s", version.String())
 	// TODO(M1): replace the in-memory backend with a real cluster client and
 	// run a controller-runtime reconciler over RuntimeSession objects.
 	rt := kubernetes.New()

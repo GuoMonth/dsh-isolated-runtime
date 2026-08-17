@@ -1,0 +1,55 @@
+version: 2
+
+project_name: dsh-isolated-runtime
+
+builds:
+  - id: gateway
+    main: ./cmd/gateway
+    binary: gateway
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X github.com/GuoMonth/dsh-isolated-runtime/internal/version.Version={{.Version}}
+      - -X github.com/GuoMonth/dsh-isolated-runtime/internal/version.Commit={{.Commit}}
+      - -X github.com/GuoMonth/dsh-isolated-runtime/internal/version.Date={{.Date}}
+  - id: scheduler
+    main: ./cmd/scheduler
+    binary: scheduler
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X github.com/GuoMonth/dsh-isolated-runtime/internal/version.Version={{.Version}}
+      - -X github.com/GuoMonth/dsh-isolated-runtime/internal/version.Commit={{.Commit}}
+      - -X github.com/GuoMonth/dsh-isolated-runtime/internal/version.Date={{.Date}}
+  - id: controller
+    main: ./cmd/controller
+    binary: controller
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X github.com/GuoMonth/dsh-isolated-runtime/internal/version.Version={{.Version}}
+      - -X github.com/GuoMonth/dsh-isolated-runtime/internal/version.Commit={{.Commit}}
+      - -X github.com/GuoMonth/dsh-isolated-runtime/internal/version.Date={{.Date}}
+
+archives:
+  - formats: [tar.gz]
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
