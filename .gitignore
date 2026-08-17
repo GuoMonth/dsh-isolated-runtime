@@ -1,5 +1,11 @@
 node_modules/
 dist/
 coverage/
+coverage.out
 *.log
 .DS_Store
+
+# Go
+bin/
+*.test
+*.out

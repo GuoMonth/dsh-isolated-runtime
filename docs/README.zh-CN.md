@@ -14,6 +14,10 @@
 
 - [架构 —— 六层](./specs/architecture.zh-CN.md) — 全局六层图
 
+## 参考
+
+- [仓库结构](./reference/repository-layout.zh-CN.md) — 六层如何映射到目录树
+
 ## 互补项目
 
 - [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant) —

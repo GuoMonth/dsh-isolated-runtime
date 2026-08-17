@@ -8,6 +8,13 @@ The initial milestone is **M0 — bootstrapping**: stand up the repository and
 frame the four components that form the isolated-runtime control plane — in one
 place, rather than prematurely split.
 
+## Done
+
+- ✅ **M0 — Bootstrapping** — repository, bilingual docs, the six-layer
+  architecture spec, and the Go control-plane skeleton (`api/` + `cmd/` +
+  `pkg/` + `config/` + CI). Interfaces are locked; implementations are in-memory
+  stubs pending M1–M4.
+
 ## Next (settled)
 
 - 🚧 **M1 — Scheduler.** Place each tenant session on a dedicated runtime (Pod)
@@ -29,7 +36,7 @@ place, rather than prematurely split.
 
 ## Milestones
 
-- **M0 — Bootstrapping** 🚧 repository, bilingual docs, initial scope framing.
+- **M0 — Bootstrapping** ✅ repository, bilingual docs, six-layer architecture spec, Go control-plane skeleton.
 - **M1 — Scheduler.**
 - **M2 — Gateway.**
 - **M3 — checkpoint/restore.**

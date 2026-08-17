@@ -78,6 +78,31 @@ See [ROADMAP.md](./ROADMAP.md) for milestones and status. See
 [CONTRIBUTING.md](./CONTRIBUTING.md) for how development is done here. Full
 documentation lives in [`docs/`](./docs/README.md).
 
+## Repository layout
+
+The six layers map onto the tree as follows:
+
+```text
+api/v1alpha1/          versioned API types (the contract)
+cmd/
+  gateway/            ④ admission — HTTP server, fail-closed
+  scheduler/          ③ scheduling — placement process
+  controller/         ⑥ control plane — lifecycle orchestrator
+pkg/
+  runtime/            ① isolation boundary — the runtime-agnostic seam
+  provisioning/       ② runtime images + profiles
+  scheduling/         ③ placement interface + first-fit default
+  gateway/            ④ admission logic
+  checkpoint/         ⑤ snapshot/restore contract
+  controlplane/       ⑥ lifecycle orchestration
+config/               CRD + RBAC manifests
+```
+
+The single most important boundary is `pkg/runtime.Runtime` — the
+runtime-agnostic seam every backend implements. See
+[docs/reference/repository-layout.md](./docs/reference/repository-layout.md) for
+the full map.
+
 ## License
 
 MIT

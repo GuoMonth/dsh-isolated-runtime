@@ -63,6 +63,29 @@ Python / Node 代码执行）无法逃逸到相邻租户或宿主机。
 里程碑与状态参见 [ROADMAP.md](./ROADMAP.md)。本仓库的开发方式参见
 [CONTRIBUTING.md](./CONTRIBUTING.md)。完整文档位于 [`docs/`](./docs/README.zh-CN.md)。
 
+## 仓库结构
+
+六层在目录树上的映射如下：
+
+```text
+api/v1alpha1/          版本化 API 类型（契约）
+cmd/
+  gateway/            ④ 准入 —— HTTP 服务，默认拒绝
+  scheduler/          ③ 调度 —— 放置进程
+  controller/         ⑥ 控制平面 —— 生命周期编排
+pkg/
+  runtime/            ① 隔离边界 —— 运行时无关的 seam
+  provisioning/       ② runtime images + profiles
+  scheduling/         ③ 放置接口 + first-fit 默认实现
+  gateway/            ④ 准入逻辑
+  checkpoint/         ⑤ 快照/恢复契约
+  controlplane/       ⑥ 生命周期编排
+config/               CRD + RBAC 清单
+```
+
+最重要的边界是 `pkg/runtime.Runtime` —— 所有后端都要实现的运行时无关 seam。完整映射见
+[docs/reference/repository-layout.zh-CN.md](./docs/reference/repository-layout.zh-CN.md)。
+
 ## 许可证
 
 MIT
