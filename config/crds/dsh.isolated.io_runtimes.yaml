@@ -1,0 +1,43 @@
+# The Runtime CRD is the exemplar for the ① isolation boundary. The remaining
+# kinds (RuntimeImage, RuntimeProfile, RuntimeSession, Checkpoint) follow the
+# same pattern. Full CRDs are generated from api/v1alpha1 at M1.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: runtimes.runtime.dsh.io
+spec:
+  group: runtime.dsh.io
+  scope: Cluster
+  names:
+    kind: Runtime
+    listKind: RuntimeList
+    plural: runtimes
+    singular: runtime
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                runtimeClass:
+                  type: string
+                networkIsolation:
+                  type: boolean
+                resourceLimits:
+                  type: object
+                  additionalProperties:
+                    type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                runtimeRef:
+                  type: string
+                message:
+                  type: string

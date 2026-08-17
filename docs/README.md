@@ -14,6 +14,10 @@ Navigation hub for `dsh-isolated-runtime` documentation.
 
 - [Architecture — six layers](./specs/architecture.md) — the global six-layer map
 
+## Reference
+
+- [Repository layout](./reference/repository-layout.md) — how the six layers map onto the tree
+
 ## Complementary projects
 
 - [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant) —
