@@ -45,6 +45,9 @@ func (l *Lifecycle) CreateSession(ctx context.Context, req CreateSessionRequest)
 		Session:            req.Session,
 		DesiredRuntimeName: req.Runtime.Name,
 		AllowReuse:         req.AllowReuse,
+		RuntimeClass:       req.Runtime.RuntimeClass,
+		SecurityClass:      req.Runtime.SecurityClass,
+		Image:              req.Runtime.Image,
 		Constraints:        req.Constraints,
 	})
 	if err != nil {

@@ -33,10 +33,13 @@ type Spec struct {
 
 // Info is the observed state of a boundary.
 type Info struct {
-	Name    string
-	Tenant  string
-	Phase   string // Pending, Running, Terminated
-	Address string // backend-local address (e.g. pod://name)
+	Name          string
+	Tenant        string
+	RuntimeClass  string
+	SecurityClass SecurityClass
+	Image         string
+	Phase         string // Pending, Running, Terminated
+	Address       string // backend-local address (e.g. pod://name)
 }
 
 // Runtime is the isolation-boundary seam (①).

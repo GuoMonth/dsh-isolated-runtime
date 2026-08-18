@@ -32,9 +32,15 @@ func (a *FirstFit) Allocate(ctx context.Context, req Request) (Allocation, error
 
 	if req.AllowReuse {
 		for _, candidate := range a.Runtimes {
-			if candidate.Tenant == req.Tenant && candidate.Phase == "Running" {
-				return Allocation{RuntimeName: candidate.Name, Reuse: true}, nil
+			if candidate.Tenant != req.Tenant || candidate.Phase != "Running" {
+				continue
 			}
+			if candidate.RuntimeClass != req.RuntimeClass ||
+				candidate.SecurityClass != req.SecurityClass ||
+				candidate.Image != req.Image {
+				continue
+			}
+			return Allocation{RuntimeName: candidate.Name, Reuse: true}, nil
 		}
 	}
 

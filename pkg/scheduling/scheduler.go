@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
+	"github.com/GuoMonth/dsh-isolated-runtime/pkg/runtime"
 )
 
 // Request is the input to runtime allocation.
@@ -16,6 +17,9 @@ type Request struct {
 	Session            string
 	DesiredRuntimeName string
 	AllowReuse         bool
+	RuntimeClass       string
+	SecurityClass      runtime.SecurityClass
+	Image              string
 	Constraints        v1alpha1.RuntimeConstraints
 }
 

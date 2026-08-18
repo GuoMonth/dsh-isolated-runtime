@@ -38,10 +38,13 @@ func (b *Backend) Create(ctx context.Context, spec runtime.Spec) (*runtime.Info,
 		return nil, runtime.ErrConflict
 	}
 	info := runtime.Info{
-		Name:    spec.Name,
-		Tenant:  spec.Tenant,
-		Phase:   "Running",
-		Address: "pod://" + spec.Name,
+		Name:          spec.Name,
+		Tenant:        spec.Tenant,
+		RuntimeClass:  spec.RuntimeClass,
+		SecurityClass: spec.SecurityClass,
+		Image:         spec.Image,
+		Phase:         "Running",
+		Address:       "pod://" + spec.Name,
 	}
 	b.boundaries[spec.Name] = info
 	copy := info
