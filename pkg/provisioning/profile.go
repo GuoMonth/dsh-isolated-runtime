@@ -1,14 +1,23 @@
-// Package provisioning resolves a workload to its runtime image and profile (②).
+// Package provisioning resolves a workload profile to a DSH runtime image and
+// security posture (②).
 package provisioning
 
-import "errors"
+import (
+	"errors"
 
-// Profile is the versioned profile contract: what runs for a workload and how.
+	"github.com/GuoMonth/dsh-isolated-runtime/pkg/runtime"
+)
+
+// Profile is the versioned runtime profile contract.
+//
+// Every standard profile is a DSH runtime image; profiles add workload tooling
+// rather than replacing DSH with a bare language image.
 type Profile struct {
-	Workload     string   // terminal | python | node | …
-	Image        string   // OCI image reference
-	Seccomp      string   // seccomp profile (e.g. runtime/default)
-	Capabilities []string // permitted capabilities
+	Workload      string
+	Image         string
+	SecurityClass runtime.SecurityClass
+	Seccomp       string
+	Capabilities  []string
 }
 
 // Registry resolves workloads to profiles.

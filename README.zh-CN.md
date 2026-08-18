@@ -3,88 +3,89 @@
 # dsh-isolated-runtime
 
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）的
-Kubernetes 原生隔离运行时：一个租户一个 Pod，具备强隔离、可恢复会话与可插拔的运行时镜像。
+Kubernetes 原生隔离运行时：显式的租户运行时所有权、可恢复的逻辑状态，以及可插拔的
+运行时 profile。
 
-> **阶段：启动中。** 仓库与文档正在初始化；控制平面组件（Scheduler、Gateway、
-> checkpoint/restore、runtime images）已规划但尚未实现。参见 [ROADMAP.md](./ROADMAP.md)。
+> **阶段：启动中 / M0.1 架构对齐。** 仓库已经具备 Go 控制平面骨架。在真正接入 Pod
+> 生命周期之前，先把租户所有权、准入、运行时分配、持久化与威胁模型契约对齐。
+> 参见 [ROADMAP.md](./ROADMAP.zh-CN.md)。
 
 ## 这是什么
 
-`dsh-isolated-runtime` 是 DSH 的**基础设施级**租户隔离层。与
+`dsh-isolated-runtime` 是 DSH 的**基础设施强制**租户隔离方案。与
 [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant)
-在共享运行时*内部*（应用层）执行隔离不同，本项目给每个租户**自己的运行时边界**——
-一个独享的 Pod / 容器运行时——从而让不可信租户（第三方插件、Terminal 会话、
-Python / Node 代码执行）无法逃逸到相邻租户或宿主机。
+在共享 DSH Runtime 内做应用层隔离不同，本项目让每个 Runtime 都有一个显式的租户所有者，
+并把该 Runtime 实现为独享的 Pod / 容器边界。
 
-隔离边界是**运行时本身**，而不是共享进程内的一条规则。租户的代码、插件与文件系统
-都生活在自己的 Pod 中，拥有自己的网络命名空间、资源限制与容器运行时策略。控制平面
-（Scheduler、Gateway）决定会话在*哪里*运行，并通过 checkpoint/restore 在重启后*恢复*它。
+真正的基数关系是：
 
-## 二者如何选择
+> **1 个 Runtime → 恰好属于 1 个 Tenant；1 个 Tenant → 可以拥有 0..N 个 Runtime。**
+
+一个租户可以针对通用助手、数据分析、开发等任务启动不同 Runtime，但任何 Runtime 都不能
+跨租户共享。
+
+这比应用层多租户提供更强的边界，但项目不会宣传为“绝对无法逃逸宿主机”。普通容器仍共享
+宿主 Linux kernel；对于任意代码执行等 hostile workload，可以选择更强的 `sandboxed`
+安全等级，并由合适的 Kubernetes `RuntimeClass` 承载。
+
+## 两种方案如何选择
 
 | 项目 | 模式 | 隔离边界 | 适用场景 |
 | --- | --- | --- | --- |
 | [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant) | Shared Runtime | DSH 应用层 | 高资源利用率、可信插件生态 |
-| **`dsh-isolated-runtime`** | Isolated Runtime | Pod / Container Runtime | Strong tenant isolation、插件 / Terminal / 代码执行 |
+| **`dsh-isolated-runtime`** | Isolated Runtime | 独享 Runtime / Pod 边界 | 更强租户隔离、插件 / Terminal / 代码执行 |
 
-> 如果你的场景要求 **Strong Tenant Isolation**，包括第三方插件、Terminal、
-> Python/Node 代码执行等运行时隔离，请使用 **`dsh-isolated-runtime`**。
->
-> 如果你只需要在共享 DSH Runtime 上做应用层隔离——在可信租户之间最大化资源利用率——
-> 请使用 [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant)。
-
-一句话概括：
-
-- **`dsh-multi-tenant`** → 想省资源、共享运行时，就遵守多租户协议。
-- **`dsh-isolated-runtime`** → 要 Strong Tenant Isolation，就直接把 Runtime 隔开。
-
-两个项目互补而非竞争：**Shared Runtime** 对 **Isolated Runtime**，
+二者互补：**Shared Runtime** 对 **Isolated Runtime**，
 **application-enforced isolation** 对 **infrastructure-enforced isolation**。
 
 ## 指导原则
 
-- **基础设施级隔离** —— 边界是真正的运行时原语（Pod / 容器），而非共享代码里的约定；
-  租户不可能因疏忽或遗漏而跨越它。
-- **一个租户一个运行时** —— 没有两个租户共享同一个运行时；隔离不依赖租户遵守协议。
-- **运行时无关的控制平面** —— Scheduler 与 Gateway 面向容器运行时接口，而非仅面向
-  Kubernetes；未来 Docker、Firecracker 或 Nomad 都可以作为后端。
-- **可恢复会话** —— checkpoint/restore 让会话的运行时状态跨 Pod 重调度保留，
-  使隔离不以牺牲会话连续性为代价。
+- **所有权必须进入数据模型。** Runtime ownership 是 API 与 runtime seam 的一部分；
+  外租户查询/删除默认拒绝，而不是只靠文档约定。
+- **分配 Runtime，不重新实现 kube-scheduler。** 本项目决定复用还是创建 Runtime、
+  profile、资源与安全等级；Pod 最终落在哪个 Node 由 Kubernetes 负责。
+- **身份来自可信 transport。** Gateway 的 Principal 必须由服务端认证边界建立，
+  不能从普通请求 body 接收。
+- **状态持久，Pod 可丢弃。** 第一阶段连续性采用 DSH/session/workspace/artifact 的逻辑状态
+  持久化到 S3/MinIO 兼容对象存储，然后恢复到新 Runtime；M0 不承诺 CRIU/进程内存快照。
+- **Kubernetes-native first。** Kubernetes 特定代码放在明确 adapter 边界后面；只有第二个
+  backend 真正证明共同点后，才冻结 runtime-agnostic 公共契约。
+- **暴露安全等级，而不是一堆底层旋钮。** 平台 profile 选择 hardened `standard` 或更强的
+  `sandboxed`，而不是让调用方自己拼 seccomp/capabilities 等安全策略。
 
-## 组件（初始范围）
+## 组件
 
 | 组件 | 角色 |
 | --- | --- |
-| Scheduler | 在资源与安全策略约束下，将每个租户会话调度到独享的运行时（Pod）。 |
-| Gateway | 将会话路由到其隔离运行时的准入点。 |
-| checkpoint/restore | 跨重调度捕获并恢复会话的运行时状态。 |
-| runtime images | 按工作负载（Terminal、Python、Node、……）提供的标准运行时镜像与 profile。 |
-
-里程碑与状态参见 [ROADMAP.md](./ROADMAP.md)。本仓库的开发方式参见
-[CONTRIBUTING.md](./CONTRIBUTING.md)。完整文档位于 [`docs/`](./docs/README.zh-CN.md)。
+| Runtime boundary | 租户独占的 Pod / 容器 Runtime，绝不跨租户共享。 |
+| Provisioning | 标准 DSH runtime images + workload/security profiles。 |
+| Runtime allocation | 决定复用/创建、profile、资源与安全等级；不选择 Kubernetes Node。 |
+| Gateway | 可信认证 + tenant/session 解析；后续演进为 DSH HTTP/WS/stream 的 runtime router/reverse proxy。 |
+| Persistence / restore | 将 DSH/session/workspace/artifact 逻辑状态持久化到对象存储并恢复到新 Runtime。 |
+| Control plane | API / CRDs / controllers 编排生命周期。 |
 
 ## 仓库结构
 
-六层在目录树上的映射如下：
-
 ```text
-api/v1alpha1/          版本化 API 类型（契约）
+api/v1alpha1/          版本化 API 类型
 cmd/
-  gateway/            ④ 准入 —— HTTP 服务，默认拒绝
-  scheduler/          ③ 调度 —— 放置进程
-  controller/         ⑥ 控制平面 —— 生命周期编排
+  gateway/            可信准入 / router 骨架
+  scheduler/          Runtime allocation 进程（名称暂定）
+  controller/         生命周期编排
 pkg/
-  runtime/            ① 隔离边界 —— 运行时无关的 seam
-  provisioning/       ② runtime images + profiles
-  scheduling/         ③ 放置接口 + first-fit 默认实现
-  gateway/            ④ 准入逻辑
-  checkpoint/         ⑤ 快照/恢复契约
-  controlplane/       ⑥ 生命周期编排
+  runtime/            租户所有权进入契约的 runtime seam
+    kubernetes/       第一个 backend adapter
+    runtimetest/      可复用 backend 契约测试
+  provisioning/       DSH runtime images + profiles
+  scheduling/         Runtime allocation（不是 Node scheduling）
+  gateway/            trusted principal + admission
+  checkpoint/         逻辑持久化/恢复的唯一权威
+  controlplane/       生命周期编排
 config/               CRD + RBAC 清单
 ```
 
-最重要的边界是 `pkg/runtime.Runtime` —— 所有后端都要实现的运行时无关 seam。完整映射见
-[docs/reference/repository-layout.zh-CN.md](./docs/reference/repository-layout.zh-CN.md)。
+全局模型见 [docs/specs/architecture.md](./docs/specs/architecture.zh-CN.md)，
+开发顺序见 [ROADMAP.md](./ROADMAP.zh-CN.md)。
 
 ## 许可证
 

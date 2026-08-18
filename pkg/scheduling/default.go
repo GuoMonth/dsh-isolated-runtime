@@ -4,25 +4,39 @@ import (
 	"context"
 	"errors"
 
-	"github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
+	"github.com/GuoMonth/dsh-isolated-runtime/pkg/runtime"
 )
 
-// ErrUnschedulable is returned when no candidate runtime satisfies the
-// constraints.
-var ErrUnschedulable = errors.New("scheduling: no runtime satisfies constraints")
+var (
+	// ErrUnschedulable is returned when no valid runtime allocation can be made.
+	ErrUnschedulable = errors.New("scheduling: no runtime allocation available")
+	// ErrInvalidRequest is returned when tenant/session/runtime identity is absent.
+	ErrInvalidRequest = errors.New("scheduling: invalid allocation request")
+)
 
-// FirstFit binds a session to the first candidate runtime. It is a stub for the
-// real scheduler (M1); candidate inventory is supplied explicitly.
+// FirstFit reuses the first running runtime owned by the same tenant when reuse
+// is allowed; otherwise it allocates the caller's desired new runtime name.
+//
+// It deliberately never chooses a Kubernetes Node.
 type FirstFit struct {
-	Runtimes []string
+	Runtimes []runtime.Info
 }
 
-var _ Scheduler = (*FirstFit)(nil)
+var _ Allocator = (*FirstFit)(nil)
 
-// Place returns the first candidate runtime, or ErrUnschedulable if none.
-func (s *FirstFit) Place(ctx context.Context, c v1alpha1.SchedulingConstraints) (Placement, error) {
-	if len(s.Runtimes) == 0 {
-		return Placement{}, ErrUnschedulable
+// Allocate returns a tenant-safe runtime allocation.
+func (a *FirstFit) Allocate(ctx context.Context, req Request) (Allocation, error) {
+	if req.Tenant == "" || req.Session == "" || req.DesiredRuntimeName == "" {
+		return Allocation{}, ErrInvalidRequest
 	}
-	return Placement{RuntimeName: s.Runtimes[0]}, nil
+
+	if req.AllowReuse {
+		for _, candidate := range a.Runtimes {
+			if candidate.Tenant == req.Tenant && candidate.Phase == "Running" {
+				return Allocation{RuntimeName: candidate.Name, Reuse: true}, nil
+			}
+		}
+	}
+
+	return Allocation{RuntimeName: req.DesiredRuntimeName, Reuse: false}, nil
 }

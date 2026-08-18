@@ -18,9 +18,9 @@ type ObjectMeta struct {
 	Generation  int64             `json:"generation,omitempty"`
 }
 
-// Runtime is the isolation boundary (①): one tenant, one runtime. It is the
-// root object of the control plane — nothing above it carries the isolation
-// invariant as a shared-code convention.
+// Runtime is the isolation boundary (①). Every Runtime belongs to exactly one
+// tenant; a tenant may own multiple Runtimes, but a Runtime is never shared
+// across tenants.
 type Runtime struct {
 	TypeMeta   `json:",inline"`
 	ObjectMeta `json:"metadata,omitempty"`
@@ -30,20 +30,22 @@ type Runtime struct {
 
 // RuntimeSpec describes the boundary to provision.
 type RuntimeSpec struct {
-	// RuntimeClass names the container-runtime class that backs this boundary
-	// (a Kubernetes RuntimeClass, or a backend-specific equivalent).
+	// Tenant is the immutable owner of the runtime.
+	Tenant string `json:"tenant"`
+	// RuntimeClass selects the concrete container/sandbox runtime.
 	RuntimeClass string `json:"runtimeClass,omitempty"`
-	// NetworkIsolation, when true, requests a dedicated network namespace with
-	// no cross-tenant egress by default.
+	// SecurityClass is a platform-defined posture such as standard or sandboxed.
+	SecurityClass string `json:"securityClass,omitempty"`
+	// NetworkIsolation requests a dedicated network namespace with no
+	// cross-tenant traffic by default.
 	NetworkIsolation bool `json:"networkIsolation,omitempty"`
-	// ResourceLimits caps CPU and memory for the boundary
-	// (e.g. cpu=1, memory=512Mi).
+	// ResourceLimits caps CPU, memory, and optionally ephemeral storage.
 	ResourceLimits map[string]string `json:"resourceLimits,omitempty"`
 }
 
 // RuntimeStatus is the observed state of a boundary.
 type RuntimeStatus struct {
-	// Phase is Pending, Running, Checkpointed, or Terminated.
+	// Phase is Pending, Running, or Terminated.
 	Phase string `json:"phase,omitempty"`
 	// RuntimeRef is the backend's identifier for this boundary.
 	RuntimeRef string `json:"runtimeRef,omitempty"`
@@ -60,7 +62,7 @@ type RuntimeImage struct {
 
 // RuntimeImageSpec describes a workload's base image.
 type RuntimeImageSpec struct {
-	// Workload is one of terminal, python, node, ….
+	// Workload is a platform profile family such as base, data, or dev.
 	Workload string `json:"workload"`
 	// Image is the OCI image reference.
 	Image string `json:"image"`
@@ -80,12 +82,13 @@ type RuntimeProfile struct {
 type RuntimeProfileSpec struct {
 	Workload       string   `json:"workload"`
 	ImageRef       string   `json:"imageRef"`
+	SecurityClass  string   `json:"securityClass,omitempty"`
 	SeccompProfile string   `json:"seccompProfile,omitempty"`
 	Capabilities   []string `json:"capabilities,omitempty"`
 }
 
-// RuntimeSession binds a tenant and session to a runtime (④ admission,
-// ③ scheduling).
+// RuntimeSession binds a tenant and DSH session to a runtime (④ admission,
+// ③ runtime allocation).
 type RuntimeSession struct {
 	TypeMeta   `json:",inline"`
 	ObjectMeta `json:"metadata,omitempty"`
@@ -95,36 +98,43 @@ type RuntimeSession struct {
 
 // RuntimeSessionSpec is the desired state of a session binding.
 type RuntimeSessionSpec struct {
-	// Tenant is the owning tenant; two sessions of different tenants never
-	// share a runtime.
+	// Tenant is the owning tenant. Any bound Runtime must have the same owner.
 	Tenant string `json:"tenant"`
 	// Session is the DSH session identifier.
 	Session string `json:"session"`
 	// ImageRef and ProfileRef select the workload (②).
 	ImageRef   string `json:"imageRef,omitempty"`
 	ProfileRef string `json:"profileRef,omitempty"`
-	// Constraints is the scheduling input (③).
-	Constraints SchedulingConstraints `json:"constraints,omitempty"`
+	// ReuseRuntime allows reuse only among runtimes owned by the same tenant.
+	ReuseRuntime bool `json:"reuseRuntime,omitempty"`
+	// Constraints are inputs to runtime allocation and the generated backend
+	// specification. They are not a request for this project to choose a
+	// Kubernetes Node directly.
+	Constraints RuntimeConstraints `json:"constraints,omitempty"`
 }
 
 // RuntimeSessionStatus is the observed state of a session binding.
 type RuntimeSessionStatus struct {
-	// Phase is Pending, Scheduled, Running, Checkpointed, or Terminated.
+	// Phase is Pending, Allocated, Running, Persisted, or Terminated.
 	Phase string `json:"phase,omitempty"`
 	// RuntimeRef is the runtime this session is bound to.
 	RuntimeRef string `json:"runtimeRef,omitempty"`
-	// CheckpointRef is the last captured state (⑤), if any.
+	// CheckpointRef is the last logical state snapshot (⑤), if any.
 	CheckpointRef string `json:"checkpointRef,omitempty"`
 }
 
-// SchedulingConstraints is the placement input for the Scheduler (③).
-type SchedulingConstraints struct {
+// RuntimeConstraints are allocation inputs. Kubernetes-specific adapters may
+// translate these into node selectors, affinity, tolerations, resource requests,
+// RuntimeClass, and related Pod policy without exposing node placement as a
+// control-plane decision.
+type RuntimeConstraints struct {
 	NodeSelector    map[string]string `json:"nodeSelector,omitempty"`
 	Tolerations     []string          `json:"tolerations,omitempty"`
 	ResourceRequest map[string]string `json:"resourceRequest,omitempty"`
 }
 
-// Checkpoint is a captured runtime state (⑤).
+// Checkpoint is a logical persisted session/workspace state (⑤), not a promise
+// of kernel/process memory checkpointing.
 type Checkpoint struct {
 	TypeMeta   `json:",inline"`
 	ObjectMeta `json:"metadata,omitempty"`
@@ -132,13 +142,16 @@ type Checkpoint struct {
 	Status     CheckpointStatus `json:"status,omitempty"`
 }
 
-// CheckpointSpec describes a capture.
+// CheckpointSpec describes a logical state capture.
 type CheckpointSpec struct {
+	TenantRef  string `json:"tenantRef"`
 	SessionRef string `json:"sessionRef"`
 	StorageRef string `json:"storageRef,omitempty"`
+	ImageRef   string `json:"imageRef,omitempty"`
+	ProfileRef string `json:"profileRef,omitempty"`
 }
 
-// CheckpointStatus is the observed state of a capture.
+// CheckpointStatus is the observed state of a logical capture.
 type CheckpointStatus struct {
 	// Phase is Pending, Capturing, Ready, or Restoring.
 	Phase         string `json:"phase,omitempty"`

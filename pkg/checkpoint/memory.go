@@ -7,7 +7,7 @@ import (
 )
 
 // Memory is an in-memory Manager for development. TODO(M3): replace with a
-// real mechanism (CRIU / runc/containerd checkpoint).
+// logical object-storage provider (S3/MinIO-compatible).
 type Memory struct {
 	mu        sync.Mutex
 	snapshots map[string]Snapshot
@@ -20,7 +20,7 @@ func NewMemory() *Memory {
 
 var _ Manager = (*Memory)(nil)
 
-// Snapshot records a snapshot keyed by the runtime ref.
+// Snapshot records a logical snapshot keyed by the runtime ref.
 func (m *Memory) Snapshot(ctx context.Context, runtimeRef string) (Snapshot, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -29,7 +29,8 @@ func (m *Memory) Snapshot(ctx context.Context, runtimeRef string) (Snapshot, err
 	return s, nil
 }
 
-// Restore verifies the snapshot exists; a real restore resumes the state.
+// Restore verifies the snapshot exists; a real provider restores portable state
+// into the target runtime.
 func (m *Memory) Restore(ctx context.Context, runtimeRef string, s Snapshot) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

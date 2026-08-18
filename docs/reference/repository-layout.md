@@ -2,51 +2,36 @@
 
 # Repository layout
 
-The six layers map onto the tree as follows. `api/` is the versioned public
-contract; `pkg/` holds the layers and their backends; `cmd/` holds the three
-processes.
-
 ```text
-api/v1alpha1/          versioned API types (the contract)
+api/v1alpha1/          versioned API types
 cmd/
-  gateway/            ④ admission — HTTP server, fail-closed
-  scheduler/          ③ scheduling — placement process
-  controller/         ⑥ control plane — lifecycle orchestrator
+  gateway/            trusted admission/router skeleton
+  scheduler/          runtime-allocation process (name provisional)
+  controller/         lifecycle orchestrator
 pkg/
-  runtime/            ① isolation boundary — the runtime-agnostic seam
-    kubernetes/       ① first backend (in-memory stub) + contract test
-  provisioning/       ② runtime images + profiles
-  scheduling/         ③ placement interface + first-fit default
-  gateway/            ④ admission logic
-  checkpoint/         ⑤ snapshot/restore contract
-  controlplane/       ⑥ lifecycle orchestration
+  runtime/            tenant-owned runtime contract
+    kubernetes/       Kubernetes backend adapter
+    runtimetest/      reusable backend contract suite
+  provisioning/       DSH runtime images + profiles
+  scheduling/         runtime allocation; never Node placement
+  gateway/            trusted principal + admission
+  checkpoint/         single logical persistence/restore authority
+  controlplane/       lifecycle orchestration
 config/
-  crds/               CRD manifest (exemplar)
-  rbac/               RBAC manifest
-hack/                 local quality gates (verify.sh)
+  crds/               Kubernetes CRD exemplars
+  rbac/               controller RBAC
 ```
 
-## Dependency direction
+## Dependency and ownership rules
 
-```text
-api  ◀──  pkg/*  ◀──  cmd/*
-```
+- `api/` stays independent from implementations.
+- `pkg/runtime` owns the isolation-boundary contract and tenant-aware
+  create/get/delete semantics.
+- `pkg/runtime/kubernetes` is allowed to use real Kubernetes concepts; those
+  details must not leak through unrelated packages.
+- `pkg/scheduling` allocates **Runtimes**, not Nodes.
+- `pkg/checkpoint` owns continuity; runtime backends do not define a competing
+  checkpoint API.
+- `pkg/runtime/runtimetest` is the reusable contract suite every backend runs.
 
-- `api/` is a leaf — it imports nothing from `pkg/` or `cmd/`.
-- `pkg/runtime` defines the seam the control plane depends on; backends
-  (`pkg/runtime/kubernetes`) implement it.
-- `pkg/scheduling` and `pkg/controlplane` import `api/` for the contract types.
-- `cmd/` wires the packages into processes.
-
-## The runtime seam (①)
-
-The single most important boundary is `pkg/runtime.Runtime` — the
-runtime-agnostic interface every backend implements. The control plane
-(scheduler, gateway, control plane) depends on `runtime.Runtime` and nothing
-Kubernetes-specific. The contract test any backend must pass lives at
-`pkg/runtime/kubernetes/kube_test.go`.
-
-## Status
-
-All components are skeletons — interfaces locked, implementations stubbed in
-memory. Real cluster integration lands at M1–M4; see [ROADMAP](../../ROADMAP.md).
+Interfaces remain prerelease through M1–M4.
