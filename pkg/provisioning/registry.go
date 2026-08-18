@@ -1,20 +1,39 @@
 package provisioning
 
-import "sync"
+import (
+	"sync"
 
-// InMemory is the default in-memory profile registry, seeded with the standard
-// workloads (Terminal, Python, Node).
+	"github.com/GuoMonth/dsh-isolated-runtime/pkg/runtime"
+)
+
+// InMemory is the default in-memory profile registry. Image names are local
+// placeholders until M4 publishes the standard DSH runtime images.
 type InMemory struct {
 	mu       sync.Mutex
 	profiles map[string]Profile
 }
 
-// NewInMemory returns a registry seeded with standard defaults.
+// NewInMemory returns a registry seeded with standard DSH runtime profiles.
 func NewInMemory() *InMemory {
 	return &InMemory{profiles: map[string]Profile{
-		"terminal": {Workload: "terminal", Image: "alpine:3.20", Seccomp: "runtime/default"},
-		"python":   {Workload: "python", Image: "python:3.12-slim", Seccomp: "runtime/default"},
-		"node":     {Workload: "node", Image: "node:20-slim", Seccomp: "runtime/default"},
+		"base": {
+			Workload:      "base",
+			Image:         "dsh-runtime:base",
+			SecurityClass: runtime.SecurityStandard,
+			Seccomp:       "runtime/default",
+		},
+		"data": {
+			Workload:      "data",
+			Image:         "dsh-runtime:data",
+			SecurityClass: runtime.SecuritySandboxed,
+			Seccomp:       "runtime/default",
+		},
+		"dev": {
+			Workload:      "dev",
+			Image:         "dsh-runtime:dev",
+			SecurityClass: runtime.SecuritySandboxed,
+			Seccomp:       "runtime/default",
+		},
 	}}
 }
 

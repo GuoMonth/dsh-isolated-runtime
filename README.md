@@ -2,106 +2,101 @@
 
 # dsh-isolated-runtime
 
-Kubernetes-native isolated runtime for
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH): one
-tenant, one Pod, with strong isolation, resumable sessions, and pluggable
-runtime images.
+Kubernetes-native isolated runtimes for
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH):
+tenant-owned runtime boundaries, resumable logical state, and pluggable runtime
+profiles.
 
-> **Phase: bootstrapping.** The repository and its docs are being initialized;
-> the control-plane components (Scheduler, Gateway, checkpoint/restore, runtime
-> images) are laid out but not yet implemented. See [ROADMAP.md](./ROADMAP.md).
+> **Phase: bootstrapping / M0.1 alignment.** The repository has a Go
+> control-plane skeleton. Before real Pod lifecycle work lands, the tenant
+> ownership, admission, allocation, persistence, and threat-model contracts are
+> being aligned. See [ROADMAP.md](./ROADMAP.md).
 
 ## What this is
 
-`dsh-isolated-runtime` is the **infrastructure-level** tenant-isolation layer
-for DSH. Where [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant)
-enforces isolation *inside* a shared runtime (application layer), this project
-gives each tenant its **own runtime boundary** — a dedicated Pod / container
-runtime — so that untrusted tenants (third-party plugins, Terminal sessions,
-Python / Node code execution) cannot escape into their neighbours or the host.
+`dsh-isolated-runtime` is the **infrastructure-enforced** tenant-isolation path
+for DSH. Where
+[`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant) isolates
+tenants inside a shared DSH runtime, this project gives each Runtime an explicit
+tenant owner and realizes that Runtime as a dedicated Pod/container boundary.
 
-The isolation boundary is the **runtime itself**, not a rule inside a shared
-process. A tenant's code, plugins, and filesystem live in their own Pod with
-their own network namespace, resource limits, and container-runtime policy. The
-control plane (Scheduler, Gateway) decides *where* a session runs and *resumes*
-it across restarts via checkpoint/restore.
+The cardinality is intentionally:
+
+> **1 Runtime → exactly 1 Tenant; 1 Tenant → 0..N Runtimes.**
+
+A tenant may start different runtimes for general assistant work, data analysis,
+development, or other profiles. A Runtime is never shared across tenants.
+
+This is a stronger boundary than application-level multi-tenancy, but it is not
+marketed as an absolute host-security guarantee. Standard containers share the
+host kernel; hostile arbitrary-code workloads can select a stronger
+`sandboxed` security class backed by an appropriate Kubernetes `RuntimeClass`.
 
 ## Choosing between the two
 
 | Project | Mode | Isolation boundary | Use case |
 | --- | --- | --- | --- |
 | [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant) | Shared Runtime | DSH application layer | High resource utilization, trusted plugin ecosystem |
-| **`dsh-isolated-runtime`** | Isolated Runtime | Pod / Container Runtime | Strong tenant isolation, plugins / Terminal / code execution |
+| **`dsh-isolated-runtime`** | Isolated Runtime | Dedicated runtime / Pod boundary | Stronger tenant isolation, plugins / Terminal / code execution |
 
-> If you require **strong tenant isolation with a dedicated runtime boundary** —
-> third-party plugins, Terminal sessions, Python / Node code execution — use
-> **`dsh-isolated-runtime`**.
->
-> If you only need application-level isolation on a shared DSH runtime — maximum
-> resource utilization across trusted tenants — use
-> [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant).
-
-In one line:
-
-- **`dsh-multi-tenant`** → want to save resources and share a runtime; follow the
-  multi-tenant protocol.
-- **`dsh-isolated-runtime`** → need strong tenant isolation; give each tenant its
-  own runtime.
-
-The two projects are complementary, not competing: **Shared Runtime** vs
-**Isolated Runtime**, **application-enforced isolation** vs
-**infrastructure-enforced isolation**.
+The two projects are complementary: **Shared Runtime** vs **Isolated Runtime**,
+**application-enforced isolation** vs **infrastructure-enforced isolation**.
 
 ## Guiding principles
 
-- **Infrastructure-enforced isolation** — the boundary is a real runtime
-  primitive (Pod / container), not a convention in shared code. A tenant cannot
-  cross it by accident or by omission.
-- **One tenant, one runtime** — no two tenants share a runtime; isolation does
-  not depend on tenants following a protocol.
-- **Runtime-agnostic control plane** — Scheduler and Gateway target a
-  container-runtime interface, not Kubernetes alone; Docker, Firecracker, or
-  Nomad may back it later.
-- **Resumable sessions** — checkpoint/restore keeps a session's runtime state
-  across pod rescheduling, so isolation does not cost session continuity.
+- **Ownership is data, not documentation.** Runtime ownership is explicit in the
+  API and runtime seam; tenant-aware lookup/delete fail closed for foreign
+  tenants.
+- **Allocate runtimes; do not reimplement kube-scheduler.** This control plane
+  decides reuse/create/profile/resources/security posture. Kubernetes decides
+  which Node a Pod runs on.
+- **Trusted identity comes from the transport boundary.** Gateway principals are
+  established server-side by authentication, never accepted from an ordinary
+  request body.
+- **Logical state is durable; Pods are disposable.** Initial continuity is
+  session/workspace/artifact state in object storage (S3/MinIO-compatible),
+  restored into a fresh runtime. Kernel/process-memory checkpointing is not an
+  M0 promise.
+- **Kubernetes-native first.** Kubernetes-specific implementation belongs behind
+  a clear adapter boundary. A runtime-agnostic public contract is promoted only
+  after a second backend proves the common denominator.
+- **Security classes, not arbitrary knobs.** Platform profiles select hardened
+  `standard` or stronger `sandboxed` policies rather than asking callers to
+  assemble low-level container security correctly.
 
-## Components (initial scope)
+## Components
 
 | Component | Role |
 | --- | --- |
-| Scheduler | Places each tenant session on a dedicated runtime (Pod) with resource and security-policy constraints. |
-| Gateway | The admission point that routes a session to its isolated runtime. |
-| checkpoint/restore | Captures and resumes a session's runtime state across rescheduling. |
-| runtime images | Standard runtime images and profiles per workload (Terminal, Python, Node, …). |
-
-See [ROADMAP.md](./ROADMAP.md) for milestones and status. See
-[CONTRIBUTING.md](./CONTRIBUTING.md) for how development is done here. Full
-documentation lives in [`docs/`](./docs/README.md).
+| Runtime boundary | Tenant-owned Pod/container runtime; never cross-tenant shared. |
+| Provisioning | Standard DSH runtime images + workload/security profiles. |
+| Runtime allocation | Decide reuse vs create and the desired profile/resources; never choose a Kubernetes Node. |
+| Gateway | Trusted authentication + tenant/session resolution; evolves into the DSH HTTP/WS/stream runtime router/reverse proxy. |
+| Persistence / restore | Logical DSH/session/workspace/artifact state to object storage and restore into a fresh Runtime. |
+| Control plane | API / CRDs / controllers orchestrating the lifecycle. |
 
 ## Repository layout
 
-The six layers map onto the tree as follows:
-
 ```text
-api/v1alpha1/          versioned API types (the contract)
+api/v1alpha1/          versioned API types
 cmd/
-  gateway/            ④ admission — HTTP server, fail-closed
-  scheduler/          ③ scheduling — placement process
-  controller/         ⑥ control plane — lifecycle orchestrator
+  gateway/            trusted admission/router skeleton
+  scheduler/          runtime-allocation process (name remains provisional)
+  controller/         lifecycle orchestrator
 pkg/
-  runtime/            ① isolation boundary — the runtime-agnostic seam
-  provisioning/       ② runtime images + profiles
-  scheduling/         ③ placement interface + first-fit default
-  gateway/            ④ admission logic
-  checkpoint/         ⑤ snapshot/restore contract
-  controlplane/       ⑥ lifecycle orchestration
+  runtime/            tenant-owned runtime seam
+    kubernetes/       first backend adapter
+    runtimetest/      reusable backend contract suite
+  provisioning/       DSH runtime images + profiles
+  scheduling/         runtime allocation (not Node scheduling)
+  gateway/            trusted principal + admission
+  checkpoint/         logical persistence/restore authority
+  controlplane/       lifecycle orchestration
 config/               CRD + RBAC manifests
 ```
 
-The single most important boundary is `pkg/runtime.Runtime` — the
-runtime-agnostic seam every backend implements. See
-[docs/reference/repository-layout.md](./docs/reference/repository-layout.md) for
-the full map.
+See [docs/specs/architecture.md](./docs/specs/architecture.md) for the global
+model and [ROADMAP.md](./ROADMAP.md) for sequencing.
 
 ## License
 

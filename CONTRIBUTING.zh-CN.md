@@ -6,41 +6,38 @@
 
 本仓库按 **先规格、再测试、最后实现** 的顺序开发。
 
-1. **规格** —— 一个能力从一个书面规格开始：*边界图*（surface + 缺口）、契约草案，
-   或记录决策的 *ADR*。契约未落笔前不写实现。
-2. **测试** —— 在实现之前先写契约测试。一个组件的契约测试是一套**共享套件**，
-   该边界的任何实现都必须通过它。
-3. **实现** —— 满足规格与测试的最小实现。
+1. **规格** —— 先写清边界和不变量，再写实现。
+2. **测试** —— 可复用契约测试证明 backend 行为；端到端隔离测试证明安全属性。
+3. **实现** —— 只实现满足规格与测试的最小内容。
+
+## 组件边界
+
+- **Runtime ownership 不可协商。** 每个 Runtime 恰好属于一个 Tenant；一个 Tenant 可以拥有
+  多个 Runtime；跨租户 Runtime reuse 永远非法。
+- **不要重新实现 Kubernetes 已经负责的基础设施职责。** Runtime allocation 决定
+  reuse/create/profile/resources/security posture；Pod 到 Node 的调度仍交给 Kubernetes。
+- **允许 Kubernetes 特定实现，但必须放在明确 adapter 后面。** Kubernetes 是第一个真实
+  backend；K8s API 细节应留在 backend/controller adapter 中，不要在第二 backend 出现前
+  强行抽象最低公分母。
+- **Principal 是可信 transport state。** 调用方身份由服务端认证建立；公开 request payload
+  可以描述目标资源，但不能建立调用者身份。
+- **连续性优先采用逻辑状态。** `pkg/checkpoint` 是 persistence/restore 的唯一权威；
+  不要再在 `pkg/runtime` 建第二套 checkpoint contract。
+- **不要预建没有真实边界的组件。** 新 package/process 必须有已证明的安装、替换、
+  生命周期或安全边界。
+
+## 测试
+
+- **Runtime Contract Suite** —— 位于 `pkg/runtime/runtimetest` 的共享套件；每个 backend
+  都必须证明 ownership 不可变、外租户不可枚举、冲突语义与生命周期行为。
+- **组件测试** —— allocation、admission、persistence、control-plane 契约。
+- **隔离测试** —— 端到端验证跨租户文件系统、网络、credential 与路由隔离；
+  更强宿主隔离声明必须明确绑定具体 `SecurityClass` / `RuntimeClass`。
 
 ## 双语文档
 
-每份面向用户的文档都以英文（默认）和简体中文两种语言提供：
-
-- 英文：`README.md`、`CONTRIBUTING.md`、`ROADMAP.md`、`docs/README.md`
-- 中文：`README.zh-CN.md`、`CONTRIBUTING.zh-CN.md`、`ROADMAP.zh-CN.md`、
-  `docs/README.zh-CN.md`
-
-每份文件以语言切换开头：英文文件链接中文译文，反之亦然。任一语言变更时请保持两者同步。
-
-## 组件边界（不可协商）
-
-- **隔离边界是运行时原语**（Pod / 容器），而非共享进程内的规则。任何把隔离*移入*共享
-  代码的改动都超出范围——那是 `dsh-multi-tenant` 的职责。
-- **控制平面运行时无关。** Scheduler 与 Gateway 面向容器运行时接口，而非直接面向
-  Kubernetes。将 Kubernetes 硬编码进控制平面的 PR 会被拒绝。
-- **不要脚手架式地预建组件。** 只有在独立的安装 / 替换 / 生命周期边界被*证明*之后才
-  创建组件，并以规格或 ADR 为依据，而非以代码量为依据。
-
-## 测试：契约 vs 隔离
-
-两类测试证明不同的事情：
-
-- **契约测试套件** —— 针对组件边界（例如 Scheduler 的调度接口）。任何实现都必须通过
-  同一套套件。这正是"运行时无关"得以成立的保证：Docker 或 Firecracker 后端由契约证明，
-  而非由命令规定。
-- **隔离测试** —— 端到端地证明租户无法逃逸其运行时边界（网络、文件系统、宿主机资源）。
-  这是本项目的"皇冠"测试。
+所有面向用户的架构/文档改动必须同步更新英文与简体中文。
 
 ## 许可证
 
-贡献即表示你同意你的贡献按本项目的 [MIT 许可证](./LICENSE) 授权。
+贡献即表示你同意按 MIT 许可证授权。

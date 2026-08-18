@@ -1,13 +1,13 @@
-# The Runtime CRD is the exemplar for the ① isolation boundary. The remaining
-# kinds (RuntimeImage, RuntimeProfile, RuntimeSession, Checkpoint) follow the
-# same pattern. Full CRDs are generated from api/v1alpha1 at M1.
+# Runtime is namespaced and tenant-owned. Namespace placement is an
+# infrastructure boundary; spec.tenant is the explicit immutable application
+# owner used by the runtime contract and control plane.
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: runtimes.runtime.dsh.io
 spec:
   group: runtime.dsh.io
-  scope: Cluster
+  scope: Namespaced
   names:
     kind: Runtime
     listKind: RuntimeList
@@ -23,9 +23,19 @@ spec:
           properties:
             spec:
               type: object
+              required: [tenant]
+              x-kubernetes-validations:
+                - rule: "self.tenant == oldSelf.tenant"
+                  message: "spec.tenant is immutable"
               properties:
+                tenant:
+                  type: string
+                  minLength: 1
                 runtimeClass:
                   type: string
+                securityClass:
+                  type: string
+                  enum: [standard, sandboxed]
                 networkIsolation:
                   type: boolean
                 resourceLimits:

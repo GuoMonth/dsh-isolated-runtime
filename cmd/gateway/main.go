@@ -1,5 +1,4 @@
-// Command gateway runs the admission point (④): it authenticates, authorizes,
-// and resolves a session to its runtime, fail-closed.
+// Command gateway runs the trusted runtime admission/router boundary (④).
 package main
 
 import (
@@ -17,9 +16,10 @@ import (
 
 func main() {
 	log.Printf("gateway %s", version.String())
-	// TODO(M4): wire a real Authorizer + SessionResolver. nil → deny-all.
+	// TODO(M2): wire a real transport Authenticator, Authorizer, SessionResolver,
+	// and DSH HTTP/WebSocket/stream reverse proxy. nil dependencies deny all.
 	admitter := gateway.NewAdmitter(nil, nil)
-	server := gateway.NewServer(admitter)
+	server := gateway.NewServer(nil, admitter)
 
 	srv := &http.Server{
 		Addr:              ":8080",

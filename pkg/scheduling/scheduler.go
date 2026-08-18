@@ -1,20 +1,35 @@
-// Package scheduling decides where a session runs (③).
+// Package scheduling allocates tenant sessions to tenant-owned runtimes (③).
+//
+// Despite the package/process name, this layer does not choose Kubernetes
+// Nodes. Kubernetes remains responsible for Pod-to-Node scheduling.
 package scheduling
 
 import (
 	"context"
 
 	"github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
+	"github.com/GuoMonth/dsh-isolated-runtime/pkg/runtime"
 )
 
-// Placement is the result of a scheduling decision. It is runtime-agnostic:
-// a runtime name, not a Kubernetes binding.
-type Placement struct {
-	RuntimeName string
-	Node        string
+// Request is the input to runtime allocation.
+type Request struct {
+	Tenant             string
+	Session            string
+	DesiredRuntimeName string
+	AllowReuse         bool
+	RuntimeClass       string
+	SecurityClass      runtime.SecurityClass
+	Image              string
+	Constraints        v1alpha1.RuntimeConstraints
 }
 
-// Scheduler decides where a session runs (③).
-type Scheduler interface {
-	Place(ctx context.Context, constraints v1alpha1.SchedulingConstraints) (Placement, error)
+// Allocation is the result of deciding whether to reuse or create a runtime.
+type Allocation struct {
+	RuntimeName string
+	Reuse       bool
+}
+
+// Allocator decides which tenant-owned runtime should serve a session.
+type Allocator interface {
+	Allocate(ctx context.Context, req Request) (Allocation, error)
 }

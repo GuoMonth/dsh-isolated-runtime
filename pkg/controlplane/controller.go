@@ -1,6 +1,6 @@
 // Package controlplane orchestrates the six layers (⑥): it drives the session
-// lifecycle across admission, scheduling, provisioning, and the isolation
-// boundary.
+// lifecycle across admission, runtime allocation, provisioning, and the
+// isolation boundary.
 package controlplane
 
 import "context"

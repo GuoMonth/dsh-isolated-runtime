@@ -2,47 +2,54 @@
 
 # Roadmap
 
-Statuses: ✅ done · 🚧 next (settled) · ⏳ deferred (decision-gated).
-
-The initial milestone is **M0 — bootstrapping**: stand up the repository and
-frame the four components that form the isolated-runtime control plane — in one
-place, rather than prematurely split.
+Statuses: ✅ done · 🚧 next · ⏳ deferred.
 
 ## Done
 
-- ✅ **M0 — Bootstrapping** — repository, bilingual docs, the six-layer
-  architecture spec, and the Go control-plane skeleton (`api/` + `cmd/` +
-  `pkg/` + `config/` + CI). Interfaces are locked; implementations are in-memory
-  stubs pending M1–M4.
+- ✅ **M0 — Bootstrapping.** Repository, bilingual docs, six-layer architecture,
+  Go control-plane skeleton, CI.
+- ✅ **M0.1 — Architecture alignment.** Make Runtime tenant ownership explicit;
+  define runtime allocation as reuse/create rather than Node placement; move
+  Gateway identity to trusted transport context; establish one logical
+  persistence/restore authority; add reusable runtime contract tests; tighten
+  isolation wording and Kubernetes adapter boundaries.
 
-## Next (settled)
+## Next
 
-- 🚧 **M1 — Scheduler.** Place each tenant session on a dedicated runtime (Pod)
-  with resource and security-policy constraints; expose the placement decision
-  as a stable interface so a non-Kubernetes backend can implement it later.
-- 🚧 **M2 — Gateway.** The admission point that routes a session to its isolated
-  runtime; the single place where "which tenant, which runtime" is decided.
-- 🚧 **M3 — checkpoint/restore.** Capture and resume a session's runtime state
-  across pod rescheduling, so isolation does not cost session continuity.
-- 🚧 **M4 — runtime images.** Standard runtime images and profiles per workload
-  (Terminal, Python, Node, …) with a versioned profile contract.
+- 🚧 **M1 — Kubernetes Runtime backend + allocation.** Reconcile tenant-owned
+  Runtime objects into real Pods, apply profile/resource/security constraints,
+  and let kube-scheduler choose Nodes. Add inventory needed for safe same-tenant
+  reuse.
+- 🚧 **M2 — Gateway router/reverse proxy.** Wire real authentication and
+  authorization, resolve tenant + conversation/session → Runtime, then proxy DSH
+  HTTP/WebSocket/stream traffic without exposing runtime topology.
+- 🚧 **M3 — Logical persistence + restore.** Persist DSH/session/workspace/
+  artifact state and a versioned manifest to S3/MinIO-compatible object storage;
+  restore into a fresh Runtime.
+- 🚧 **M4 — Standard DSH runtime images.** Publish `base`, `data`, `dev`, and
+  later specialized profiles with platform-generated `standard` / `sandboxed`
+  security posture.
 
-## Deferred (decision-gated)
+## Deferred
 
-- ⏳ **Runtime-agnostic backend.** Prove the control plane against a second
-  container-runtime interface (Docker / Firecracker / Nomad) before generalizing.
-- ⏳ **Public-contract freeze.** Names and surfaces are provisional until M1–M4
-  settle the component boundaries.
+- ⏳ **Process/container-memory checkpointing.** CRIU/runc/containerd checkpoint
+  is not required for the initial continuity model; revisit only with a proven
+  workload need.
+- ⏳ **Second backend / runtime-agnostic contract freeze.** Keep Kubernetes-first
+  adapter boundaries clean, then extract a stable common contract only after
+  Docker, Firecracker, Nomad, or another backend demonstrates it.
+- ⏳ **Public-contract freeze.** Names and surfaces remain provisional through
+  M1–M4.
 
 ## Milestones
 
-- **M0 — Bootstrapping** ✅ repository, bilingual docs, six-layer architecture spec, Go control-plane skeleton.
-- **M1 — Scheduler.**
-- **M2 — Gateway.**
-- **M3 — checkpoint/restore.**
-- **M4 — runtime images.**
-- **M5 — End-to-end isolation suite** — the executable proof that a tenant cannot
-  escape its runtime boundary (network, filesystem, host).
-
-Each milestone is gated by its predecessor's decision; deferred items are pulled
-forward only when their gate (a decision or an upstream seam) closes.
+- **M0** ✅ Bootstrapping.
+- **M0.1** ✅ Architecture alignment.
+- **M1** Kubernetes Runtime backend + allocation.
+- **M2** Gateway router / reverse proxy.
+- **M3** Logical persistence + restore.
+- **M4** Standard DSH runtime images + profiles.
+- **M5 — End-to-end isolation suite.** Prove cross-tenant isolation across
+  runtime ownership, filesystem, network, credentials/service accounts, and
+  routing. Host-compromise/hostile-kernel guarantees are explicitly tied to the
+  selected security class and RuntimeClass rather than implied by every Pod.

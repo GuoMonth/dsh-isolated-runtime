@@ -1,6 +1,6 @@
 // Command controller is the control plane (⑥): it orchestrates the session
-// lifecycle across admission, scheduling, provisioning, and the isolation
-// boundary. Today it is a skeleton with no watch loop.
+// lifecycle across runtime allocation, provisioning, persistence, and the
+// isolation boundary. Today it is a skeleton with no watch loop.
 package main
 
 import (
@@ -18,10 +18,10 @@ import (
 func main() {
 	log.Printf("controller %s", version.String())
 	// TODO(M1): replace the in-memory backend with a real cluster client and
-	// run a controller-runtime reconciler over RuntimeSession objects.
+	// reconcile RuntimeSession objects into tenant-owned Runtime Pods.
 	rt := kubernetes.New()
-	sched := &scheduling.FirstFit{Runtimes: []string{"runtime-default"}}
-	_ = controlplane.New(rt, sched)
+	allocator := &scheduling.FirstFit{}
+	_ = controlplane.New(rt, allocator)
 
 	log.Println("controller ready (skeleton: no watch loop yet)")
 

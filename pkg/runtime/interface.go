@@ -1,9 +1,7 @@
-// Package runtime defines the runtime-agnostic isolation-boundary seam (①).
+// Package runtime defines the isolation-boundary seam (①).
 //
-// The control plane depends on this interface and nothing else. Kubernetes is
-// the first backend; Docker, Firecracker, and Nomad may implement the same
-// interface later. This is what keeps "runtime-agnostic" honest: a backend is
-// proven by the contract, not by fiat.
+// Kubernetes is the first backend. The abstraction is intentionally small and
+// provisional until a second backend proves the common contract.
 package runtime
 
 import (
@@ -11,10 +9,23 @@ import (
 	"errors"
 )
 
+// SecurityClass is a platform-defined isolation posture.
+type SecurityClass string
+
+const (
+	// SecurityStandard uses the platform's hardened standard container policy.
+	SecurityStandard SecurityClass = "standard"
+	// SecuritySandboxed requests a stronger sandbox RuntimeClass for hostile
+	// arbitrary-code workloads.
+	SecuritySandboxed SecurityClass = "sandboxed"
+)
+
 // Spec describes the boundary to provision.
 type Spec struct {
 	Name             string
+	Tenant           string
 	RuntimeClass     string
+	SecurityClass    SecurityClass
 	Image            string
 	NetworkIsolation bool
 	ResourceLimits   map[string]string
@@ -22,27 +33,29 @@ type Spec struct {
 
 // Info is the observed state of a boundary.
 type Info struct {
-	Name    string
-	Phase   string // Pending, Running, Checkpointed, Terminated
-	Address string // backend-local address (e.g. pod://name)
+	Name          string
+	Tenant        string
+	RuntimeClass  string
+	SecurityClass SecurityClass
+	Image         string
+	Phase         string // Pending, Running, Terminated
+	Address       string // backend-local address (e.g. pod://name)
 }
 
-// CheckpointRef is an opaque handle to a captured runtime state.
-type CheckpointRef struct {
-	Name string
-}
-
-// Runtime is the isolation-boundary seam (①). Every backend implements it.
+// Runtime is the isolation-boundary seam (①).
+//
+// Ownership is part of the contract: every runtime has exactly one tenant.
+// Tenant-aware lookup/delete deliberately return ErrNotFound for a foreign
+// tenant so callers cannot use this seam to enumerate another tenant's runtime.
 type Runtime interface {
 	Create(ctx context.Context, spec Spec) (*Info, error)
-	Get(ctx context.Context, name string) (*Info, error)
-	Delete(ctx context.Context, name string) error
-	Checkpoint(ctx context.Context, name string) (CheckpointRef, error)
-	Restore(ctx context.Context, name string, ref CheckpointRef) (*Info, error)
+	Get(ctx context.Context, tenant, name string) (*Info, error)
+	Delete(ctx context.Context, tenant, name string) error
 }
 
 // Sentinel errors returned by backends.
 var (
-	ErrNotFound = errors.New("runtime: not found")
-	ErrConflict = errors.New("runtime: already exists")
+	ErrInvalidSpec = errors.New("runtime: invalid spec")
+	ErrNotFound    = errors.New("runtime: not found")
+	ErrConflict    = errors.New("runtime: already exists")
 )
