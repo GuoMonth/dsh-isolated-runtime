@@ -75,9 +75,9 @@ type podList struct {
 
 type podSpec struct {
 	AutomountServiceAccountToken *bool       `json:"automountServiceAccountToken,omitempty"`
-	RuntimeClassName              string      `json:"runtimeClassName,omitempty"`
-	RestartPolicy                 string      `json:"restartPolicy,omitempty"`
-	Containers                    []container `json:"containers"`
+	RuntimeClassName             string      `json:"runtimeClassName,omitempty"`
+	RestartPolicy                string      `json:"restartPolicy,omitempty"`
+	Containers                   []container `json:"containers"`
 }
 
 type container struct {
@@ -128,9 +128,7 @@ type containerStatus struct {
 
 // Backend persists Runtime desired state in the Runtime CRD and realizes each
 // object as one tenant-owned Pod.
-type Backend struct {
-	client *restClient
-}
+type Backend struct{ client *restClient }
 
 var _ runtime.Runtime = (*Backend)(nil)
 
@@ -146,8 +144,6 @@ func NewInCluster(namespace string) (*Backend, error) {
 	}
 	return &Backend{client: client}, nil
 }
-
-func newWithRESTClient(client *restClient) *Backend { return &Backend{client: client} }
 
 func normalizeSpec(spec runtime.Spec) (runtime.Spec, error) {
 	if spec.Name == "" || spec.Tenant == "" || spec.Image == "" {
@@ -371,7 +367,7 @@ func (b *Backend) ensureNetworkPolicy(ctx context.Context, name string) error {
 	policy := map[string]any{
 		"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
 		"metadata": map[string]any{"name": name, "namespace": b.client.namespace, "labels": map[string]string{managedByLabel: managedByValue, runtimeLabel: name}},
-		"spec": map[string]any{"podSelector": map[string]any{"matchLabels": map[string]string{runtimeLabel: name}}, "policyTypes": []string{"Ingress", "Egress"}},
+		"spec":     map[string]any{"podSelector": map[string]any{"matchLabels": map[string]string{runtimeLabel: name}}, "policyTypes": []string{"Ingress", "Egress"}},
 	}
 	return b.client.do(ctx, http.MethodPost, b.client.networkPolicyCollectionPath(), policy, nil)
 }
@@ -410,13 +406,13 @@ func podForSpec(namespace string, spec runtime.Spec, hash string) pod {
 		Metadata: objectMeta{Name: spec.Name, Namespace: namespace, Labels: labels, Annotations: annotations},
 		Spec: podSpec{
 			AutomountServiceAccountToken: &automount,
-			RuntimeClassName:              spec.RuntimeClass,
-			RestartPolicy:                 "Always",
+			RuntimeClassName:             spec.RuntimeClass,
+			RestartPolicy:                "Always",
 			Containers: []container{{
 				Name: "runtime", Image: spec.Image, ImagePullPolicy: "IfNotPresent",
 				SecurityContext: containerSecurity{
 					AllowPrivilegeEscalation: false, RunAsNonRoot: true,
-					Capabilities: capabilities{Drop: []string{"ALL"}},
+					Capabilities:   capabilities{Drop: []string{"ALL"}},
 					SeccompProfile: seccompProfile{Type: "RuntimeDefault"},
 				},
 				Resources: containerResources{Limits: spec.ResourceLimits},
