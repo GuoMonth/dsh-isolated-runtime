@@ -18,12 +18,5 @@ func (s runtimeCRSpec) MarshalJSON() ([]byte, error) {
 		NetworkIsolation bool                  `json:"networkIsolation"`
 		ResourceLimits   map[string]string     `json:"resourceLimits,omitempty"`
 	}
-	return json.Marshal(wire{
-		Tenant:           s.Tenant,
-		RuntimeClass:     s.RuntimeClass,
-		SecurityClass:    s.SecurityClass,
-		Image:            s.Image,
-		NetworkIsolation: s.NetworkIsolation,
-		ResourceLimits:   s.ResourceLimits,
-	})
+	return json.Marshal(wire(s))
 }
