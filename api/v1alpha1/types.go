@@ -1,7 +1,8 @@
 package v1alpha1
 
 // TypeMeta describes an individual API object's type. It is a self-contained
-// stand-in for metav1.TypeMeta; the real Kubernetes types are adopted at M1.
+// stand-in for metav1.TypeMeta; the M1 Kubernetes adapter intentionally uses a
+// narrow REST boundary rather than importing Kubernetes Go types here.
 type TypeMeta struct {
 	APIVersion string `json:"apiVersion,omitempty"`
 	Kind       string `json:"kind,omitempty"`
@@ -36,6 +37,8 @@ type RuntimeSpec struct {
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 	// SecurityClass is a platform-defined posture such as standard or sandboxed.
 	SecurityClass string `json:"securityClass,omitempty"`
+	// Image is the OCI image realized by the M1 runtime Pod.
+	Image string `json:"image"`
 	// NetworkIsolation requests a dedicated network namespace with no
 	// cross-tenant traffic by default.
 	NetworkIsolation bool `json:"networkIsolation,omitempty"`
@@ -45,7 +48,7 @@ type RuntimeSpec struct {
 
 // RuntimeStatus is the observed state of a boundary.
 type RuntimeStatus struct {
-	// Phase is Pending, Running, or Terminated.
+	// Phase is Pending, Running, Failed, or Terminating.
 	Phase string `json:"phase,omitempty"`
 	// RuntimeRef is the backend's identifier for this boundary.
 	RuntimeRef string `json:"runtimeRef,omitempty"`

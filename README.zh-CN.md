@@ -6,9 +6,28 @@
 Kubernetes 原生隔离运行时：显式的租户运行时所有权、可恢复的逻辑状态，以及可插拔的
 运行时 profile。
 
-> **阶段：启动中 / M0.1 架构对齐。** 仓库已经具备 Go 控制平面骨架。在真正接入 Pod
-> 生命周期之前，先把租户所有权、准入、运行时分配、持久化与威胁模型契约对齐。
-> 参见 [ROADMAP.md](./ROADMAP.zh-CN.md)。
+> **阶段：M1 自托管控制面。** 仓库现在已经提供真实 Kubernetes Runtime backend，以及
+> 单实例业务控制面：Runtime reconcile、实时 inventory 和最小 Admin UI/API。参见
+> [ROADMAP.md](./ROADMAP.zh-CN.md)。
+
+## M1 快速启动
+
+构建并推送控制面镜像（或把 Deployment 改成你自己的镜像），然后安装：
+
+```sh
+kubectl apply -k config
+kubectl -n dsh-isolated-system port-forward service/dsh-isolated-control-plane 8080:8080
+```
+
+打开 `http://127.0.0.1:8080`，使用 M1 有意固定的启动账号：
+
+```text
+Admin / Admin
+```
+
+默认 Service 是 `ClusterIP`；不要把这套 M1 固定账号的 Admin UI 直接暴露到公网。
+安装、API 示例和 M1 边界见
+[docs/guides/self-hosted-control-plane.zh-CN.md](./docs/guides/self-hosted-control-plane.zh-CN.md)。
 
 ## 这是什么
 
@@ -42,12 +61,15 @@ Kubernetes 原生隔离运行时：显式的租户运行时所有权、可恢复
 
 - **所有权必须进入数据模型。** Runtime ownership 是 API 与 runtime seam 的一部分；
   外租户查询/删除默认拒绝，而不是只靠文档约定。
+- **自己承载业务控制面语义，不重复 Kubernetes 基础设施能力。** M1 服务负责 tenant/runtime
+  期望状态、inventory、reuse/create 决策和 Admin 操作；Pod 到 Node 的调度和底层基础设施
+  状态仍由 Kubernetes 负责。
 - **分配 Runtime，不重新实现 kube-scheduler。** 本项目决定复用还是创建 Runtime、
   profile、资源与安全等级；Pod 最终落在哪个 Node 由 Kubernetes 负责。
 - **身份来自可信 transport。** Gateway 的 Principal 必须由服务端认证边界建立，
-  不能从普通请求 body 接收。
+  不能从普通请求 body 接收。M1 固定 Admin 身份只是临时后台登录，与后续 Gateway 身份模型分离。
 - **状态持久，Pod 可丢弃。** 第一阶段连续性采用 DSH/session/workspace/artifact 的逻辑状态
-  持久化到 S3/MinIO 兼容对象存储，然后恢复到新 Runtime；M0 不承诺 CRIU/进程内存快照。
+  持久化到 S3/MinIO 兼容对象存储，然后恢复到新 Runtime；M1 不承诺 CRIU/进程内存快照。
 - **Kubernetes-native first。** Kubernetes 特定代码放在明确 adapter 边界后面；只有第二个
   backend 真正证明共同点后，才冻结 runtime-agnostic 公共契约。
 - **暴露安全等级，而不是一堆底层旋钮。** 平台 profile 选择 hardened `standard` 或更强的
@@ -59,29 +81,29 @@ Kubernetes 原生隔离运行时：显式的租户运行时所有权、可恢复
 | --- | --- |
 | Runtime boundary | 租户独占的 Pod / 容器 Runtime，绝不跨租户共享。 |
 | Provisioning | 标准 DSH runtime images + workload/security profiles。 |
-| Runtime allocation | 决定复用/创建、profile、资源与安全等级；不选择 Kubernetes Node。 |
-| Gateway | 可信认证 + tenant/session 解析；后续演进为 DSH HTTP/WS/stream 的 runtime router/reverse proxy。 |
+| Runtime allocation | 从实时同租户 Runtime inventory 决定复用/创建；不选择 Kubernetes Node。 |
+| Admin control plane | M1 自托管 UI/API + Runtime 期望状态与 reconcile。 |
+| Gateway | 可信认证 + tenant/session 解析；M2 演进为 DSH HTTP/WS/stream 的 runtime router/reverse proxy。 |
 | Persistence / restore | 将 DSH/session/workspace/artifact 逻辑状态持久化到对象存储并恢复到新 Runtime。 |
-| Control plane | API / CRDs / controllers 编排生命周期。 |
 
 ## 仓库结构
 
 ```text
 api/v1alpha1/          版本化 API 类型
 cmd/
-  gateway/            可信准入 / router 骨架
-  scheduler/          Runtime allocation 进程（名称暂定）
-  controller/         生命周期编排
+  gateway/            可信准入 / router 骨架（M2）
+  scheduler/          独立 allocation 骨架；M1 allocation 内嵌在控制面
+  controller/         M1 自托管控制面
 pkg/
   runtime/            租户所有权进入契约的 runtime seam
-    kubernetes/       第一个 backend adapter
+    kubernetes/       真实 Runtime CR + Pod backend / reconciler
     runtimetest/      可复用 backend 契约测试
   provisioning/       DSH runtime images + profiles
   scheduling/         Runtime allocation（不是 Node scheduling）
   gateway/            trusted principal + admission
   checkpoint/         逻辑持久化/恢复的唯一权威
-  controlplane/       生命周期编排
-config/               CRD + RBAC 清单
+  controlplane/       Admin UI/API + 生命周期编排
+config/               CRD + RBAC + Deployment + Service + Kustomize 安装
 ```
 
 全局模型见 [docs/specs/architecture.md](./docs/specs/architecture.zh-CN.md)，
