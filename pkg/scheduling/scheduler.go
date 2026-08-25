@@ -33,3 +33,9 @@ type Allocation struct {
 type Allocator interface {
 	Allocate(ctx context.Context, req Request) (Allocation, error)
 }
+
+// Inventory is the live runtime inventory used by allocation. The Kubernetes
+// backend implements it from Runtime CRs + observed Pods.
+type Inventory interface {
+	List(ctx context.Context, tenant string) ([]runtime.Info, error)
+}
