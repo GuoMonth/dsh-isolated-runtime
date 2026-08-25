@@ -1,6 +1,3 @@
-# Runtime is namespaced and tenant-owned. Namespace placement is an
-# infrastructure boundary; spec.tenant is the explicit immutable application
-# owner used by the runtime contract and control plane.
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -13,17 +10,33 @@ spec:
     listKind: RuntimeList
     plural: runtimes
     singular: runtime
+    shortNames: [dshrt]
   versions:
     - name: v1alpha1
       served: true
       storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Tenant
+          type: string
+          jsonPath: .spec.tenant
+        - name: Image
+          type: string
+          jsonPath: .spec.image
+        - name: Security
+          type: string
+          jsonPath: .spec.securityClass
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
       schema:
         openAPIV3Schema:
           type: object
           properties:
             spec:
               type: object
-              required: [tenant]
+              required: [tenant, image]
               x-kubernetes-validations:
                 - rule: "self.tenant == oldSelf.tenant"
                   message: "spec.tenant is immutable"
@@ -31,13 +44,18 @@ spec:
                 tenant:
                   type: string
                   minLength: 1
+                image:
+                  type: string
+                  minLength: 1
                 runtimeClass:
                   type: string
                 securityClass:
                   type: string
                   enum: [standard, sandboxed]
+                  default: standard
                 networkIsolation:
                   type: boolean
+                  default: true
                 resourceLimits:
                   type: object
                   additionalProperties:
@@ -47,6 +65,7 @@ spec:
               properties:
                 phase:
                   type: string
+                  enum: [Pending, Running, Failed, Terminating]
                 runtimeRef:
                   type: string
                 message:
