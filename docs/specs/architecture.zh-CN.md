@@ -1,75 +1,70 @@
-[English](./architecture.md) | 简体中文
+# 架构
 
-# 架构 —— 六层
+## 唯一边界
 
-本项目是一个隔离 Runtime 控制平面。隔离在 Runtime 边界强制执行；边界之上的层负责
-Runtime allocation、可信路由、逻辑持久化与生命周期编排。
+一个 `Cell` 是一个 namespaced DSH 信任、执行与持久状态边界；namespace 就是 tenant
+identity。Cell 不是缩小版 Kubernetes，而是一层翻译为原生资源的窄意图 API。
 
-## 核心不变量
+| 关注点 | 权威系统 |
+| --- | --- |
+| Fleet、placement、restart、rollout、quota、RBAC | Kubernetes |
+| 外部监听与 HTTP 路由 | Gateway API |
+| 持久卷与快照 | CSI |
+| Session、附件、storage domain、应用协议 | DSH |
+| Cell 到原生资源的翻译、access seam | 本项目 |
 
-> **每个 Runtime 恰好属于一个 Tenant；一个 Tenant 可以拥有多个 Runtime；
-> 任何 Runtime 都不能跨租户共享。**
+Cell API 不选择 Node，也不携带 session 状态、拓扑、路由或 workload 实现细节。Operator
+将根据 namespace、Cell identity、集群策略与观测状态派生这些资源。
 
-这个不变量必须同时出现在 API 类型、runtime backend 契约、allocation 与端到端测试中，
-而不是只写在 README。
-
-## 六层
-
-| # | 层 | 工件 | 职责 |
-| --- | --- | --- | --- |
-| ① | **隔离边界** | tenant-owned Runtime / Pod | 独享文件系统/进程/网络边界；支持 `standard` / `sandboxed` 安全等级。 |
-| ② | **供给** | DSH runtime images + profiles | `base`、`data`、`dev` 等 profile，由平台生成安全 posture。 |
-| ③ | **Runtime allocation** | allocator | 决定同租户 reuse 还是 create，以及所需约束；永远不选择 Kubernetes Node。 |
-| ④ | **可信路由** | Gateway | 服务端认证、tenant/session 授权、Runtime 解析，并代理 DSH HTTP/WS/stream。 |
-| ⑤ | **连续性** | 逻辑持久化 / 恢复 | 将 DSH/session/workspace/artifact 状态 + manifest 持久化到对象存储，并恢复到新 Runtime。 |
-| ⑥ | **控制平面** | API / CRDs / controllers | reconcile ①–⑤ 的 tenant-owned Runtime 生命周期。 |
-
-## 请求流
+## 目标资源图
 
 ```text
-Browser / API client
-  -> Gateway authentication
-  -> 服务端 context 中的 trusted Principal
-  -> 授权目标 tenant + conversation/session
-  -> 解析已有 Runtime 或请求 allocation
-  -> create/reuse tenant-owned Runtime
-  -> Kubernetes 创建 Pod；Node 由 kube-scheduler 决定
-  -> 代理 DSH HTTP / WebSocket / streaming
+Cell
+  └─ operator（Phase 1）
+      ├─ data PVC
+      ├─ 内部 credential/signing store
+      ├─ Pod：launcher（PID 1）→ DSH 子进程
+      ├─ ClusterIP Service
+      └─ NetworkPolicy
+
+identity + Cell authorization（Phase 2）
+  → Gateway API route
+  → launcher
+  → DSH HTTP / WebSocket / stream / Fetch
 ```
 
-暂停/恢复：
+该资源图使用 Kubernetes owner reference 与 reconcile，不引入项目私有 scheduler、runtime
+inventory、checkpoint service 或影子 desired-state 数据库。
 
-```text
-Runtime
-  -> logical state manifest + workspace/session/artifacts
-  -> S3 / MinIO 兼容对象存储
-  -> Runtime 可删除
-  -> 用固定 image/profile 启动全新 Runtime
-  -> 恢复逻辑状态
-  -> DSH resume
-```
+## Access seam
 
-## Kubernetes 边界
+DSH alpha.4 在进程内生成 launch token，只在 loopback readiness URL 中打印一次，再将其交换
+为 authority-bound browser cookie；它没有支持的 token 注入接口。因此正式方向选择同容器
+launcher：
 
-Kubernetes 是第一个真实实现，不需要假装它不存在。Kubernetes API 细节应放在
-`pkg/runtime/kubernetes` 以及 controller/provisioning adapter 后面。本项目**不实现 Node
-placement**；只生成 Pod 所需约束，再交给 kube-scheduler。
+1. launcher 启动 DSH 子进程并捕获 readiness URL；
+2. token 仅留在 launcher 内存，只用于内部首次根请求，不进入外部 URL、参数或日志；
+3. HTTP、WebSocket、stream 与 Fetch 全部透明转发，不解析 Typert；
+4. 保留外部 Host/Origin 供 DSH 校验，HTTPS 出口为 DSH cookie 补 `Secure`；
+5. 身份认证与 Cell 授权位于本 seam 之前；launcher 只信任由 NetworkPolicy 限定的入口。
 
-只有第二 backend 真正实现后，runtime abstraction 才考虑稳定。
+独立 sidecar 无法安全获得进程 token；直接暴露既违背 loopback-only CLI，也会泄漏 launch
+URL；纯 Gateway 配置无法完成内存 token exchange 与 cookie rewrite。
 
-## 安全等级
+## 状态
 
-- **standard** —— hardened 普通容器策略：non-root、禁止 privilege escalation、
-  drop capabilities、seccomp、资源限制、网络隔离、最小 service-account/token。
-- **sandboxed** —— 对任意代码执行按 hostile workload 处理的更强 RuntimeClass；
-  具体 backend 由部署环境决定。
+data PVC 保存 workspace、session、附件与 DSH storage domain。DSH 的
+`.credentials.yaml` 从独立内部 credentials store 挂载；provider key 通常由同 namespace
+的 `credentialsRef` Secret 作为环境变量提供。数据快照不包含 provider 凭据或浏览器签名记录。
 
-独享 Pod 会显著增强租户隔离，但普通容器仍共享宿主 kernel。因此宿主级安全承诺必须明确绑定
-security class，而不是宣传成所有 Pod 都“绝对无法逃逸宿主机”。
+persistence format 与 `compat/dsh/baseline.json` 中的精确 DSH 版本绑定。Restore 是数据操作，
+不承诺迁移外来 session format。创建快照前 controller 必须 quiesce DSH，并且绝不能让两个
+Cell writer 并发读写同一个 data volume。
 
-## 连续性的权威
+## 非目标
 
-`pkg/checkpoint` 是 persistence/restore 的唯一权威。`pkg/runtime` 只负责隔离边界的
-create/get/delete，不再持有第二套 checkpoint/restore API。
-
-CRIU/runc/container 内存 checkpoint 延后到出现真实 workload 需求时再评估。
+- 替代 kube-scheduler、Gateway API、CSI 或集群 fleet manager；
+- 在 Cell 中暴露 Pod、Node、Service、`RuntimeClass` 或 hostname 选择；
+- 解释 DSH 应用协议；
+- 承诺普通容器可以抵御宿主机失陷；
+- 支持已删除的 pre-Cell API 或浮动 DSH 版本。

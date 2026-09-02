@@ -1,0 +1,10 @@
+apiVersion: dsh.isolated.io/v1alpha1
+kind: Cell
+metadata:
+  name: legacy-tenant
+  namespace: tenant-alice
+spec:
+  tenant: tenant-b
+  image: ghcr.io/example/dsh-cell@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  storage:
+    size: 20Gi

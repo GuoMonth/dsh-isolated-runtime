@@ -1,27 +1,8 @@
-[English](./README.md) | 简体中文
+# 设计文档
 
-# 文档
+- [架构](./specs/architecture.zh-CN.md) —— 资源归属、边界、数据流与非目标。
+- [威胁模型](./specs/threat-model.zh-CN.md) —— 保证、假设与攻击面。
+- [DSH 兼容性](../compat/dsh/README.zh-CN.md) —— 精确上游实证与 launcher 决策。
+- [Roadmap](../ROADMAP.zh-CN.md) —— 里程碑顺序与复盘门禁。
 
-`dsh-isolated-runtime` 文档的导航中心。
-
-## 指南
-
-- [README](../README.zh-CN.md) — 项目概览
-- [CONTRIBUTING](../CONTRIBUTING.zh-CN.md) — 开发方式（规格驱动 + 测试驱动）
-- [ROADMAP](../ROADMAP.zh-CN.md) — 里程碑与状态
-
-## 规格与分析
-
-- [架构 —— 六层](./specs/architecture.zh-CN.md) — 全局六层图
-
-## 参考
-
-- [仓库结构](./reference/repository-layout.zh-CN.md) — 六层如何映射到目录树
-
-## 互补项目
-
-- [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant) —
-  面向共享 DSH 运行时的应用层多租户（Shared Runtime）
-
-更多规格与 ADR 会随着组件落地而陆续出现在这里；计划内容参见
-[ROADMAP](../ROADMAP.zh-CN.md)。
+可执行 API 细节以 Go 类型、生成的 CRD 和测试为准，不在文档中复制维护。

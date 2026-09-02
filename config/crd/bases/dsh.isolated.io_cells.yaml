@@ -1,0 +1,231 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: cells.dsh.isolated.io
+spec:
+  group: dsh.isolated.io
+  names:
+    kind: Cell
+    listKind: CellList
+    plural: cells
+    shortNames:
+    - dshcell
+    singular: cell
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .status.dshVersion
+      name: DSH
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Cell is the stable tenant-owned trust and state boundary. Its namespace is
+          its tenant identity; no second tenant field exists to drift or be spoofed.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              CellSpec is intentionally smaller than PodSpec. Every field represents Cell
+              intent; Kubernetes retains ownership of placement and workload mechanics.
+            properties:
+              credentialsRef:
+                description: |-
+                  CredentialsRef names a Secret in the Cell namespace whose keys are
+                  injected as DSH provider environment variables. Secret material never
+                  appears in the Cell or its data snapshots.
+                properties:
+                  name:
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+              image:
+                description: Image is an OCI content reference pinned by digest, never
+                  a floating tag.
+                pattern: ^[^\s@]+@sha256:[a-f0-9]{64}$
+                type: string
+              resources:
+                description: Resources are the standard Kubernetes requests and limits
+                  for DSH.
+                properties:
+                  limits:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: ResourceList is a set of (resource name, quantity)
+                      pairs.
+                    type: object
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: ResourceList is a set of (resource name, quantity)
+                      pairs.
+                    type: object
+                type: object
+              securityClass:
+                default: standard
+                description: |-
+                  SecurityClass selects standard containers or an operator-configured
+                  sandboxed RuntimeClass.
+                enum:
+                - standard
+                - sandboxed
+                type: string
+              storage:
+                description: Storage is durable DSH and workspace data.
+                properties:
+                  retentionPolicy:
+                    default: Retain
+                    description: |-
+                      RetentionPolicy defaults to Retain so deleting a Cell cannot silently
+                      destroy tenant data.
+                    enum:
+                    - Retain
+                    - Delete
+                    type: string
+                  size:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: Size is the requested data-volume capacity and may
+                      only grow.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  storageClassName:
+                    description: StorageClassName selects a CSI storage class. Once
+                      set, it is immutable.
+                    type: string
+                required:
+                - size
+                type: object
+                x-kubernetes-validations:
+                - message: storage size must be positive
+                  rule: quantity(self.size).isGreaterThan(quantity('0'))
+                - message: storage size cannot decrease
+                  rule: quantity(self.size).compareTo(quantity(oldSelf.size)) >= 0
+                - message: storageClassName is immutable
+                  rule: has(self.storageClassName) == has(oldSelf.storageClassName)
+                    && (!has(self.storageClassName) || self.storageClassName == oldSelf.storageClassName)
+            required:
+            - image
+            - storage
+            type: object
+          status:
+            description: |-
+              CellStatus is topology-free observed state. It never exposes Pod, Service,
+              Node, revision, or internal network addresses.
+            properties:
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+                x-kubernetes-validations:
+                - message: unsupported Cell condition type
+                  rule: self.all(c, c.type in ['Ready', 'StorageReady', 'WorkloadReady',
+                    'AccessReady'])
+              dshVersion:
+                type: string
+              imageDigest:
+                pattern: ^sha256:[a-f0-9]{64}$
+                type: string
+              observedGeneration:
+                format: int64
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

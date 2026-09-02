@@ -22,14 +22,22 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
-      - name: gofmt
-        run: test -z "$(gofmt -l .)"
-      - name: vet
-        run: go vet ./...
-      - name: test
-        run: go test -race -cover ./...
-      - name: build
-        run: go build ./...
+      - name: Verify
+        run: make verify
+
+  cell-contract:
+    name: Cell contract (kind)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - name: Install kind
+        run: go install sigs.k8s.io/kind@v0.32.0
+      - name: Verify Cell API against Kubernetes
+        run: make verify-cell
 
   lint:
     name: lint
@@ -40,7 +48,7 @@ jobs:
         with:
           go-version: "1.24"
           cache: true
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v9.3.0
         with:
-          version: v1.64.8
+          version: v2.13.2
           args: --timeout=3m

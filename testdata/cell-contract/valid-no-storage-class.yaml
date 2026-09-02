@@ -1,0 +1,9 @@
+apiVersion: dsh.isolated.io/v1alpha1
+kind: Cell
+metadata:
+  name: no-storage-class
+  namespace: tenant-alice
+spec:
+  image: ghcr.io/example/dsh-cell@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  storage:
+    size: 1Gi
