@@ -1,84 +1,81 @@
-[简体中文](./architecture.zh-CN.md) | English
+# Architecture
 
-# Architecture — six layers
+## The boundary
 
-The project is an isolated-runtime control plane. Isolation is enforced at the
-runtime boundary, while the layers above it own allocation, trusted routing,
-logical persistence, and lifecycle orchestration.
+A `Cell` is one namespaced DSH trust, execution, and durable-state boundary.
+The namespace is the tenant identity. Cell is not a small Kubernetes clone: it
+is a narrow intent API translated into native resources.
 
-## Core invariant
+| Concern | Authority |
+| --- | --- |
+| Fleet, placement, restart, rollout, quota, RBAC | Kubernetes |
+| External listeners and HTTP routing | Gateway API |
+| Durable volumes and snapshots | CSI |
+| Sessions, attachments, storage domains, protocol | DSH |
+| Cell-to-native-resource translation and access seam | This project |
 
-> **Every Runtime belongs to exactly one Tenant. A Tenant may own multiple
-> Runtimes. No Runtime is shared across tenants.**
+The Cell API never selects Nodes or carries session state, topology, routes, or
+workload implementation details. The operator will derive those from namespace,
+Cell identity, cluster policy, and observed state.
 
-The invariant appears in API types, runtime backend contracts, allocation, and
-end-to-end tests; it is not merely a README convention.
-
-## Six layers
-
-| # | Layer | Artifact | Responsibility |
-| --- | --- | --- | --- |
-| ① | **Isolation boundary** | tenant-owned Runtime / Pod | Dedicated filesystem/process/network boundary; `standard` or `sandboxed` security class. |
-| ② | **Provisioning** | DSH runtime images + profiles | `base`, `data`, `dev`, later specialized profiles; platform-generated security posture. |
-| ③ | **Runtime allocation** | allocator | Decide same-tenant reuse vs create and desired constraints. Never choose a Kubernetes Node. |
-| ④ | **Trusted routing** | Gateway | Authenticate server-side, authorize tenant/session, resolve Runtime, proxy DSH HTTP/WS/stream traffic. |
-| ⑤ | **Continuity** | logical persistence / restore | Persist DSH/session/workspace/artifact state + manifest to object storage; restore into a fresh Runtime. |
-| ⑥ | **Control plane** | API / CRDs / controllers | Reconcile tenant-owned Runtime lifecycle across ①–⑤. |
-
-## Request flow
+## Target resource graph
 
 ```text
-Browser / API client
-  -> Gateway authentication
-  -> trusted Principal in server context
-  -> authorize target tenant + conversation/session
-  -> resolve existing Runtime or request allocation
-  -> create/reuse tenant-owned Runtime
-  -> Kubernetes realizes Pod; kube-scheduler chooses Node
-  -> proxy DSH HTTP / WebSocket / streaming
+Cell
+  └─ operator (Phase 1)
+      ├─ data PVC
+      ├─ internal credential/signing store
+      ├─ Pod: launcher (PID 1) → DSH child
+      ├─ ClusterIP Service
+      └─ NetworkPolicy
+
+identity + Cell authorization (Phase 2)
+  → Gateway API route
+  → launcher
+  → DSH HTTP / WebSocket / streams / Fetch
 ```
 
-On suspend/resume:
+The graph uses Kubernetes owner references and reconciliation; it introduces no
+project scheduler, runtime inventory, checkpoint service, or shadow desired-state
+database.
 
-```text
-Runtime
-  -> logical state manifest + workspace/session/artifacts
-  -> S3 / MinIO-compatible object storage
-  -> Runtime may be deleted
-  -> fresh Runtime from pinned image/profile
-  -> restore logical state
-  -> DSH resume
-```
+## Access seam
 
-## Kubernetes boundary
+DSH alpha.4 creates a launch token in process memory, prints it once in the
+loopback readiness URL, and exchanges it for an authority-bound browser cookie.
+There is no supported token injection interface. Therefore the selected design
+is a launcher in the same container:
 
-Kubernetes is the first implementation, not something the generic layers must
-pretend does not exist. Kubernetes-specific API usage belongs behind
-`pkg/runtime/kubernetes` and controller/provisioning adapters. The project does
-**not** implement Node placement; it emits the Pod constraints and lets
-kube-scheduler place the Pod.
+1. The launcher starts DSH as a child and captures its readiness URL.
+2. The token stays in launcher memory and is used only on the internal first
+   root request; it never enters the public URL, arguments, or logs.
+3. HTTP, WebSocket, streams, and Fetch are proxied opaquely. Typert is not parsed.
+4. External Host and Origin remain intact for DSH validation. HTTPS egress adds
+   `Secure` to the DSH cookie.
+5. Authentication and Cell authorization happen before this seam. The launcher
+   trusts only the ingress path constrained by NetworkPolicy.
 
-A second backend is required before the runtime abstraction is considered
-stable.
+A detached sidecar cannot safely obtain the process token. Direct exposure
+conflicts with the loopback-only CLI and leaks the launch URL. Pure Gateway
+configuration cannot perform the in-memory token exchange or cookie rewrite.
 
-## Security classes
+## State
 
-- **standard** — hardened ordinary container policy: non-root, no privilege
-  escalation, capability drop, seccomp, resource limits, network isolation,
-  service-account/token minimization.
-- **sandboxed** — stronger RuntimeClass for workloads where arbitrary code should
-  be treated as hostile. Exact backend is deployment-specific.
+The data PVC contains workspace, sessions, attachments, and DSH storage domains.
+DSH's `.credentials.yaml` is mounted from a distinct internal credentials store;
+provider keys normally arrive from the same-namespace `credentialsRef` Secret as
+environment variables. Neither provider material nor browser-signing records are
+part of data snapshots.
 
-Dedicated Pods materially strengthen tenant isolation, but standard containers
-still share the host kernel. Documentation and tests therefore scope host-level
-claims to the selected security class rather than promising absolute host escape
-prevention.
+The persistence format is bound to the exact DSH version in
+`compat/dsh/baseline.json`. Restore is a data operation, not a promise to migrate
+foreign session formats. Before a snapshot the controller must quiesce DSH and
+must never attach one read-write data volume to concurrent Cell writers.
 
-## Continuity ownership
+## Non-goals
 
-`pkg/checkpoint` is the single persistence/restore authority. `pkg/runtime`
-creates/gets/deletes isolation boundaries; it does not own a second
-checkpoint/restore API.
-
-CRIU/runc/container-memory checkpointing is deferred until a real workload
-requires it.
+- Replacing kube-scheduler, Gateway API, CSI, or a cluster fleet manager.
+- Exposing Pod, Node, Service, `RuntimeClass`, or hostname choices in Cell.
+- Interpreting DSH application protocols.
+- Promising host-compromise resistance for ordinary containers.
+- Supporting removed pre-Cell APIs or floating DSH versions.

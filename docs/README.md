@@ -1,27 +1,9 @@
-[简体中文](./README.zh-CN.md) | English
+# Design documents
 
-# Docs
+- [Architecture](./specs/architecture.md) — ownership, boundaries, flows, and non-goals.
+- [Threat model](./specs/threat-model.md) — guarantees, assumptions, and abuse cases.
+- [DSH compatibility](../compat/dsh/README.md) — exact upstream evidence and launcher decision.
+- [Roadmap](../ROADMAP.md) — milestone sequence and review gates.
 
-Navigation hub for `dsh-isolated-runtime` documentation.
-
-## Guides
-
-- [README](../README.md) — project overview
-- [CONTRIBUTING](../CONTRIBUTING.md) — how development is done (spec-driven + test-driven)
-- [ROADMAP](../ROADMAP.md) — milestones and status
-
-## Specs & analysis
-
-- [Architecture — six layers](./specs/architecture.md) — the global six-layer map
-
-## Reference
-
-- [Repository layout](./reference/repository-layout.md) — how the six layers map onto the tree
-
-## Complementary projects
-
-- [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant) —
-  application-level multi-tenancy for shared DSH runtimes (Shared Runtime)
-
-Further specs and ADRs will appear here as components land; see
-[ROADMAP](../ROADMAP.md) for what is planned.
+Executable API details belong in Go types, generated CRDs, and tests rather
+than duplicated prose.

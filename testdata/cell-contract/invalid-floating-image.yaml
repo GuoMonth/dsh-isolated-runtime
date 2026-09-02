@@ -1,0 +1,9 @@
+apiVersion: dsh.isolated.io/v1alpha1
+kind: Cell
+metadata:
+  name: floating-image
+  namespace: tenant-alice
+spec:
+  image: ghcr.io/example/dsh-cell:latest
+  storage:
+    size: 20Gi

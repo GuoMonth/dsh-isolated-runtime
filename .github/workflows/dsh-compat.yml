@@ -1,0 +1,46 @@
+name: DSH compatibility
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "compat/dsh/**"
+      - "internal/dshcompat/**"
+      - "hack/verify-dsh-compat.sh"
+      - ".github/workflows/dsh-compat.yml"
+  pull_request:
+    paths:
+      - "compat/dsh/**"
+      - "internal/dshcompat/**"
+      - "hack/verify-dsh-compat.sh"
+      - ".github/workflows/dsh-compat.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: dsh-v0.1.2-alpha.4
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Enable Corepack
+        run: npm install --global corepack@latest && corepack enable
+      - name: Cache exact upstream checkout
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/dsh-compat
+          key: dsh-alpha4-${{ hashFiles('compat/dsh/baseline.json') }}
+      - name: Verify exact DSH behavior
+        env:
+          DSH_COMPAT_CACHE: ${{ runner.temp }}/dsh-compat
+          DSH_E2E_MAX_WORKERS: 8
+        run: make verify-dsh

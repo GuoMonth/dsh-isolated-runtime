@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+    "tag": "dsh-v0.1.2-alpha.4",
+    "commit": "4e84901e6471b79ec0338099867ebb4606d12bb5",
+    "version": "0.1.2-alpha.4"
+  },
+  "toolchain": {
+    "packageManager": "pnpm@11.7.0",
+    "lockfileSHA256": "e12083149a77f790d39b64d018b6b8745c6a7aa95777ecb73e0a2f5ed5fdd0d9"
+  },
+  "transport": {
+    "unaryPrefix": "/api/",
+    "remoteMux": "/api/remote.mux",
+    "launchTokenLocation": "process-memory-and-readiness-url",
+    "cookieAuthorityBound": true,
+    "standardCLIListen": "127.0.0.1"
+  },
+  "state": [
+    { "class": "sessions", "location": "$DSH_HOME/sessions", "snapshot": true },
+    { "class": "attachments", "location": "$DSH_HOME/attachments/v1", "snapshot": true },
+    { "class": "storage-domains", "location": "$DSH_HOME/storages", "snapshot": true },
+    { "class": "workspace", "location": "process.cwd()", "snapshot": true },
+    { "class": "configuration", "location": "$DSH_HOME excluding .credentials.yaml and .env", "snapshot": true },
+    { "class": "provider-credentials", "location": "same-namespace Secret and $DSH_HOME/.credentials.yaml", "snapshot": false },
+    { "class": "browser-signing-records", "location": "$DSH_HOME/.credentials.yaml records", "snapshot": false }
+  ],
+  "constraints": [
+    "ApiProxy is absent",
+    "the standard web CLI rejects --host 0.0.0.0",
+    "the launch token has no supported external injection interface",
+    "session persistence rejects foreign format versions without migration"
+  ],
+  "upstreamTests": [
+    "apps/cli/tests/web-auth.e2e.ts",
+    "apps/cli/tests/process-shutdown.spec.ts",
+    "apps/cli/tests/headless-shutdown.e2e.ts",
+    "apps/cli/tests/profiles/headless/tests/session-format-guard.expected.e2e.ts",
+    "packages/api/gateway/tests/gateway-stream.host.spec.ts",
+    "packages/bundle/web-app/tests/startup.spec.ts",
+    "packages/client/connection/tests/browser-auth.host.spec.ts",
+    "packages/client/connection/tests/fetch-routes.host.spec.ts"
+  ]
+}

@@ -1,14 +1,15 @@
-// Package v1alpha1 defines the versioned API types for the
-// dsh-isolated-runtime control plane.
+// Package v1alpha1 contains the Kubernetes API contract for DSH Cells.
 //
-// The types here are the public contract the six layers operate on. They are
-// self-contained stand-ins for Kubernetes API types; the real metav1 /
-// controller-runtime types are adopted at M1, when the controller is wired
-// against the cluster.
+// +kubebuilder:object:generate=true
+// +groupName=dsh.isolated.io
+//
+//go:generate go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0 object paths=./...
+//go:generate go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0 crd paths=./... output:crd:artifacts:config=../../config/crd/bases
 package v1alpha1
 
-// GroupName is the API group for isolated-runtime resources.
-const GroupName = "runtime.dsh.io"
-
-// Version is the current API version.
-const Version = "v1alpha1"
+const (
+	// GroupName is the Kubernetes API group owned by this project.
+	GroupName = "dsh.isolated.io"
+	// Version is the first, intentionally unstable Cell API version.
+	Version = "v1alpha1"
+)

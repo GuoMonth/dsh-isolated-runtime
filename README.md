@@ -1,129 +1,57 @@
-[简体中文](./README.zh-CN.md) | English
-
 # dsh-isolated-runtime
 
-Kubernetes-native isolated runtimes for
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH):
-tenant-owned runtime boundaries, resumable logical state, and pluggable runtime
-profiles.
+Kubernetes-native isolation for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).
+The project defines one durable boundary—`Cell`—and lets Kubernetes, Gateway
+API, and CSI keep ownership of the infrastructure they already model.
 
-> **Phase: M1 self-hosted control plane.** The repository now ships a real
-> Kubernetes Runtime backend plus a single-instance business control plane with
-> Runtime reconciliation, live inventory, and a minimal Admin UI/API. See
-> [ROADMAP.md](./ROADMAP.md).
+**Current state: Phase 0 contract complete.** This repository contains the Cell
+API, generated CRD, DSH compatibility evidence, and an executable access-seam
+prototype. It intentionally does not contain a production controller or image;
+those are the Phase 1 vertical slice.
 
-## M1 quick start
+[中文](./README.zh-CN.md)
 
-Build/push the control-plane image (or point the Deployment at your own image),
-then install the manifests:
+## Cell contract
 
-```sh
-kubectl apply -k config
-kubectl -n dsh-isolated-system port-forward service/dsh-isolated-control-plane 8080:8080
+```yaml
+apiVersion: dsh.isolated.io/v1alpha1
+kind: Cell
+metadata:
+  name: assistant
+  namespace: tenant-alice
+spec:
+  image: ghcr.io/example/dsh-cell@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  storage:
+    size: 20Gi
 ```
 
-Open `http://127.0.0.1:8080` and use the intentionally fixed M1 bootstrap login:
+The namespace is the tenant boundary. Images are digest-pinned, storage may
+grow but not shrink, and `storageClassName` is immutable. The API does not
+expose sessions, Pod or Node addresses, `RuntimeClass`, revisions, scheduling,
+checkpoints, profiles, or hostnames. See the complete
+[sample](./config/samples/dsh_v1alpha1_cell.yaml) and
+[generated CRD](./config/crd/bases/dsh.isolated.io_cells.yaml).
 
-```text
-Admin / Admin
+## Evidence
+
+```bash
+make verify             # formatting, generation, vet, race tests, build
+make verify-cell        # CRD behavior in a disposable kind cluster
+make verify-dsh         # exact upstream DSH compatibility suite
+golangci-lint run
 ```
 
-The default Service is `ClusterIP`; do not expose the M1 bootstrap Admin UI
-directly to the public Internet. See
-[docs/guides/self-hosted-control-plane.md](./docs/guides/self-hosted-control-plane.md)
-for installation, API examples, and the M1 boundary.
+The supported DSH baseline is exactly `dsh-v0.1.2-alpha.4` at commit
+`4e84901e6471b79ec0338099867ebb4606d12bb5`; it is not a semver range. The
+[compatibility record](./compat/dsh/README.md) explains why the selected access
+seam is a Cell-local launcher that owns the DSH child process.
 
-## What this is
+## Design
 
-`dsh-isolated-runtime` is the **infrastructure-enforced** tenant-isolation path
-for DSH. Where
-[`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant) isolates
-tenants inside a shared DSH runtime, this project gives each Runtime an explicit
-tenant owner and realizes that Runtime as a dedicated Pod/container boundary.
+- [Architecture](./docs/specs/architecture.md)
+- [Threat model](./docs/specs/threat-model.md)
+- [Roadmap](./ROADMAP.md)
+- [Contributing](./CONTRIBUTING.md)
 
-The cardinality is intentionally:
-
-> **1 Runtime → exactly 1 Tenant; 1 Tenant → 0..N Runtimes.**
-
-A tenant may start different runtimes for general assistant work, data analysis,
-development, or other profiles. A Runtime is never shared across tenants.
-
-This is a stronger boundary than application-level multi-tenancy, but it is not
-marketed as an absolute host-security guarantee. Standard containers share the
-host kernel; hostile arbitrary-code workloads can select a stronger
-`sandboxed` security class backed by an appropriate Kubernetes `RuntimeClass`.
-
-## Choosing between the two
-
-| Project | Mode | Isolation boundary | Use case |
-| --- | --- | --- | --- |
-| [`dsh-multi-tenant`](https://github.com/GuoMonth/dsh-multi-tenant) | Shared Runtime | DSH application layer | High resource utilization, trusted plugin ecosystem |
-| **`dsh-isolated-runtime`** | Isolated Runtime | Dedicated runtime / Pod boundary | Stronger tenant isolation, plugins / Terminal / code execution |
-
-The two projects are complementary: **Shared Runtime** vs **Isolated Runtime**,
-**application-enforced isolation** vs **infrastructure-enforced isolation**.
-
-## Guiding principles
-
-- **Ownership is data, not documentation.** Runtime ownership is explicit in the
-  API and runtime seam; tenant-aware lookup/delete fail closed for foreign
-  tenants.
-- **Own business control-plane semantics, not Kubernetes mechanics.** The M1
-  service owns tenant/runtime desired state, inventory, reuse/create decisions,
-  and Admin operations. Kubernetes remains responsible for Pod-to-Node
-  scheduling and low-level infrastructure state.
-- **Allocate runtimes; do not reimplement kube-scheduler.** This control plane
-  decides reuse/create/profile/resources/security posture. Kubernetes decides
-  which Node a Pod runs on.
-- **Trusted identity comes from the transport boundary.** Gateway principals are
-  established server-side by authentication, never accepted from an ordinary
-  request body. The fixed M1 Admin identity is intentionally temporary and
-  separate from the future Gateway identity model.
-- **Logical state is durable; Pods are disposable.** Initial continuity is
-  session/workspace/artifact state in object storage (S3/MinIO-compatible),
-  restored into a fresh runtime. Kernel/process-memory checkpointing is not an
-  M1 promise.
-- **Kubernetes-native first.** Kubernetes-specific implementation belongs behind
-  a clear adapter boundary. A runtime-agnostic public contract is promoted only
-  after a second backend proves the common denominator.
-- **Security classes, not arbitrary knobs.** Platform profiles select hardened
-  `standard` or stronger `sandboxed` policies rather than asking callers to
-  assemble low-level container security correctly.
-
-## Components
-
-| Component | Role |
-| --- | --- |
-| Runtime boundary | Tenant-owned Pod/container runtime; never cross-tenant shared. |
-| Provisioning | Standard DSH runtime images + workload/security profiles. |
-| Runtime allocation | Decide reuse vs create from live tenant Runtime inventory; never choose a Kubernetes Node. |
-| Admin control plane | M1 self-hosted UI/API + Runtime desired state and reconciliation. |
-| Gateway | Trusted authentication + tenant/session resolution; evolves into the DSH HTTP/WS/stream runtime router/reverse proxy in M2. |
-| Persistence / restore | Logical DSH/session/workspace/artifact state to object storage and restore into a fresh Runtime. |
-
-## Repository layout
-
-```text
-api/v1alpha1/          versioned API types
-cmd/
-  gateway/            trusted admission/router skeleton (M2)
-  scheduler/          standalone allocation skeleton; M1 allocation is embedded
-  controller/         self-hosted M1 control plane
-pkg/
-  runtime/            tenant-owned runtime seam
-    kubernetes/       real Runtime CR + Pod backend and reconciler
-    runtimetest/      reusable backend contract suite
-  provisioning/       DSH runtime images + profiles
-  scheduling/         runtime allocation (not Node scheduling)
-  gateway/            trusted principal + admission
-  checkpoint/         logical persistence/restore authority
-  controlplane/       Admin UI/API + lifecycle orchestration
-config/               CRD + RBAC + Deployment + Service + Kustomize install
-```
-
-See [docs/specs/architecture.md](./docs/specs/architecture.md) for the global
-model and [ROADMAP.md](./ROADMAP.md) for sequencing.
-
-## License
-
-MIT
+Apache-2.0 licensed. No removed pre-Cell API or deployment carries a
+compatibility promise.
