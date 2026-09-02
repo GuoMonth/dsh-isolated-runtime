@@ -23,6 +23,12 @@ type baseline struct {
 		PackageManager string `json:"packageManager"`
 		LockfileSHA256 string `json:"lockfileSHA256"`
 	} `json:"toolchain"`
+	Distribution struct {
+		Package   string `json:"package"`
+		Version   string `json:"version"`
+		Tarball   string `json:"tarball"`
+		Integrity string `json:"integrity"`
+	} `json:"distribution"`
 	State []struct {
 		Class    string `json:"class"`
 		Location string `json:"location"`
@@ -50,6 +56,11 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	}
 	if value.Toolchain.PackageManager != "pnpm@11.7.0" || len(value.Toolchain.LockfileSHA256) != 64 {
 		t.Fatalf("toolchain is not exact: %+v", value.Toolchain)
+	}
+	if value.Distribution.Package != "@deepseek-ai/dsh" || value.Distribution.Version != value.Source.Version ||
+		value.Distribution.Tarball != "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.1.2-alpha.4.tgz" ||
+		value.Distribution.Integrity != "sha512-+dOvmCxBNs4fWkBqAw1trAYE/5Ue/SmcC+ZKUfKAK/ai/FAgsSeiZkOhRQudVHuq/DZUhFH8BYkibhprhYqgAA==" {
+		t.Fatalf("runtime distribution is not exact: %+v", value.Distribution)
 	}
 	if strings.Contains(strings.ToLower(string(baselineJSON)), "latest") {
 		t.Fatal("compatibility baseline contains a floating latest reference")

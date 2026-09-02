@@ -18,7 +18,7 @@ func TestRealDSHBrowserExchange(t *testing.T) {
 
 	var logs lockedBuffer
 	instance, err := Start(Config{
-		DSHCommand:      []string{"node", cli},
+		DSHCommand:      []string{"node", "--expose-internals", cli},
 		WorkingDir:      t.TempDir(),
 		Environment:     append(os.Environ(), "DSH_HOME="+t.TempDir(), "DSH_TELEMETRY_DISABLED=1"),
 		PublicAuthority: "cell.test",

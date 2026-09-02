@@ -16,10 +16,16 @@ Roadmap 按垂直大里程碑推进。每个大里程碑结束时必须复盘并
 
 ## Phase 1 —— Single-Cell 垂直切片
 
-- 将一个 Cell reconcile 为 PVC、workload、Service、policy 和 status。
-- 构建 digest 固定、以 launcher 为 PID 1 的 Cell 镜像。
-- 在 kind 中证明 Pod 替换后 DSH 状态仍然持久。
-- 复盘垂直切片并记录 GO / CONDITIONAL GO。
+本里程碑交付：
+
+- 将一个 Cell reconcile 为两个 PVC、ServiceAccount、StatefulSet、headless/access 两个
+  Service、Ingress NetworkPolicy 与当前 generation 的 status；
+- 将精确 DSH npm 产物打入 digest 固定、以 launcher 为 PID 1 的 Cell 镜像；
+- 在 kind 中实证 ownership、rollout、admission、网络访问、retention、故障恢复，以及 Pod
+  替换后的 DSH/browser 状态持久性；
+- 发布带 SBOM 的 linux/amd64 Cell 与 Operator 镜像。
+
+只有本地、镜像、精确上游与可重复 kind 实证全部通过，复盘结论才是 `GO`。
 
 ## Phase 2 —— 可信访问
 

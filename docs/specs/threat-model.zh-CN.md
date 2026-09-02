@@ -10,7 +10,8 @@ kernel、存储驱动、集群管理员或云控制面。
 ## 信任假设
 
 - 信任 namespace、ServiceAccount、RBAC、admission 与 Secret 投递；
-- Gateway 在转发前认证用户并授权精确 namespace/Cell，客户端不存在绕过路径直达 launcher；
+- Phase 1 只允许 Operator namespace 内带标签的 Pod 访问 launcher Service；Phase 2 才负责
+  用户认证与精确 namespace/Cell 授权；
 - 镜像解析到准入的 digest，CSI 保证卷 identity/access mode，DSH 版本匹配兼容记录；
 - DSH 及启用的插件位于 Cell 信任边界内部；任意代码执行可以攻陷该 Cell。
 
@@ -19,9 +20,9 @@ kernel、存储驱动、集群管理员或云控制面。
 | 威胁 | 必需控制 / 保证 |
 | --- | --- |
 | Namespace 混淆 | namespace 是唯一 tenant key；没有可伪造的 `tenant` 字段，也没有跨 namespace 引用。 |
-| 过宽 RBAC / ServiceAccount | namespace 内最小权限；非必需时不挂载 workload token；operator 权限按资源限定。 |
-| 网络绕过 | Cell 默认拒绝；launcher 只接受指定 Gateway/identity 路径；DSH 保持 loopback。 |
-| 路由 / 身份混淆 | Gateway 在路由前将认证主体绑定到精确 namespace/Cell；用户不能提供 backend 地址。 |
+| 过宽 RBAC / ServiceAccount | cluster-wide Operator 只获得其 reconcile 原生资源所需权限；Cell workload 永不挂载 API token。 |
+| 网络绕过 | Cell ingress policy 只允许 Operator namespace 内带标签的 access Pod 访问 proxy port；management 不进入 Service；DSH 保持 loopback。 |
+| 路由 / 身份混淆 | Phase 1 使用派生的 Service authority；Phase 2 必须在路由前将认证主体绑定到精确 namespace/Cell。 |
 | Host/Origin 伪造 | 保留外部 Host/Origin 给 DSH 校验；拒绝非信任 authority 与跨站请求；不合成身份 header。 |
 | Token/cookie 泄漏 | launch token 只在内存并在日志脱敏；外部 URL 干净；cookie 保留 HttpOnly/SameSite，HTTPS 下补 Secure。 |
 | Provider 凭据泄漏 | `credentialsRef` 只能同 namespace；值只进环境变量，不进 Cell status、日志或数据快照；DSH 内部 credential/signing store 与 data PVC 分离。 |
@@ -33,7 +34,7 @@ kernel、存储驱动、集群管理员或云控制面。
 
 ## 剩余风险与验证
 
-Phase 0 证明 API validation 与 launcher 契约，不代表已部署的安全边界。Phase 1 必须在 kind
-实证生成的 RBAC、Pod security context、ownership、NetworkPolicy、volume lifecycle 与重启
-持久性；Phase 2 必须端到端证明外部 authz 与 route binding。安全回归阻断发布；每次里程碑
+Phase 1 在 kind 实证生成的 RBAC、Pod security context、ownership、NetworkPolicy、volume
+lifecycle 与重启持久性，但有意不提供公开或已认证的安全边界；Phase 2 必须端到端证明外部
+authz 与 route binding。安全回归阻断发布；每次里程碑
 复盘记录所有条件性保证。

@@ -1,6 +1,5 @@
-// Package launcher contains the Phase 0 executable access-seam experiment.
-// It is internal until the single-Cell vertical slice proves the production
-// lifecycle and image contract.
+// Package launcher owns the Cell-local DSH child process and exposes its
+// authority-bound access seam without releasing the launch token.
 package launcher
 
 import (
@@ -37,8 +36,9 @@ var (
 // Config describes one Cell-local DSH process and its public proxy endpoint.
 type Config struct {
 	// DSHCommand is the executable and fixed prefix arguments. The launcher
-	// appends: web --no-open --port 0 --trusted-host <PublicAuthority>.
+	// appends: web, configured --patch overlays, and the fixed web flags.
 	DSHCommand      []string
+	PatchFiles      []string
 	WorkingDir      string
 	Environment     []string
 	PublicAuthority string
@@ -95,7 +95,14 @@ func Start(cfg Config) (*Instance, error) {
 	}
 
 	args := append([]string(nil), cfg.DSHCommand[1:]...)
-	args = append(args, "web", "--no-open", "--port", "0", "--trusted-host", cfg.PublicAuthority)
+	args = append(args, "web")
+	for _, patch := range cfg.PatchFiles {
+		if strings.TrimSpace(patch) == "" {
+			return nil, errors.New("launcher: patch path cannot be empty")
+		}
+		args = append(args, "--patch", patch)
+	}
+	args = append(args, "--no-open", "--port", "0", "--trusted-host", cfg.PublicAuthority)
 	cmd := exec.Command(cfg.DSHCommand[0], args...)
 	cmd.Dir = cfg.WorkingDir
 	if cfg.Environment != nil {
@@ -186,10 +193,25 @@ func Start(cfg Config) (*Instance, error) {
 func (i *Instance) Close(ctx context.Context) error {
 	i.closeOnce.Do(func() {
 		serverErr := i.server.Shutdown(ctx)
+		if errors.Is(serverErr, context.DeadlineExceeded) || errors.Is(serverErr, context.Canceled) {
+			_ = i.server.Close()
+			serverErr = nil
+		}
 		processErr := terminate(i.process, i.shutdownTimeout, i.processState)
 		i.closeErr = errors.Join(serverErr, processErr)
 	})
 	return i.closeErr
+}
+
+// Done closes when the DSH child exits for any reason.
+func (i *Instance) Done() <-chan struct{} {
+	return i.processState.done
+}
+
+// Wait returns the DSH child result. It is intended for unexpected-exit
+// monitoring; callers performing a managed shutdown should use Close.
+func (i *Instance) Wait() error {
+	return i.processState.result()
 }
 
 func newProxy(target *url.URL, token string) http.Handler {

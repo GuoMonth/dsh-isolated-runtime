@@ -113,7 +113,8 @@ spec:
                     default: Retain
                     description: |-
                       RetentionPolicy defaults to Retain so deleting a Cell cannot silently
-                      destroy tenant data.
+                      destroy tenant data. It is immutable after creation so deletion ownership
+                      is decided once without a finalizer or deletion-time race.
                     enum:
                     - Retain
                     - Delete
@@ -141,6 +142,8 @@ spec:
                 - message: storageClassName is immutable
                   rule: has(self.storageClassName) == has(oldSelf.storageClassName)
                     && (!has(self.storageClassName) || self.storageClassName == oldSelf.storageClassName)
+                - message: retentionPolicy is immutable
+                  rule: self.retentionPolicy == oldSelf.retentionPolicy
             required:
             - image
             - storage

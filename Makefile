@@ -1,9 +1,15 @@
 GO ?= go
+SETUP_ENVTEST_VERSION ?= v0.0.0-20260125163108-a19ec76a3c5d
+ENVTEST_K8S_VERSION ?= 1.34.x
 
-.PHONY: build fmt fmt-check generate lint test vet verify verify-cell verify-dsh verify-generated
+.PHONY: build fmt fmt-check generate images lint test test-envtest vet verify verify-phase1 verify-cell verify-dsh verify-generated verify-images verify-kind
 
 build:
 	$(GO) build ./...
+
+images:
+	docker buildx build --platform linux/amd64 --load -f images/operator/Dockerfile -t dsh-phase1-operator:test .
+	docker buildx build --platform linux/amd64 --load -f images/cell/Dockerfile -t dsh-phase1-cell:test .
 
 fmt:
 	gofmt -w .
@@ -20,6 +26,10 @@ lint:
 test:
 	$(GO) test -race -cover ./...
 
+test-envtest:
+	KUBEBUILDER_ASSETS="$$($(GO) run sigs.k8s.io/controller-runtime/tools/setup-envtest@$(SETUP_ENVTEST_VERSION) use -p path $(ENVTEST_K8S_VERSION))" \
+		$(GO) test -count=1 -run TestEnvtest ./internal/controller
+
 vet:
 	$(GO) vet ./...
 
@@ -28,8 +38,16 @@ verify-generated:
 
 verify: fmt-check verify-generated vet test build
 
+verify-phase1: verify test-envtest
+
 verify-cell:
 	./hack/verify-cell-contract.sh
 
 verify-dsh:
 	./hack/verify-dsh-compat.sh
+
+verify-images:
+	./hack/verify-images.sh
+
+verify-kind:
+	./hack/verify-phase1-kind.sh

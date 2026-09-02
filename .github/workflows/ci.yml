@@ -39,6 +39,30 @@ jobs:
       - name: Verify Cell API against Kubernetes
         run: make verify-cell
 
+  controller-envtest:
+    name: controller envtest (Kubernetes 1.34)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - name: Verify reconciliation against a real API server
+        run: make test-envtest
+
+  manifests:
+    name: Kustomize manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Render install surface
+        run: kubectl kustomize config/default > /tmp/dsh-install.yaml
+      - name: Assert one controller and one public CRD
+        run: |
+          test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-install.yaml)" = 1
+          test "$(grep -c '^kind: Deployment$' /tmp/dsh-install.yaml)" = 1
+
   lint:
     name: lint
     runs-on: ubuntu-latest

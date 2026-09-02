@@ -37,6 +37,7 @@ const (
 // +kubebuilder:validation:XValidation:rule="quantity(self.size).isGreaterThan(quantity('0'))",message="storage size must be positive"
 // +kubebuilder:validation:XValidation:rule="quantity(self.size).compareTo(quantity(oldSelf.size)) >= 0",message="storage size cannot decrease"
 // +kubebuilder:validation:XValidation:rule="has(self.storageClassName) == has(oldSelf.storageClassName) && (!has(self.storageClassName) || self.storageClassName == oldSelf.storageClassName)",message="storageClassName is immutable"
+// +kubebuilder:validation:XValidation:rule="self.retentionPolicy == oldSelf.retentionPolicy",message="retentionPolicy is immutable"
 type CellStorageSpec struct {
 	// Size is the requested data-volume capacity and may only grow.
 	Size resource.Quantity `json:"size"`
@@ -44,7 +45,8 @@ type CellStorageSpec struct {
 	// +optional
 	StorageClassName *string `json:"storageClassName,omitempty"`
 	// RetentionPolicy defaults to Retain so deleting a Cell cannot silently
-	// destroy tenant data.
+	// destroy tenant data. It is immutable after creation so deletion ownership
+	// is decided once without a finalizer or deletion-time race.
 	// +kubebuilder:default=Retain
 	RetentionPolicy RetentionPolicy `json:"retentionPolicy,omitempty"`
 }
