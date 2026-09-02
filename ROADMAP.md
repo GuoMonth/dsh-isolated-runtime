@@ -18,10 +18,18 @@ all pass.
 
 ## Phase 1 — Single-Cell vertical slice
 
-- Reconcile one Cell into PVC, workload, Service, policy, and status.
-- Build a digest-pinned Cell image with the launcher as PID 1.
-- Prove durable DSH state through Pod replacement in kind.
-- Review the vertical slice and record a GO/CONDITIONAL GO decision.
+Delivered by this milestone:
+
+- reconcile one Cell into two PVCs, ServiceAccount, StatefulSet, headless and
+  access Services, ingress NetworkPolicy, and current-generation status;
+- package the exact DSH npm artifact in a digest-pinned Cell image with the
+  launcher as PID 1;
+- prove ownership, rollout, admission, network access, retention, failure
+  recovery, and durable DSH/browser state through Pod replacement in kind;
+- publish linux/amd64 Cell and operator images with SBOMs.
+
+The review gate is `GO` only when local, image, exact-upstream, and repeatable
+kind evidence all pass.
 
 ## Phase 2 — Authenticated access
 

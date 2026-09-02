@@ -15,18 +15,20 @@ is a narrow intent API translated into native resources.
 | Cell-to-native-resource translation and access seam | This project |
 
 The Cell API never selects Nodes or carries session state, topology, routes, or
-workload implementation details. The operator will derive those from namespace,
+workload implementation details. The operator derives those from namespace,
 Cell identity, cluster policy, and observed state.
 
 ## Target resource graph
 
 ```text
 Cell
-  └─ operator (Phase 1)
-      ├─ data PVC
-      ├─ internal credential/signing store
-      ├─ Pod: launcher (PID 1) → DSH child
-      ├─ ClusterIP Service
+  └─ operator
+      ├─ tenant-data PVC
+      ├─ private-state PVC
+      ├─ ServiceAccount (no workload API token)
+      ├─ StatefulSet (1 replica): launcher (PID 1) → DSH child
+      ├─ headless Service (StatefulSet network identity)
+      ├─ ClusterIP Service (Cell access)
       └─ NetworkPolicy
 
 identity + Cell authorization (Phase 2)
@@ -62,7 +64,7 @@ configuration cannot perform the in-memory token exchange or cookie rewrite.
 ## State
 
 The data PVC contains workspace, sessions, attachments, and DSH storage domains.
-DSH's `.credentials.yaml` is mounted from a distinct internal credentials store;
+DSH's `.credentials.yaml` lives on the distinct private-state PVC;
 provider keys normally arrive from the same-namespace `credentialsRef` Secret as
 environment variables. Neither provider material nor browser-signing records are
 part of data snapshots.

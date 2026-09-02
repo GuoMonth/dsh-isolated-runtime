@@ -42,7 +42,8 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 	var logs lockedBuffer
 	instance, err := Start(Config{
 		DSHCommand:      []string{os.Args[0], "-test.run=TestDSHHelperProcess", "--"},
-		Environment:     append(os.Environ(), "GO_WANT_DSH_HELPER=1"),
+		PatchFiles:      []string{"/etc/dsh/cell.patch.yml"},
+		Environment:     append(os.Environ(), "GO_WANT_DSH_HELPER=1", "DSH_HELPER_EXPECT_PATCH=/etc/dsh/cell.patch.yml"),
 		PublicAuthority: "cell.example.test",
 		ListenAddress:   "127.0.0.1:0",
 		ReadyTimeout:    5 * time.Second,
@@ -76,6 +77,11 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 	}
 	cookie := strings.SplitN(setCookie, ";", 2)[0]
 	_ = exchange.Body.Close()
+	secondExchange := request(t, client, http.MethodGet, instance.URL+"/", "", nil)
+	if secondExchange.StatusCode != http.StatusSeeOther || secondExchange.Header.Get("Set-Cookie") == "" {
+		t.Fatalf("second client bootstrap failed: status=%d", secondExchange.StatusCode)
+	}
+	_ = secondExchange.Body.Close()
 	authorizedRoot := request(t, client, http.MethodGet, instance.URL+"/", "", http.Header{"Cookie": []string{cookie}})
 	_ = authorizedRoot.Body.Close()
 	if authorizedRoot.StatusCode != http.StatusOK {
@@ -177,6 +183,24 @@ func TestLauncherClosesIngressWhenDSHCrashes(t *testing.T) {
 	}
 }
 
+func TestLauncherReadinessTimeoutStopsDSH(t *testing.T) {
+	t.Parallel()
+	started := time.Now()
+	_, err := Start(Config{
+		DSHCommand:      []string{os.Args[0], "-test.run=TestDSHHelperProcess", "--"},
+		Environment:     append(os.Environ(), "GO_WANT_DSH_HELPER=1", "DSH_HELPER_NO_READY=1"),
+		PublicAuthority: "cell.example.test",
+		ReadyTimeout:    100 * time.Millisecond,
+		ShutdownTimeout: time.Second,
+	})
+	if err == nil || !strings.Contains(err.Error(), "readiness timeout") {
+		t.Fatalf("readiness timeout error = %v", err)
+	}
+	if time.Since(started) > 2*time.Second {
+		t.Fatal("readiness timeout did not terminate the DSH child promptly")
+	}
+}
+
 func request(t *testing.T, client *http.Client, method, target, body string, headers http.Header) *http.Response {
 	t.Helper()
 	req, err := http.NewRequest(method, target, strings.NewReader(body))
@@ -239,13 +263,18 @@ func TestDSHHelperProcess(t *testing.T) {
 		return
 	}
 	authority := argumentAfter("--trusted-host")
+	if expected := os.Getenv("DSH_HELPER_EXPECT_PATCH"); expected != "" && argumentAfter("--patch") != expected {
+		os.Exit(4)
+	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		os.Exit(2)
 	}
 	server := &http.Server{Handler: helperHandler(authority)}
 	go func() { _ = server.Serve(listener) }()
-	fmt.Printf("dsh web: http://%s/?token=%s\n", listener.Addr().String(), helperToken)
+	if os.Getenv("DSH_HELPER_NO_READY") != "1" {
+		fmt.Printf("dsh web: http://%s/?token=%s\n", listener.Addr().String(), helperToken)
+	}
 	if os.Getenv("DSH_HELPER_CRASH_AFTER_READY") == "1" {
 		time.Sleep(100 * time.Millisecond)
 		os.Exit(23)

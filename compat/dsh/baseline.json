@@ -10,6 +10,12 @@
     "packageManager": "pnpm@11.7.0",
     "lockfileSHA256": "e12083149a77f790d39b64d018b6b8745c6a7aa95777ecb73e0a2f5ed5fdd0d9"
   },
+  "distribution": {
+    "package": "@deepseek-ai/dsh",
+    "version": "0.1.2-alpha.4",
+    "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.1.2-alpha.4.tgz",
+    "integrity": "sha512-+dOvmCxBNs4fWkBqAw1trAYE/5Ue/SmcC+ZKUfKAK/ai/FAgsSeiZkOhRQudVHuq/DZUhFH8BYkibhprhYqgAA=="
+  },
   "transport": {
     "unaryPrefix": "/api/",
     "remoteMux": "/api/remote.mux",

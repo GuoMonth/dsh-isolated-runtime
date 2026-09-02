@@ -44,6 +44,11 @@ if kubectl --kubeconfig "$kubeconfig" -n tenant-alice patch cell assistant --typ
   echo "storage class removal was accepted" >&2
   exit 1
 fi
+if kubectl --kubeconfig "$kubeconfig" -n tenant-alice patch cell assistant --type=merge \
+  -p '{"spec":{"storage":{"retentionPolicy":"Delete"}}}'; then
+  echo "retention policy mutation was accepted" >&2
+  exit 1
+fi
 kubectl --kubeconfig "$kubeconfig" create --validate=strict \
   -f "$repo_root/testdata/cell-contract/valid-no-storage-class.yaml"
 if kubectl --kubeconfig "$kubeconfig" -n tenant-alice patch cell no-storage-class --type=merge \

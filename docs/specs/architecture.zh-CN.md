@@ -14,17 +14,19 @@ identity。Cell 不是缩小版 Kubernetes，而是一层翻译为原生资源�
 | Cell 到原生资源的翻译、access seam | 本项目 |
 
 Cell API 不选择 Node，也不携带 session 状态、拓扑、路由或 workload 实现细节。Operator
-将根据 namespace、Cell identity、集群策略与观测状态派生这些资源。
+根据 namespace、Cell identity、集群策略与观测状态派生这些资源。
 
 ## 目标资源图
 
 ```text
 Cell
-  └─ operator（Phase 1）
-      ├─ data PVC
-      ├─ 内部 credential/signing store
-      ├─ Pod：launcher（PID 1）→ DSH 子进程
-      ├─ ClusterIP Service
+  └─ operator
+      ├─ tenant-data PVC
+      ├─ private-state PVC
+      ├─ ServiceAccount（不挂载 workload API token）
+      ├─ StatefulSet（1 replica）：launcher（PID 1）→ DSH 子进程
+      ├─ Headless Service（StatefulSet 网络身份）
+      ├─ ClusterIP Service（Cell 访问入口）
       └─ NetworkPolicy
 
 identity + Cell authorization（Phase 2）
@@ -54,7 +56,7 @@ URL；纯 Gateway 配置无法完成内存 token exchange 与 cookie rewrite。
 ## 状态
 
 data PVC 保存 workspace、session、附件与 DSH storage domain。DSH 的
-`.credentials.yaml` 从独立内部 credentials store 挂载；provider key 通常由同 namespace
+`.credentials.yaml` 位于独立的 private-state PVC；provider key 通常由同 namespace
 的 `credentialsRef` Secret 作为环境变量提供。数据快照不包含 provider 凭据或浏览器签名记录。
 
 persistence format 与 `compat/dsh/baseline.json` 中的精确 DSH 版本绑定。Restore 是数据操作，

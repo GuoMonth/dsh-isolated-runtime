@@ -8,6 +8,7 @@ cd "$repo_root"
 generated=(
   api/v1alpha1/zz_generated.deepcopy.go
   config/crd/bases/dsh.isolated.io_cells.yaml
+  config/rbac/role.yaml
 )
 
 before="$(sha256sum "${generated[@]}")"

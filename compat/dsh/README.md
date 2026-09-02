@@ -23,8 +23,12 @@ built DSH CLI for a real browser exchange.
 | Independent sidecar | Rejected: alpha.4 has no supported way to inject or retrieve the launch token across a process boundary. |
 | Cell-local launcher | Selected: the parent process observes readiness, keeps the token in memory, and proxies DSH opaquely. |
 
-The launcher is an internal contract experiment in Phase 0. Its production PID
-1 packaging and lifecycle belong to Phase 1.
+The source checkout remains the behavioral baseline. The production Cell image
+installs the official `@deepseek-ai/dsh@0.1.2-alpha.4` npm artifact with the
+tarball integrity recorded in `baseline.json`; the launcher is its PID 1.
+The alpha.4 web profile enables live patch watching, so the launcher invokes
+its official CLI through `node --expose-internals`; this is required by DSH's
+own HMR loader and does not expose the launch token.
 
 ## State ownership
 

@@ -20,7 +20,12 @@ launcher 完成真实 browser exchange。
 | 独立 sidecar | 拒绝：alpha.4 没有跨进程注入或取得 launch token 的支持接口。 |
 | Cell-local launcher | 选择：父进程观测 readiness，将 token 留在内存，并透明代理 DSH。 |
 
-Phase 0 的 launcher 是内部契约实验；生产 PID 1 打包与生命周期属于 Phase 1。
+源码 checkout 继续作为行为基线。生产 Cell 镜像安装官方
+`@deepseek-ai/dsh@0.1.2-alpha.4` npm 产物，其 tarball integrity 记录于
+`baseline.json`；launcher 是镜像 PID 1。
+alpha.4 web profile 会启用实时 patch 监听，因此 launcher 通过
+`node --expose-internals` 调用官方 CLI；这是 DSH 自身 HMR loader 的要求，不会暴露 launch
+token。
 
 ## 状态归属
 

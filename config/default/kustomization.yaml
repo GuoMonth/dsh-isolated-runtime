@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dsh-system
+resources:
+  - namespace.yaml
+  - ../crd
+  - ../rbac
+  - ../manager
+images:
+  - name: controller
+    newName: ghcr.io/guomonth/dsh-isolated-runtime-operator
+    newTag: main
