@@ -4,10 +4,11 @@ Kubernetes-native isolation for [DeepSeek Harness (DSH)](https://github.com/deep
 The project defines one durable boundary—`Cell`—and lets Kubernetes, Gateway
 API, and CSI keep ownership of the infrastructure they already model.
 
-**Current state: Phase 1 single-Cell vertical slice.** The operator translates a
-Cell into native Kubernetes storage, identity, workload, service, and ingress
-policy resources. The Cell image runs the access launcher as PID 1 and persists
-DSH data across Pod replacement.
+**Current state: Phase 1 complete (`GO`); Phase 2 trusted-access planning.** The
+operator translates a Cell into native Kubernetes storage, identity, workload,
+service, and ingress-policy resources. The Cell image runs the access launcher
+as PID 1 and persists DSH data across Pod replacement. The Phase 1 evidence and
+decision are recorded in [the retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/23).
 
 [中文](./README.zh-CN.md)
 

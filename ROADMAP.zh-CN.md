@@ -25,12 +25,14 @@ Roadmap 按垂直大里程碑推进。每个大里程碑结束时必须复盘并
   替换后的 DSH/browser 状态持久性；
 - 发布带 SBOM 的 linux/amd64 Cell 与 Operator 镜像。
 
-只有本地、镜像、精确上游与可重复 kind 实证全部通过，复盘结论才是 `GO`。
+本地、镜像、精确上游与可重复 kind 实证均已通过；
+[Phase 1 复盘](https://github.com/GuoMonth/dsh-isolated-runtime/issues/23)结论为 `GO`。
 
 ## Phase 2 —— 可信访问
 
 将外部身份认证与 Cell 授权组件接入 Gateway API；路由由集群 base domain 与 Cell identity
-派生；保持 DSH Host/Origin 语义；launcher 只能从批准的 ingress 路径访问。
+派生；保持 DSH Host/Origin 语义；launcher 只能从批准的 ingress 路径访问。首轮工作见
+[Phase 2 milestone](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/3)。
 
 ## Phase 3 —— 数据生命周期
 

@@ -28,15 +28,17 @@ Delivered by this milestone:
   recovery, and durable DSH/browser state through Pod replacement in kind;
 - publish linux/amd64 Cell and operator images with SBOMs.
 
-The review gate is `GO` only when local, image, exact-upstream, and repeatable
-kind evidence all pass.
+The local, image, exact-upstream, and repeatable kind evidence passed. The
+[Phase 1 retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/23)
+recorded `GO`.
 
 ## Phase 2 — Authenticated access
 
 Integrate the external identity and authorization component with Gateway API.
 Derive routing from cluster base domain plus Cell identity, preserve DSH
 Host/Origin semantics, and keep the launcher reachable only from the approved
-ingress path.
+ingress path. Initial work is tracked by
+[the Phase 2 milestone](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/3).
 
 ## Phase 3 — Data lifecycle
 

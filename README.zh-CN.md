@@ -4,9 +4,10 @@
 的 Kubernetes 原生隔离层。本项目只定义一个持久边界——`Cell`；基础设施能力继续由
 Kubernetes、Gateway API 与 CSI 管理。
 
-**当前状态：Phase 1 单 Cell 垂直切片。** Operator 将 Cell 翻译为 Kubernetes 原生的存储、
-身份、工作负载、Service 与入口策略资源。Cell 镜像以 access launcher 为 PID 1，并在 Pod
-替换后保持 DSH 数据。
+**当前状态：Phase 1 已完成（`GO`），Phase 2 可信访问进入规划。** Operator 将 Cell 翻译为
+Kubernetes 原生的存储、身份、工作负载、Service 与入口策略资源。Cell 镜像以 access
+launcher 为 PID 1，并在 Pod 替换后保持 DSH 数据。Phase 1 的证据与结论见
+[复盘记录](https://github.com/GuoMonth/dsh-isolated-runtime/issues/23)。
 
 [English](./README.md)
 
