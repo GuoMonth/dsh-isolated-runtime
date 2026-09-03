@@ -5,9 +5,9 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 revision="$(git -C "$repo_root" rev-parse HEAD)"
-cell_image="${CELL_IMAGE:-dsh-phase1-cell:test}"
-operator_image="${OPERATOR_IMAGE:-dsh-phase1-operator:test}"
-container_name="dsh-phase1-smoke-${RANDOM}"
+cell_image="${CELL_IMAGE:-dsh-phase2-cell:test}"
+operator_image="${OPERATOR_IMAGE:-dsh-phase2-operator:test}"
+container_name="dsh-phase2-smoke-${RANDOM}"
 smoke_root="$(mktemp -d)"
 state_file="$smoke_root/probe-state.json"
 
@@ -31,6 +31,7 @@ if [[ "${SKIP_IMAGE_BUILD:-0}" != "1" ]]; then
 fi
 
 docker run --rm "$operator_image" --help >/dev/null
+docker run --rm --entrypoint /cell-authorizer "$operator_image" --help >/dev/null
 docker run --rm --entrypoint node "$cell_image" -e \
   "if (require('/opt/dsh/node_modules/@deepseek-ai/dsh/package.json').version !== '0.1.2-alpha.4') process.exit(1)"
 

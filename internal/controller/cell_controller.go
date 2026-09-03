@@ -16,13 +16,17 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	dshv1alpha1 "github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
 	"github.com/GuoMonth/dsh-isolated-runtime/internal/cellcontract"
@@ -50,29 +54,54 @@ type CellReconciler struct {
 	Scheme                *runtime.Scheme
 	SystemNamespace       string
 	SandboxedRuntimeClass string
+	RouteConfig           RouteConfig
+	Recorder              record.EventRecorder
+	routeAPIAvailable     bool
 }
 
-// +kubebuilder:rbac:groups=dsh.isolated.io,resources=cells,verbs=get;list;watch
+// The access verb is required by Kubernetes RBAC escalation prevention: the
+// controller creates namespace Roles that grant this verb, even though it never
+// performs Cell access checks itself.
+// +kubebuilder:rbac:groups=dsh.isolated.io,resources=cells,verbs=get;list;watch;access
 // +kubebuilder:rbac:groups=dsh.isolated.io,resources=cells/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims;serviceaccounts;services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // SetupWithManager registers owned-resource and ready-endpoint watches.
 func (r *CellReconciler) SetupWithManager(manager ctrl.Manager) error {
 	if strings.TrimSpace(r.SystemNamespace) == "" {
 		return errors.New("system namespace is required")
 	}
-	return ctrl.NewControllerManagedBy(manager).
+	if err := r.RouteConfig.Validate(); err != nil {
+		return err
+	}
+	_, routeErr := manager.GetRESTMapper().RESTMapping(schema.GroupKind{
+		Group: gatewayv1.GroupVersion.Group,
+		Kind:  "HTTPRoute",
+	}, gatewayv1.GroupVersion.Version)
+	r.routeAPIAvailable = routeErr == nil
+	if r.RouteConfig.Enabled() && routeErr != nil {
+		return fmt.Errorf("gateway routing requires the HTTPRoute CRD: %w", routeErr)
+	}
+
+	builder := ctrl.NewControllerManagedBy(manager).
 		For(&dshv1alpha1.Cell{}).
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
+		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(r.mapDerivedAccessObject)).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Watches(&corev1.PersistentVolumeClaim{}, handler.EnqueueRequestsFromMapFunc(r.mapManagedObject)).
-		Watches(&discoveryv1.EndpointSlice{}, handler.EnqueueRequestsFromMapFunc(r.mapEndpointSlice)).
-		Complete(r)
+		Watches(&discoveryv1.EndpointSlice{}, handler.EnqueueRequestsFromMapFunc(r.mapEndpointSlice))
+	if r.routeAPIAvailable {
+		builder = builder.Watches(&gatewayv1.HTTPRoute{}, handler.EnqueueRequestsFromMapFunc(r.mapDerivedAccessObject))
+	}
+	return builder.Complete(r)
 }
 
 // Reconcile converges a Cell entirely through Kubernetes observed state.
@@ -116,6 +145,7 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 		state.Access = failedCondition(err, "ingress policy reconciliation failed")
 		return r.finish(ctx, &cell, state, err)
 	}
+	routeErr := r.reconcilePublicAccess(ctx, &cell)
 
 	if cell.Spec.SecurityClass == dshv1alpha1.SecuritySandboxed && strings.TrimSpace(r.SandboxedRuntimeClass) == "" {
 		if err := r.deleteStatefulSet(ctx, &cell); err != nil {
@@ -126,7 +156,7 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 			reasonSandboxRuntimeClassUnconfigured,
 			"sandboxed RuntimeClass mapping is not configured",
 		)
-		return r.finish(ctx, &cell, state, nil)
+		return r.finishPublic(ctx, &cell, state, routeErr)
 	}
 
 	workload, err := r.reconcileStatefulSet(ctx, &cell)
@@ -146,7 +176,21 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 	if accessReady {
 		state.Access = trueCondition(reasonEndpointReady, "access Service has a ready endpoint")
 	}
-	return r.finish(ctx, &cell, state, nil)
+	return r.finishPublic(ctx, &cell, state, routeErr)
+}
+
+func (r *CellReconciler) finishPublic(
+	ctx context.Context,
+	cell *dshv1alpha1.Cell,
+	state observedState,
+	publicErr error,
+) (ctrl.Result, error) {
+	result, err := r.finish(ctx, cell, state, nil)
+	if err != nil || publicErr == nil {
+		return result, err
+	}
+	result.RequeueAfter = pendingRequeue
+	return result, nil
 }
 
 type componentState struct {

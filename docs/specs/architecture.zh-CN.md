@@ -27,10 +27,14 @@ Cell
       ├─ StatefulSet（1 replica）：launcher（PID 1）→ DSH 子进程
       ├─ Headless Service（StatefulSet 网络身份）
       ├─ ClusterIP Service（Cell 访问入口）
-      └─ NetworkPolicy
+      ├─ NetworkPolicy
+      ├─ Role（单个 Cell 的 `access` verb）
+      └─ HTTPRoute（UID 派生 hostname）
 
-identity + Cell authorization（Phase 2）
-  → Gateway API route
+Browser
+  → Envoy Gateway（HTTPS + OIDC）
+  → cell-authorizer（route 校验 + SubjectAccessReview）
+  → HTTPRoute
   → launcher
   → DSH HTTP / WebSocket / stream / Fetch
 ```
@@ -47,11 +51,21 @@ launcher：
 1. launcher 启动 DSH 子进程并捕获 readiness URL；
 2. token 仅留在 launcher 内存，只用于内部首次根请求，不进入外部 URL、参数或日志；
 3. HTTP、WebSocket、stream 与 Fetch 全部透明转发，不解析 Typert；
-4. 保留外部 Host/Origin 供 DSH 校验，HTTPS 出口为 DSH cookie 补 `Secure`；
+4. 保留外部 Host/Origin 供 DSH 校验；HTTPS 出口将 DSH cookie 规范化为 `Secure`、
+   `HttpOnly` 与 `SameSite=Lax`，以完成外部 OIDC provider 返回后的安全顶层导航；
 5. 身份认证与 Cell 授权位于本 seam 之前；launcher 只信任由 NetworkPolicy 限定的入口。
 
 独立 sidecar 无法安全获得进程 token；直接暴露既违背 loopback-only CLI，也会泄漏 launch
 URL；纯 Gateway 配置无法完成内存 token exchange 与 cookie rewrite。
+
+## 可信浏览器访问
+
+公网 hostname 与 route 由不可变 Cell UID 和集群 base domain 派生，不进入 Cell API。
+Envoy 终止 TLS、完成 OIDC 登录后调用 `cell-authorizer`。authorizer 只信任 Envoy route
+metadata，并重新读取精确 HTTPRoute 与 Cell，逐项校验 owner、UID、hostname、parent 与
+backend，最后对 Cell `access` verb 发起不缓存的 SubjectAccessReview。RoleBinding 完全由
+管理员持有，因此授权或撤权在下一个 HTTP/WebSocket 请求生效。缺少身份返回 401，路由错误
+或 RBAC 拒绝返回 403，依赖故障 fail closed 为 503。
 
 ## 状态
 

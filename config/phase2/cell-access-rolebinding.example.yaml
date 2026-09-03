@@ -1,0 +1,15 @@
+# Replace the namespace, Role name and subject with values from your Cell and
+# OIDC provider. The operator intentionally does not manage this object.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: allow-alice
+  namespace: tenant-a
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cell-00000000-0000-0000-0000-000000000000-access
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: https://idp.example.com#alice

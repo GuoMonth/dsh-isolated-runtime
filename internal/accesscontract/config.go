@@ -1,0 +1,83 @@
+// Package accesscontract defines the cluster-owned Phase 2 route identity.
+// It is shared by the controller and authorizer and deliberately stays out of
+// the public Cell API.
+package accesscontract
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"k8s.io/apimachinery/pkg/util/validation"
+
+	"github.com/GuoMonth/dsh-isolated-runtime/internal/cellcontract"
+)
+
+type Config struct {
+	GatewayName       string
+	GatewayNamespace  string
+	GatewaySection    string
+	BaseDomain        string
+	ExternalHTTPSPort int
+}
+
+func (c Config) Enabled() bool {
+	return strings.TrimSpace(c.GatewayName) != ""
+}
+
+func (c Config) Validate() error {
+	if !c.Enabled() {
+		if strings.TrimSpace(c.BaseDomain) != "" {
+			return errors.New("gateway name is required when base domain is configured")
+		}
+		return nil
+	}
+	for field, value := range map[string]string{
+		"gateway name":      c.GatewayName,
+		"gateway namespace": c.GatewayNamespace,
+		"gateway section":   c.GatewaySection,
+		"base domain":       c.BaseDomain,
+	} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s is required when Gateway routing is enabled", field)
+		}
+	}
+	if problems := validation.IsDNS1123Subdomain(c.GatewayName); len(problems) != 0 {
+		return fmt.Errorf("invalid gateway name: %s", strings.Join(problems, "; "))
+	}
+	if problems := validation.IsDNS1123Subdomain(c.GatewayNamespace); len(problems) != 0 {
+		return fmt.Errorf("invalid gateway namespace: %s", strings.Join(problems, "; "))
+	}
+	if problems := validation.IsDNS1123Label(c.GatewaySection); len(problems) != 0 {
+		return fmt.Errorf("invalid gateway section: %s", strings.Join(problems, "; "))
+	}
+	if strings.HasSuffix(c.BaseDomain, ".") {
+		return errors.New("base domain must not have a trailing dot")
+	}
+	if problems := validation.IsDNS1123Subdomain(c.BaseDomain); len(problems) != 0 {
+		return fmt.Errorf("invalid base domain: %s", strings.Join(problems, "; "))
+	}
+	const sampleUID = "00000000-0000-0000-0000-000000000000"
+	if problems := validation.IsDNS1123Subdomain(c.Hostname(sampleUID)); len(problems) != 0 {
+		return fmt.Errorf("base domain is too long for a Cell hostname: %s", strings.Join(problems, "; "))
+	}
+	if c.Port() < 1 || c.Port() > 65535 {
+		return errors.New("external HTTPS port must be between 1 and 65535")
+	}
+	return nil
+}
+
+func (c Config) Port() int {
+	if c.ExternalHTTPSPort == 0 {
+		return 443
+	}
+	return c.ExternalHTTPSPort
+}
+
+func (c Config) Hostname(uid string) string {
+	return cellcontract.PublicHostname(c.BaseDomain, uid)
+}
+
+func (c Config) Authority(uid string) string {
+	return cellcontract.PublicAuthority(c.BaseDomain, uid, c.Port())
+}

@@ -28,11 +28,18 @@ Roadmap 按垂直大里程碑推进。每个大里程碑结束时必须复盘并
 本地、镜像、精确上游与可重复 kind 实证均已通过；
 [Phase 1 复盘](https://github.com/GuoMonth/dsh-isolated-runtime/issues/23)结论为 `GO`。
 
-## Phase 2 —— 可信访问
+## Phase 2 —— 可信浏览器访问
 
-将外部身份认证与 Cell 授权组件接入 Gateway API；路由由集群 base domain 与 Cell identity
-派生；保持 DSH Host/Origin 语义；launcher 只能从批准的 ingress 路径访问。首轮工作见
-[Phase 2 milestone](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/3)。
+本里程碑交付：
+
+- 从每个 Cell UID 派生一个 HTTPRoute 与 access Role，不扩展 Cell API；
+- Envoy Gateway 终止公网 HTTPS/OIDC，再将可信 route metadata、实时 Kubernetes 对象与
+  不缓存的 SAR 精确绑定；
+- 用真实 Chromium 实证跨 Cell 隔离、即时授权/撤权、路由防混淆、503 故障关闭与重启持久化；
+- authorizer 与 Operator 共用现有镜像，保持两个镜像的发布面。
+
+证据与里程碑结论记录在
+[Phase 2 复盘](https://github.com/GuoMonth/dsh-isolated-runtime/issues/28)。
 
 ## Phase 3 —— 数据生命周期
 

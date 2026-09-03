@@ -1,0 +1,45 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: dsh-browser-access
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: dsh
+      sectionName: https
+  oidc:
+    provider:
+      issuer: https://idp.example.com
+    clientID: dsh-browser
+    clientSecret:
+      name: dsh-oidc-client
+    cookieConfig:
+      sameSite: Lax
+    cookieDomain: cells.example.com
+    redirectURL: https://auth.cells.example.com/oauth2/callback
+    logoutPath: /logout
+    forwardAccessToken: false
+    forwardIDToken:
+      header: X-Dsh-Oidc-Token
+    denyRedirect:
+      headers:
+        - name: :path
+          type: Prefix
+          value: /api/
+        - name: Sec-Fetch-Dest
+          type: Exact
+          value: empty
+  extAuth:
+    grpc:
+      backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: cell-authorizer
+          port: 9001
+    headersToExtAuth:
+      - X-Dsh-Oidc-Token
+    timeout: 2s
+    failOpen: false
+    includeRouteMetadata: true
+    statusOnError: 503

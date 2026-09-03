@@ -223,7 +223,13 @@ func newProxy(target *url.URL, token string) http.Handler {
 		request.Host = originalHost
 		request.Header.Del("Authorization")
 		request.Header.Del("Proxy-Authorization")
-		for _, name := range []string{"X-Authenticated-User", "X-Cell-Principal", "X-Forwarded-User", "X-Remote-User"} {
+		for _, name := range []string{
+			"X-Authenticated-User",
+			"X-Cell-Principal",
+			"X-Forwarded-User",
+			"X-Remote-User",
+			"X-Dsh-Oidc-Token",
+		} {
 			request.Header.Del(name)
 		}
 		if request.Method == http.MethodGet && request.URL.Path == "/" && request.URL.RawQuery == "" && !hasDSHBrowserCookie(request) {
@@ -239,6 +245,7 @@ func newProxy(target *url.URL, token string) http.Handler {
 		}
 		response.Header.Del("Set-Cookie")
 		for _, cookie := range cookies {
+			cookie = normalizeDSHBrowserCookie(cookie)
 			if !hasCookieAttribute(cookie, "Secure") {
 				cookie += "; Secure"
 			}
@@ -247,6 +254,35 @@ func newProxy(target *url.URL, token string) http.Handler {
 		return nil
 	}
 	return proxy
+}
+
+// DSH uses SameSite=Strict for its authority-bound browser cookie. That cookie
+// is not returned during the top-level redirect chain from an external OIDC
+// provider, leaving the browser in DSH's token-exchange redirect loop. Lax
+// retains cross-site subrequest protection while allowing this safe top-level
+// navigation to complete.
+func normalizeDSHBrowserCookie(raw string) string {
+	parts := strings.Split(raw, ";")
+	if len(parts) == 0 {
+		return raw
+	}
+	name, _, found := strings.Cut(strings.TrimSpace(parts[0]), "=")
+	if !found || !strings.HasPrefix(name, "dsh-auth-") {
+		return raw
+	}
+
+	normalized := make([]string, 0, len(parts)+1)
+	normalized = append(normalized, strings.TrimSpace(parts[0]))
+	for _, part := range parts[1:] {
+		attribute := strings.TrimSpace(part)
+		attributeName, _, _ := strings.Cut(attribute, "=")
+		if strings.EqualFold(attributeName, "SameSite") {
+			continue
+		}
+		normalized = append(normalized, attribute)
+	}
+	normalized = append(normalized, "SameSite=Lax")
+	return strings.Join(normalized, "; ")
 }
 
 func hasDSHBrowserCookie(request *http.Request) bool {

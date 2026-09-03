@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dsh-system
+  labels:
+    dsh.isolated.io/routes: enabled

@@ -57,11 +57,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Render install surface
-        run: kubectl kustomize config/default > /tmp/dsh-install.yaml
+        run: |
+          kubectl kustomize config/default > /tmp/dsh-install.yaml
+          kubectl kustomize config/phase2 > /tmp/dsh-phase2-install.yaml
       - name: Assert one controller and one public CRD
         run: |
           test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-install.yaml)" = 1
           test "$(grep -c '^kind: Deployment$' /tmp/dsh-install.yaml)" = 1
+          test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-phase2-install.yaml)" = 1
+          test "$(grep -c '^kind: Deployment$' /tmp/dsh-phase2-install.yaml)" = 2
+          grep -q '^kind: Gateway$' /tmp/dsh-phase2-install.yaml
+          grep -q '^kind: Backend$' /tmp/dsh-phase2-install.yaml
+          grep -q '^kind: SecurityPolicy$' /tmp/dsh-phase2-install.yaml
 
   lint:
     name: lint

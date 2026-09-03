@@ -32,13 +32,21 @@ The local, image, exact-upstream, and repeatable kind evidence passed. The
 [Phase 1 retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/23)
 recorded `GO`.
 
-## Phase 2 — Authenticated access
+## Phase 2 — Trusted browser access
 
-Integrate the external identity and authorization component with Gateway API.
-Derive routing from cluster base domain plus Cell identity, preserve DSH
-Host/Origin semantics, and keep the launcher reachable only from the approved
-ingress path. Initial work is tracked by
-[the Phase 2 milestone](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/3).
+Delivered by this milestone:
+
+- derive one HTTPRoute and access Role from each Cell UID without expanding the
+  Cell API;
+- terminate public HTTPS and OIDC at Envoy Gateway, then bind trusted route
+  metadata and exact live Kubernetes objects to an uncached SAR;
+- prove real Chromium access, cross-Cell isolation, immediate grant/revocation,
+  route confusion rejection, 503 failure closure and restart persistence;
+- retain the two-image publication surface by packaging the authorizer with the
+  operator image.
+
+Evidence and the milestone decision are recorded in
+[the Phase 2 retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/28).
 
 ## Phase 3 — Data lifecycle
 
