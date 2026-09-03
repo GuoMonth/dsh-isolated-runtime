@@ -58,8 +58,8 @@ if kubectl --kubeconfig "$kubeconfig" -n tenant-alice patch cell no-storage-clas
 fi
 
 kubectl --kubeconfig "$kubeconfig" -n tenant-alice patch cell assistant --subresource=status --type=merge \
-  -p '{"status":{"observedGeneration":1,"conditions":[{"type":"Ready","status":"True","reason":"ContractVerified","message":"contract fixture is ready","lastTransitionTime":"2026-01-01T00:00:00Z"}],"dshVersion":"0.1.2-alpha.4","imageDigest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}'
-test "$(kubectl --kubeconfig "$kubeconfig" -n tenant-alice get cell assistant -o jsonpath='{.status.dshVersion}')" = "0.1.2-alpha.4"
+  -p '{"status":{"observedGeneration":1,"conditions":[{"type":"Ready","status":"True","reason":"ContractVerified","message":"contract fixture is ready","lastTransitionTime":"2026-01-01T00:00:00Z"}],"dshVersion":"0.1.2-rc.1","imageDigest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}'
+test "$(kubectl --kubeconfig "$kubeconfig" -n tenant-alice get cell assistant -o jsonpath='{.status.dshVersion}')" = "0.1.2-rc.1"
 if kubectl --kubeconfig "$kubeconfig" -n tenant-alice patch cell assistant --subresource=status --type=merge \
   -p '{"status":{"conditions":[{"type":"PodReady","status":"True","reason":"LegacyTopology","message":"must be rejected","lastTransitionTime":"2026-01-01T00:00:00Z"}]}}'; then
   echo "unsupported status condition was accepted" >&2

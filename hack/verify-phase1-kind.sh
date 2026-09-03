@@ -192,7 +192,7 @@ test "$(k -n tenant-a get networkpolicy "$main_base" -o jsonpath='{.spec.policyT
 test -z "$(k -n tenant-a get networkpolicy "$main_base" -o jsonpath='{.spec.egress}')"
 k -n tenant-a get cell main -o json | jq -e '
   (.status | keys | sort) == (["conditions","dshVersion","imageDigest","observedGeneration"] | sort) and
-  .status.dshVersion == "0.1.2-alpha.4" and
+  .status.dshVersion == "0.1.2-rc.1" and
   .status.imageDigest == "'"$cell_digest"'"
 ' >/dev/null
 

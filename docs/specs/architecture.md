@@ -47,7 +47,7 @@ database.
 
 ## Access seam
 
-DSH alpha.4 creates a launch token in process memory, prints it once in the
+DSH 0.1.2 RC creates a launch token in process memory, prints it once in the
 loopback readiness URL, and exchanges it for an authority-bound browser cookie.
 There is no supported token injection interface. Therefore the selected design
 is a launcher in the same container:

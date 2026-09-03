@@ -45,7 +45,7 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	if value.SchemaVersion != 1 || value.Source.Repository != "https://github.com/deepseek-ai/deepseek-harness.git" {
 		t.Fatalf("unexpected source contract: %+v", value.Source)
 	}
-	if value.Source.Tag != "dsh-v0.1.2-alpha.4" || value.Source.Version != "0.1.2-alpha.4" {
+	if value.Source.Tag != "dsh-v0.1.2-rc.1" || value.Source.Version != "0.1.2-rc.1" {
 		t.Fatalf("unexpected DSH release: %+v", value.Source)
 	}
 	if len(value.Source.Commit) != 40 {
@@ -58,8 +58,8 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 		t.Fatalf("toolchain is not exact: %+v", value.Toolchain)
 	}
 	if value.Distribution.Package != "@deepseek-ai/dsh" || value.Distribution.Version != value.Source.Version ||
-		value.Distribution.Tarball != "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.1.2-alpha.4.tgz" ||
-		value.Distribution.Integrity != "sha512-+dOvmCxBNs4fWkBqAw1trAYE/5Ue/SmcC+ZKUfKAK/ai/FAgsSeiZkOhRQudVHuq/DZUhFH8BYkibhprhYqgAA==" {
+		value.Distribution.Tarball != "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.1.2-rc.1.tgz" ||
+		value.Distribution.Integrity != "sha512-RPq48TzxvwpdT9/7W1tbhZDBMmeK+bxDrX9cqQC27Wx/LqtgJF8PSa3b3xriU8oxtvhwYmk21w2cej3uMQrnVA==" {
 		t.Fatalf("runtime distribution is not exact: %+v", value.Distribution)
 	}
 	if strings.Contains(strings.ToLower(string(baselineJSON)), "latest") {

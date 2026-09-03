@@ -44,7 +44,7 @@ inventory、checkpoint service 或影子 desired-state 数据库。
 
 ## Access seam
 
-DSH alpha.4 在进程内生成 launch token，只在 loopback readiness URL 中打印一次，再将其交换
+DSH 0.1.2 RC 在进程内生成 launch token，只在 loopback readiness URL 中打印一次，再将其交换
 为 authority-bound browser cookie；它没有支持的 token 注入接口。因此正式方向选择同容器
 launcher：
 

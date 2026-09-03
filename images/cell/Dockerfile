@@ -21,7 +21,7 @@ ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.source="https://github.com/GuoMonth/dsh-isolated-runtime" \
       org.opencontainers.image.revision=$SOURCE_REVISION \
       io.dsh.isolated.contract.version="v1alpha1" \
-      io.dsh.isolated.dsh.version="0.1.2-alpha.4"
+      io.dsh.isolated.dsh.version="0.1.2-rc.1"
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates git \
     && rm -rf /var/lib/apt/lists/*

@@ -9,7 +9,7 @@ import (
 
 const (
 	ContractVersion = "v1alpha1"
-	DSHVersion      = "0.1.2-alpha.4"
+	DSHVersion      = "0.1.2-rc.1"
 
 	ContainerName = "cell"
 	LauncherPath  = "/usr/local/bin/cell-launcher"
