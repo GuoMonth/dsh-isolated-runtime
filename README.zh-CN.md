@@ -44,8 +44,8 @@ make verify-dsh         # 运行精确版本的上游 DSH 兼容套件
 golangci-lint run
 ```
 
-初始支持范围只有 `dsh-v0.1.2-alpha.4`，commit
-`4e84901e6471b79ec0338099867ebb4606d12bb5`，不是 semver 范围。
+当前支持范围只有 `dsh-v0.1.2-rc.1`，commit
+`a66e4702047846cdaa10c66c9d3df3951f5ea70d`，不是 semver 范围。
 [兼容性记录](./compat/dsh/README.zh-CN.md)解释了为什么 access seam 最终选择由
 Cell-local launcher 持有 DSH 子进程。
 

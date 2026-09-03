@@ -8,7 +8,7 @@ review gate before the next one starts.
 Complete in this delivery:
 
 - one namespaced `Cell` API and reproducibly generated CRD;
-- exact DSH `dsh-v0.1.2-alpha.4` source, state, protocol, and shutdown baseline;
+- exact DSH source, state, protocol, and shutdown baseline, now advanced to `dsh-v0.1.2-rc.1`;
 - executable Cell-local launcher experiment;
 - kind contract tests, lightweight CI, and path-gated full DSH CI;
 - removal of the old Runtime/control-plane architecture.

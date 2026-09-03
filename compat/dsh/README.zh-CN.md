@@ -1,7 +1,7 @@
 # DSH 兼容基线
 
-Phase 0 只支持 `dsh-v0.1.2-alpha.4`，commit
-`4e84901e6471b79ec0338099867ebb4606d12bb5`，使用 `pnpm@11.7.0` 与
+项目只支持 `dsh-v0.1.2-rc.1`，commit
+`a66e4702047846cdaa10c66c9d3df3951f5ea70d`，使用 `pnpm@11.7.0` 与
 [`baseline.json`](./baseline.json) 记录的 frozen lockfile digest。持久化格式与该版本绑定，
 不承诺兼容更新或更旧的 session format。
 
@@ -17,13 +17,13 @@ launcher 完成真实 browser exchange。
 | --- | --- |
 | 直接暴露 DSH | 拒绝：标准 CLI 有意只监听 loopback，launch URL 还包含 bearer token。 |
 | 纯 Gateway 配置 | 拒绝：无法持有进程内 token exchange，也无法加固返回 cookie。 |
-| 独立 sidecar | 拒绝：alpha.4 没有跨进程注入或取得 launch token 的支持接口。 |
+| 独立 sidecar | 拒绝：0.1.2 RC 没有跨进程注入或取得 launch token 的支持接口。 |
 | Cell-local launcher | 选择：父进程观测 readiness，将 token 留在内存，并透明代理 DSH。 |
 
 源码 checkout 继续作为行为基线。生产 Cell 镜像安装官方
-`@deepseek-ai/dsh@0.1.2-alpha.4` npm 产物，其 tarball integrity 记录于
+`@deepseek-ai/dsh@0.1.2-rc.1` npm 产物，其 tarball integrity 记录于
 `baseline.json`；launcher 是镜像 PID 1。
-alpha.4 web profile 会启用实时 patch 监听，因此 launcher 通过
+0.1.2 RC web profile 会启用实时 patch 监听，因此 launcher 通过
 `node --expose-internals` 调用官方 CLI；这是 DSH 自身 HMR loader 的要求，不会暴露 launch
 token。
 

@@ -7,7 +7,7 @@ Roadmap 按垂直大里程碑推进。每个大里程碑结束时必须复盘并
 本次交付完成：
 
 - 唯一的 namespaced `Cell` API 与可重复生成的 CRD；
-- DSH `dsh-v0.1.2-alpha.4` 的源码、状态、协议及关闭行为精确基线；
+- DSH 源码、状态、协议及关闭行为精确基线，当前已推进至 `dsh-v0.1.2-rc.1`；
 - 可执行的 Cell-local launcher 实验；
 - kind 契约测试、轻量 CI 与按路径触发的完整 DSH CI；
 - 删除旧 Runtime/control-plane 架构。
