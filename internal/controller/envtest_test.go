@@ -4,12 +4,14 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -19,8 +21,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	dshv1alpha1 "github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
+	"github.com/GuoMonth/dsh-isolated-runtime/internal/accesscontract"
 	"github.com/GuoMonth/dsh-isolated-runtime/internal/cellcontract"
 )
 
@@ -51,9 +56,11 @@ func TestEnvtestReconcileAndAdmission(t *testing.T) {
 		corev1.AddToScheme,
 		appsv1.AddToScheme,
 		networkingv1.AddToScheme,
+		rbacv1.AddToScheme,
 		discoveryv1.AddToScheme,
 		storagev1.AddToScheme,
 		dshv1alpha1.AddToScheme,
+		gatewayv1.Install,
 	} {
 		if err := add(scheme); err != nil {
 			t.Fatal(err)
@@ -62,6 +69,24 @@ func TestEnvtestReconcileAndAdmission(t *testing.T) {
 	kube, err := client.New(configuration, client.Options{Scheme: scheme})
 	if err != nil {
 		t.Fatal(err)
+	}
+	manager, err := ctrl.NewManager(configuration, ctrl.Options{
+		Scheme:  scheme,
+		Metrics: metricsserver.Options{BindAddress: "0"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled := &CellReconciler{
+		Client: manager.GetClient(), Scheme: scheme, SystemNamespace: "dsh-system",
+		RouteConfig: accesscontract.Config{GatewayName: "dsh", GatewayNamespace: "dsh-system", GatewaySection: "https", BaseDomain: "cells.test"},
+	}
+	if err := enabled.SetupWithManager(manager); err == nil || !strings.Contains(err.Error(), "HTTPRoute CRD") {
+		t.Fatalf("enabled routing without Gateway API CRD error = %v", err)
+	}
+	disabled := &CellReconciler{Client: manager.GetClient(), Scheme: scheme, SystemNamespace: "dsh-system"}
+	if err := disabled.SetupWithManager(manager); err != nil {
+		t.Fatalf("Phase 1 mode depended on Gateway API CRD: %v", err)
 	}
 	ctx := context.Background()
 	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "envtest-tenant"}}

@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +18,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	dshv1alpha1 "github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
 	"github.com/GuoMonth/dsh-isolated-runtime/internal/cellcontract"
@@ -259,8 +261,10 @@ func testReconciler(t *testing.T, objects ...client.Object) (*CellReconciler, cl
 		corev1.AddToScheme,
 		appsv1.AddToScheme,
 		networkingv1.AddToScheme,
+		rbacv1.AddToScheme,
 		discoveryv1.AddToScheme,
 		dshv1alpha1.AddToScheme,
+		gatewayv1.Install,
 	} {
 		if err := add(scheme); err != nil {
 			t.Fatal(err)

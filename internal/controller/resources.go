@@ -215,7 +215,7 @@ func (r *CellReconciler) desiredPodTemplate(cell *dshv1alpha1.Cell) corev1.PodTe
 	temporarySize := resource.MustParse(cellcontract.TemporarySize)
 
 	environment := []corev1.EnvVar{
-		{Name: "CELL_AUTHORITY", Value: cellcontract.Authority(cell.Namespace, string(cell.UID))},
+		{Name: "CELL_AUTHORITY", Value: r.cellAuthority(cell)},
 		{Name: "HOME", Value: cellcontract.DSHHome},
 		{Name: "DSH_HOME", Value: cellcontract.DSHHome},
 		{Name: "DSH_AGENTS_HOME", Value: cellcontract.AgentsHome},

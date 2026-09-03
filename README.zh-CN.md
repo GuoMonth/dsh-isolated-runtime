@@ -4,10 +4,10 @@
 的 Kubernetes 原生隔离层。本项目只定义一个持久边界——`Cell`；基础设施能力继续由
 Kubernetes、Gateway API 与 CSI 管理。
 
-**当前状态：Phase 1 已完成（`GO`），Phase 2 可信访问进入规划。** Operator 将 Cell 翻译为
-Kubernetes 原生的存储、身份、工作负载、Service 与入口策略资源。Cell 镜像以 access
-launcher 为 PID 1，并在 Pod 替换后保持 DSH 数据。Phase 1 的证据与结论见
-[复盘记录](https://github.com/GuoMonth/dsh-isolated-runtime/issues/23)。
+**当前状态：Phase 2 可信浏览器访问已完成（`GO`）。** Operator 将 Cell 翻译为 Kubernetes 原生
+workload 资源、精确 HTTPRoute 与逐 Cell access Role；Envoy Gateway 负责 HTTPS/OIDC，
+内置 authorizer 通过 SubjectAccessReview 将 OIDC User/Group 映射到普通 Kubernetes
+RoleBinding。
 
 [English](./README.md)
 
@@ -39,6 +39,7 @@ make test-envtest        # 使用真实 API server 验证 controller reconcile
 make verify-cell        # 在临时 kind 集群验证 CRD 行为
 make verify-images      # 生产镜像与真实 DSH 持久化 smoke test
 make verify-kind        # 在 kind 完成 Phase 1 垂直实证
+make verify-kind-phase2 # 用 Envoy、Dex、Chromium 实证 HTTPS/OIDC/RBAC
 make verify-dsh         # 运行精确版本的上游 DSH 兼容套件
 golangci-lint run
 ```
@@ -48,8 +49,11 @@ golangci-lint run
 [兼容性记录](./compat/dsh/README.zh-CN.md)解释了为什么 access seam 最终选择由
 Cell-local launcher 持有 DSH 子进程。
 
-使用 `kubectl apply -k config/default` 安装 CRD、cluster-wide Operator 与其
-`dsh-system` namespace。公开路由与用户认证仍属于 Phase 2。
+`kubectl apply -k config/default` 安装不依赖 Gateway API 的 Phase 1 surface。安装 Envoy
+Gateway，并提供 wildcard DNS/TLS 与 OIDC provider 配置后，`config/phase2` 增加参考
+Gateway、authorizer 和路由模式。管理员使用普通 RoleBinding 授权；Operator 有意不管理它。
+Envoy Gateway 安装必须采用同目录 `envoy-gateway.yaml` 配置，使数据面运行在 Gateway
+namespace 并启用 Backend extension。
 
 ## 设计
 

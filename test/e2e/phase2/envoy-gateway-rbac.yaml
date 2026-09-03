@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dsh-envoy-gateway-infra-manager
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts", "services", "configmaps"]
+    verbs: ["create", "get", "list", "watch", "delete", "deletecollection", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "daemonsets"]
+    verbs: ["create", "get", "list", "watch", "delete", "deletecollection", "patch"]
+  - apiGroups: ["autoscaling", "policy"]
+    resources: ["horizontalpodautoscalers", "poddisruptionbudgets"]
+    verbs: ["create", "get", "list", "watch", "delete", "deletecollection", "patch"]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: ["certificates.k8s.io"]
+    resources: ["clustertrustbundles"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dsh-envoy-gateway-infra-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dsh-envoy-gateway-infra-manager
+subjects:
+  - kind: ServiceAccount
+    name: envoy-gateway
+    namespace: envoy-gateway-system

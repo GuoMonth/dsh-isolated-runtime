@@ -2,7 +2,10 @@
 // controller, launcher image, manifests, and vertical-slice tests.
 package cellcontract
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const (
 	ContractVersion = "v1alpha1"
@@ -34,12 +37,15 @@ const (
 	PrivateVolumeName   = "private"
 	TemporaryVolumeName = "tmp"
 
-	ManagedByLabel     = "app.kubernetes.io/managed-by"
-	ApplicationLabel   = "app.kubernetes.io/name"
-	CellUIDLabel       = "dsh.isolated.io/cell-uid"
-	AccessLabel        = "dsh.isolated.io/access"
-	CellNameAnnotation = "dsh.isolated.io/cell-name"
-	CellUIDAnnotation  = "dsh.isolated.io/cell-uid"
+	ManagedByLabel          = "app.kubernetes.io/managed-by"
+	ApplicationLabel        = "app.kubernetes.io/name"
+	CellUIDLabel            = "dsh.isolated.io/cell-uid"
+	AccessLabel             = "dsh.isolated.io/access"
+	CellNameAnnotation      = "dsh.isolated.io/cell-name"
+	CellUIDAnnotation       = "dsh.isolated.io/cell-uid"
+	RouteCellNameAnnotation = "gateway.envoyproxy.io/dsh-cell-name"
+	RouteCellUIDAnnotation  = "gateway.envoyproxy.io/dsh-cell-uid"
+	OIDCTokenHeader         = "X-Dsh-Oidc-Token"
 
 	ManagedByValue   = "dsh-isolated-runtime"
 	ApplicationValue = "dsh-cell"
@@ -68,4 +74,18 @@ func ResourceNames(uid string) Names {
 // Authority is the portless Phase 1 internal Service authority.
 func Authority(namespace, uid string) string {
 	return fmt.Sprintf("%s.%s.svc", ResourceNames(uid).Base, namespace)
+}
+
+// PublicHostname is the topology-free DNS identity derived from a Cell UID.
+func PublicHostname(baseDomain, uid string) string {
+	return fmt.Sprintf("%s.%s", ResourceNames(uid).Base, strings.TrimSuffix(baseDomain, "."))
+}
+
+// PublicAuthority is the browser authority. HTTPS uses the implicit port 443.
+func PublicAuthority(baseDomain, uid string, port int) string {
+	hostname := PublicHostname(baseDomain, uid)
+	if port == 443 {
+		return hostname
+	}
+	return fmt.Sprintf("%s:%d", hostname, port)
 }

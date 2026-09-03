@@ -29,10 +29,14 @@ Cell
       ├─ StatefulSet (1 replica): launcher (PID 1) → DSH child
       ├─ headless Service (StatefulSet network identity)
       ├─ ClusterIP Service (Cell access)
-      └─ NetworkPolicy
+      ├─ NetworkPolicy
+      ├─ Role (one Cell `access` verb)
+      └─ HTTPRoute (UID-derived hostname)
 
-identity + Cell authorization (Phase 2)
-  → Gateway API route
+Browser
+  → Envoy Gateway (HTTPS + OIDC)
+  → cell-authorizer (route validation + SubjectAccessReview)
+  → HTTPRoute
   → launcher
   → DSH HTTP / WebSocket / streams / Fetch
 ```
@@ -52,14 +56,27 @@ is a launcher in the same container:
 2. The token stays in launcher memory and is used only on the internal first
    root request; it never enters the public URL, arguments, or logs.
 3. HTTP, WebSocket, streams, and Fetch are proxied opaquely. Typert is not parsed.
-4. External Host and Origin remain intact for DSH validation. HTTPS egress adds
-   `Secure` to the DSH cookie.
+4. External Host and Origin remain intact for DSH validation. HTTPS egress
+   normalizes the DSH cookie to `Secure`, `HttpOnly`, and `SameSite=Lax`; Lax is
+   required for the safe top-level return from an external OIDC provider.
 5. Authentication and Cell authorization happen before this seam. The launcher
    trusts only the ingress path constrained by NetworkPolicy.
 
 A detached sidecar cannot safely obtain the process token. Direct exposure
 conflicts with the loopback-only CLI and leaks the launch URL. Pure Gateway
 configuration cannot perform the in-memory token exchange or cookie rewrite.
+
+## Trusted browser access
+
+The public hostname and route are derived from the immutable Cell UID and a
+cluster base domain; they are not Cell API inputs. Envoy terminates TLS and
+validates the OIDC login before calling `cell-authorizer`. The authorizer trusts
+only Envoy route metadata, rereads the exact HTTPRoute and Cell, verifies their
+owner, UID, hostname, parent and backend, then submits an uncached
+SubjectAccessReview for the Cell `access` verb. RoleBindings remain wholly
+administrator-owned, so a grant or revocation applies to the next HTTP or
+WebSocket request. Missing identity is 401, a bad route or denied RBAC check is
+403, and dependencies fail closed with 503.
 
 ## State
 

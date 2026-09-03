@@ -69,7 +69,7 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 		t.Fatalf("exchange status=%d", exchange.StatusCode)
 	}
 	setCookie := exchange.Header.Get("Set-Cookie")
-	if !strings.Contains(setCookie, "HttpOnly") || !strings.Contains(setCookie, "SameSite=Strict") || !strings.Contains(setCookie, "Secure") {
+	if !strings.Contains(setCookie, "HttpOnly") || !strings.Contains(setCookie, "SameSite=Lax") || strings.Contains(setCookie, "SameSite=Strict") || !strings.Contains(setCookie, "Secure") {
 		t.Fatalf("unexpected Set-Cookie: %s", setCookie)
 	}
 	if strings.Contains(exchange.Header.Get("Location"), "token=") {
@@ -94,6 +94,7 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 		"Authorization":        []string{"Bearer must-not-reach-dsh"},
 		"X-Cell-Principal":     []string{"spoofed"},
 		"X-Authenticated-User": []string{"spoofed"},
+		"X-Dsh-Oidc-Token":     []string{"must-not-reach-dsh"},
 	}
 	echo := request(t, client, http.MethodPost, instance.URL+"/api/settings/describe", "{}", headers)
 	defer func() { _ = echo.Body.Close() }()
@@ -104,7 +105,7 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 	if echo.StatusCode != http.StatusOK || observed["host"] != "cell.example.test" || observed["origin"] != "https://cell.example.test" {
 		t.Fatalf("proxy did not preserve authority facts: status=%d body=%v", echo.StatusCode, observed)
 	}
-	if observed["authorization"] != "" || observed["principal"] != "" {
+	if observed["authorization"] != "" || observed["principal"] != "" || observed["oidc"] != "" {
 		t.Fatalf("proxy forwarded outer identity: %v", observed)
 	}
 
@@ -126,6 +127,37 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), "token=<redacted>") {
 		t.Fatalf("redacted readiness was not logged: %s", logs.String())
+	}
+}
+
+func TestNormalizeDSHBrowserCookie(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "strict DSH cookie",
+			in:   "dsh-auth-test=signed; Path=/; HttpOnly; SameSite=Strict",
+			want: "dsh-auth-test=signed; Path=/; HttpOnly; SameSite=Lax",
+		},
+		{
+			name: "case insensitive attribute",
+			in:   "dsh-auth-test=signed; samesite=None; Secure",
+			want: "dsh-auth-test=signed; Secure; SameSite=Lax",
+		},
+		{
+			name: "unrelated cookie",
+			in:   "application=value; SameSite=Strict",
+			want: "application=value; SameSite=Strict",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := normalizeDSHBrowserCookie(test.in); got != test.want {
+				t.Fatalf("normalizeDSHBrowserCookie(%q) = %q, want %q", test.in, got, test.want)
+			}
+		})
 	}
 }
 
@@ -329,6 +361,7 @@ func helperHandler(authority string) http.Handler {
 				"host": request.Host, "origin": request.Header.Get("Origin"),
 				"authorization": request.Header.Get("Authorization"),
 				"principal":     request.Header.Get("X-Cell-Principal"),
+				"oidc":          request.Header.Get("X-Dsh-Oidc-Token"),
 			})
 		case "/download":
 			writer.Header().Set("Content-Length", fmt.Sprint(len("artifact")))

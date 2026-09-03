@@ -95,7 +95,7 @@ func run(connect, authority, stateFile string, resume bool) error {
 			return errors.New("launch token escaped into redirect")
 		}
 		cookies := response.Cookies()
-		if len(cookies) != 1 || !cookies[0].Secure || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteStrictMode {
+		if len(cookies) != 1 || !cookies[0].Secure || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteLaxMode {
 			return fmt.Errorf("unexpected DSH cookie attributes")
 		}
 		state.Cookie = cookies[0].Name + "=" + cookies[0].Value

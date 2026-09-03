@@ -1,0 +1,77 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: dsh
+spec:
+  filterOrder:
+    - name: envoy.filters.http.ext_authz
+      after: envoy.filters.http.oauth2
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              template:
+                metadata:
+                  labels:
+                    dsh.isolated.io/access: "true"
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: dsh
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: dsh
+spec:
+  gatewayClassName: dsh
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: dsh
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.cells.example.com"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: dsh-gateway-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              dsh.isolated.io/routes: enabled
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: auth-callback
+spec:
+  parentRefs:
+    - name: dsh
+      sectionName: https
+  hostnames:
+    - auth.cells.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: cell-authorizer
+          port: 8080
