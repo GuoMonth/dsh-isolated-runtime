@@ -120,13 +120,13 @@ k -n dsh-system rollout status deployment/cell-operator --timeout=180s
 # revision metadata, plus an E2E-only failure image that writes after rollout
 # and exits before readiness.
 local_cell_b="dsh-phase3-cell-b:test"
-docker buildx build --platform linux/amd64 --load \
+docker buildx build --builder default --platform linux/amd64 --load \
+  --build-arg "CELL_BASE=$local_cell" \
   --build-arg "SOURCE_REVISION=${revision}-equivalent-b" \
-  -f "$repo_root/images/cell/Dockerfile" -t "$local_cell_b" "$repo_root"
+  -f "$repo_root/test/e2e/phase3/Dockerfile.revision" -t "$local_cell_b" "$repo_root"
 docker tag "$local_cell_b" "$cell_repo:e2e-b"
 docker push "$cell_repo:e2e-b" >/dev/null
-cell_b_repo_digest="$(docker inspect "$cell_repo:e2e-b" --format '{{index .RepoDigests 0}}')"
-cell_b_digest="${cell_b_repo_digest##*@}"
+cell_b_digest="$(registry_digest dsh-cell e2e-b)"
 test "$cell_b_digest" != "$cell_digest"
 test "$(docker run --rm --entrypoint node "$local_cell_b" -e "process.stdout.write(require('/opt/dsh/node_modules/@deepseek-ai/dsh/package.json').version)")" = "0.1.2-rc.1"
 test "$(docker image inspect "$local_cell" --format '{{json .RootFS.Layers}}')" = \
@@ -141,8 +141,7 @@ docker buildx build --builder default --platform linux/amd64 --load \
   -f "$repo_root/test/e2e/phase3/Dockerfile.fault" -t "$fault_image" "$repo_root"
 docker tag "$fault_image" "$cell_repo:fault"
 docker push "$cell_repo:fault" >/dev/null
-fault_repo_digest="$(docker inspect "$cell_repo:fault" --format '{{index .RepoDigests 0}}')"
-fault_digest="${fault_repo_digest##*@}"
+fault_digest="$(registry_digest dsh-cell fault)"
 
 k create namespace tenant-snapshot
 k label namespace tenant-snapshot dsh.isolated.io/routes=enabled
