@@ -17,6 +17,7 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -52,6 +53,7 @@ const (
 // CellReconciler reconciles Cells across all namespaces.
 type CellReconciler struct {
 	client.Client
+	APIReader             client.Reader
 	Scheme                *runtime.Scheme
 	SystemNamespace       string
 	SandboxedRuntimeClass string
@@ -66,6 +68,7 @@ type CellReconciler struct {
 // performs Cell access checks itself.
 // +kubebuilder:rbac:groups=dsh.isolated.io,resources=cells,verbs=get;list;watch;access
 // +kubebuilder:rbac:groups=dsh.isolated.io,resources=cells/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=dsh.isolated.io,resources=cellsnapshots,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims;serviceaccounts;services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -116,6 +119,13 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 	if cell.UID == "" {
 		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
 	}
+	if cell.DeletionTimestamp != nil {
+		handled, err := r.cleanupDeletingRestore(ctx, &cell)
+		if handled {
+			return ctrl.Result{RequeueAfter: pendingRequeue}, err
+		}
+		return ctrl.Result{}, nil
+	}
 
 	state := pendingState()
 	restore, restoreState, err := r.resolveRestore(ctx, &cell)
@@ -144,6 +154,9 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 	if err != nil {
 		state.Workload = failedCondition(err, "snapshot state observation failed")
 		return r.finish(ctx, &cell, state, err)
+	}
+	if snapshotActivity.StaleLockCleared {
+		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
 	}
 
 	if err := r.reconcileServiceAccount(ctx, &cell); err != nil {
@@ -177,7 +190,7 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 	}
 
 	replicas := int32(1)
-	if snapshotActivity.Quiesced {
+	if snapshotActivity.StopWriter {
 		replicas = 0
 	}
 	workload, err := r.reconcileStatefulSet(ctx, &cell, replicas)
@@ -185,11 +198,22 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 		state.Workload = failedCondition(err, "StatefulSet reconciliation failed")
 		return r.finish(ctx, &cell, state, err)
 	}
+	if statefulSetReady(workload) && restore != nil && !restore.Initialized {
+		if len(workload.Spec.Template.Spec.Containers) != 1 || imageDigest(workload.Spec.Template.Spec.Containers[0].Image) != restore.ImageDigest {
+			state.Workload = falseCondition(reasonRestoreImageMismatch, "recorded restore image has not become the Ready reader")
+			return r.finish(ctx, &cell, state, nil)
+		}
+		if err := r.completeRestoreInitialization(ctx, &cell, dataPVC, restore); err != nil {
+			state.Workload = failedCondition(err, "restore initialization completion failed")
+			return r.finish(ctx, &cell, state, err)
+		}
+		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+	}
 	if statefulSetReady(workload) && !snapshotActivity.Active {
 		state.Workload = trueCondition(reasonStatefulSetReady, "current StatefulSet revision has one ready replica")
 	}
 	if snapshotActivity.Active {
-		state.Workload = falseCondition(reasonSnapshotInProgress, "CellSnapshot is quiescing the workload")
+		state.Workload = falseCondition(reasonSnapshotInProgress, "CellSnapshot is stopping the sole managed writer")
 		state.Access = falseCondition(reasonSnapshotInProgress, "CellSnapshot intentionally removed the access endpoint")
 		return r.finishPublic(ctx, &cell, state, routeErr)
 	}
@@ -266,10 +290,7 @@ func (r *CellReconciler) finish(
 	ready := state.Storage.Status == metav1.ConditionTrue &&
 		state.Workload.Status == metav1.ConditionTrue &&
 		state.Access.Status == metav1.ConditionTrue
-	readyState := falseCondition(reasonComponentsNotReady, "one or more Cell components are not ready")
-	if ready {
-		readyState = trueCondition(reasonComponentsReady, "all Cell components are ready")
-	}
+	readyState := aggregateReadyState(state, ready)
 
 	desired := copyStatus(cell.Status)
 	desired.ObservedGeneration = cell.Generation
@@ -301,6 +322,16 @@ func (r *CellReconciler) finish(
 		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
 	}
 	return ctrl.Result{}, nil
+}
+
+func aggregateReadyState(state observedState, ready bool) componentState {
+	if ready {
+		return trueCondition(reasonComponentsReady, "all Cell components are ready")
+	}
+	if state.Workload.Reason == reasonSnapshotInProgress || state.Access.Reason == reasonSnapshotInProgress {
+		return falseCondition(reasonSnapshotInProgress, "CellSnapshot is stopping the sole managed writer")
+	}
+	return falseCondition(reasonComponentsNotReady, "one or more Cell components are not ready")
 }
 
 func conditionFor(cell *dshv1alpha1.Cell, conditionType string, state componentState) metav1.Condition {
@@ -342,8 +373,28 @@ func statefulSetReady(statefulSet *appsv1.StatefulSet) bool {
 
 func (r *CellReconciler) accessEndpointReady(ctx context.Context, cell *dshv1alpha1.Cell) (bool, error) {
 	names := cellcontract.ResourceNames(string(cell.UID))
+	var service corev1.Service
+	if err := r.cellRead(ctx, types.NamespacedName{Namespace: cell.Namespace, Name: names.Base}, &service); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := validateManaged(cell, &service, true); err != nil {
+		return false, err
+	}
+	var workload appsv1.StatefulSet
+	if err := r.cellRead(ctx, types.NamespacedName{Namespace: cell.Namespace, Name: names.Base}, &workload); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := validateManaged(cell, &workload, true); err != nil {
+		return false, err
+	}
 	var slices discoveryv1.EndpointSliceList
-	if err := r.List(
+	if err := r.cellList(
 		ctx,
 		&slices,
 		client.InNamespace(cell.Namespace),
@@ -352,8 +403,30 @@ func (r *CellReconciler) accessEndpointReady(ctx context.Context, cell *dshv1alp
 		return false, err
 	}
 	for _, slice := range slices.Items {
+		owner := metav1.GetControllerOf(&slice)
+		if owner == nil || owner.APIVersion != "v1" || owner.Kind != "Service" || owner.Name != service.Name || owner.UID != service.UID {
+			continue
+		}
 		for _, endpoint := range slice.Endpoints {
-			if endpoint.Conditions.Ready != nil && *endpoint.Conditions.Ready {
+			if endpoint.Conditions.Ready == nil || !*endpoint.Conditions.Ready || endpoint.TargetRef == nil ||
+				(endpoint.TargetRef.APIVersion != "" && endpoint.TargetRef.APIVersion != "v1") ||
+				endpoint.TargetRef.Kind != "Pod" || endpoint.TargetRef.Name == "" || endpoint.TargetRef.UID == "" ||
+				(endpoint.TargetRef.Namespace != "" && endpoint.TargetRef.Namespace != cell.Namespace) {
+				continue
+			}
+			var pod corev1.Pod
+			if err := r.cellRead(ctx, types.NamespacedName{Namespace: cell.Namespace, Name: endpoint.TargetRef.Name}, &pod); err != nil {
+				if apierrors.IsNotFound(err) {
+					continue
+				}
+				return false, err
+			}
+			podOwner := metav1.GetControllerOf(&pod)
+			if pod.Name == workload.Name+"-0" && pod.UID == endpoint.TargetRef.UID && pod.DeletionTimestamp == nil &&
+				pod.Annotations[cellcontract.CellUIDAnnotation] == string(cell.UID) &&
+				pod.Annotations[cellcontract.CellNameAnnotation] == cell.Name &&
+				podOwner != nil && podOwner.APIVersion == appsv1.SchemeGroupVersion.String() &&
+				podOwner.Kind == "StatefulSet" && podOwner.Name == workload.Name && podOwner.UID == workload.UID {
 				return true, nil
 			}
 		}
@@ -391,8 +464,9 @@ func (r *CellReconciler) mapCellSnapshot(_ context.Context, object client.Object
 }
 
 type cellSnapshotActivity struct {
-	Active   bool
-	Quiesced bool
+	Active           bool
+	StopWriter       bool
+	StaleLockCleared bool
 }
 
 func (r *CellReconciler) snapshotActivity(ctx context.Context, cell *dshv1alpha1.Cell) (cellSnapshotActivity, error) {
@@ -401,30 +475,44 @@ func (r *CellReconciler) snapshotActivity(ctx context.Context, cell *dshv1alpha1
 		return cellSnapshotActivity{}, nil
 	}
 	var snapshots dshv1alpha1.CellSnapshotList
-	if err := r.List(ctx, &snapshots, client.InNamespace(cell.Namespace)); err != nil {
+	if err := r.cellList(ctx, &snapshots, client.InNamespace(cell.Namespace)); err != nil {
 		return cellSnapshotActivity{}, err
 	}
 	for _, snapshot := range snapshots.Items {
-		if string(snapshot.UID) != activeUID || snapshot.Spec.CellRef.Name != cell.Name {
+		if string(snapshot.UID) != activeUID {
 			continue
 		}
-		quiesced := conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotQuiesced)
-		if conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotReady) {
-			return cellSnapshotActivity{}, nil
+		validBinding := snapshot.Spec.CellRef.Name == cell.Name && snapshot.Status.SourceCellUID == string(cell.UID)
+		terminal := conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotReady) ||
+			conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotFailed)
+		if validBinding && !terminal {
+			stopWriter := conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted) ||
+				failureCleanupRequired(snapshot.Status.Conditions)
+			return cellSnapshotActivity{Active: true, StopWriter: stopWriter}, nil
 		}
-		if conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotFailed) {
-			for _, finalizer := range snapshot.Finalizers {
-				if finalizer == cellcontract.SnapshotFinalizer && quiesced {
-					return cellSnapshotActivity{Active: true, Quiesced: true}, nil
-				}
-			}
-			return cellSnapshotActivity{}, nil
-		}
-		if conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted) {
-			return cellSnapshotActivity{Active: true, Quiesced: quiesced}, nil
-		}
+		break
 	}
-	return cellSnapshotActivity{}, nil
+	original := cell.DeepCopy()
+	copy := cell.DeepCopy()
+	delete(copy.Annotations, cellcontract.ActiveSnapshotAnnotation)
+	if err := r.Patch(ctx, copy, client.MergeFromWithOptions(original, client.MergeFromWithOptimisticLock{})); err != nil {
+		return cellSnapshotActivity{}, err
+	}
+	return cellSnapshotActivity{StaleLockCleared: true}, nil
+}
+
+func (r *CellReconciler) cellRead(ctx context.Context, key client.ObjectKey, object client.Object) error {
+	if r.APIReader != nil {
+		return r.APIReader.Get(ctx, key, object)
+	}
+	return r.Get(ctx, key, object)
+}
+
+func (r *CellReconciler) cellList(ctx context.Context, list client.ObjectList, options ...client.ListOption) error {
+	if r.APIReader != nil {
+		return r.APIReader.List(ctx, list, options...)
+	}
+	return r.List(ctx, list, options...)
 }
 
 func copyStatus(status dshv1alpha1.CellStatus) *dshv1alpha1.CellStatus {

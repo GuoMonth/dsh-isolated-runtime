@@ -51,3 +51,23 @@ func TestConfigRejectsPartialAndInvalidValues(t *testing.T) {
 		})
 	}
 }
+
+func TestEnvoyOAuthCookieContract(t *testing.T) {
+	t.Parallel()
+	for _, name := range EnvoyOAuthCookieNames {
+		if !IsEnvoyOAuthCookie(name) || !IsEnvoyOAuthCookie(strings.ToLower(name)) {
+			t.Fatalf("reserved cookie %q was not recognized", name)
+		}
+		if !IsEnvoyOAuthCookie(name+"-5f93C2e4") || !IsEnvoyOAuthCookie(strings.ToLower(name)+"-ABCDEF12") {
+			t.Fatalf("suffixed reserved cookie %q was not recognized", name)
+		}
+	}
+	for _, name := range []string{
+		"dsh-auth-example", "theme", "session", "AccessToken-5f93c2e", "AccessToken-5f93c2e45",
+		"AccessToken-nothex12", "myAccessToken-5f93c2e4", "AccessToken-preference",
+	} {
+		if IsEnvoyOAuthCookie(name) {
+			t.Fatalf("application cookie %q was classified as OAuth state", name)
+		}
+	}
+}

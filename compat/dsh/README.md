@@ -9,7 +9,7 @@ compatibility promise.
 `make verify-dsh` performs a full upstream checkout and runs the upstream tests
 covering browser token/cookie exchange, `settings/describe`, remote mux and ready
 streams, Fetch GET/HEAD, Host/Origin and cross-site rejection, restart cookie
-continuity, session-format rejection, SIGTERM, flush, and shutdown. The local
+continuity, session-format rejection, SIGTERM, disposal, and shutdown. The local
 Go suite separately exercises opaque proxying, redaction, cookie hardening,
 signal forwarding, and failure cleanup, then drives the launcher with the exact
 built DSH CLI for a real browser exchange.
@@ -30,12 +30,21 @@ The 0.1.2 RC web profile enables live patch watching, so the launcher invokes
 its official CLI through `node --expose-internals`; this is required by DSH's
 own HMR loader and does not expose the launch token.
 
-Phase 3 uses the same exact-RC shutdown evidence as an application-consistency
-boundary. `POST /quiesce` is an internal, operation-UID-bound request: the
-launcher becomes unready, rejects new traffic, drains proxy connections, sends
-SIGTERM, and acknowledges only a normal DSH exit. Forced kill is a failed
-snapshot, never proof of flush. A marker in the Pod's `/tmp` makes retries
-idempotent until Kubernetes removes that Pod.
+The exact RC does not expose an application-flush acknowledgement. Its SIGTERM
+path uses exit code zero after successful disposal, disposal rejection, and
+timeout, so those outcomes are externally indistinguishable. Phase 3.1 therefore
+removed `POST /quiesce`: snapshot consistency is established only by setting the
+StatefulSet to zero, observing zero replicas, and proving that no Pod owned by
+that StatefulSet UID remains. The resulting guarantee is writer-stopped and
+crash-consistent, not application-consistent. Ordinary Pod termination still
+uses the launcher's bounded HTTP/WebSocket drain and SIGTERM forwarding.
+
+At the access boundary, the launcher removes identity headers and every default
+credential cookie of pinned Envoy Gateway v1.9.1 before DSH. Current names are
+`AccessToken`, `OauthHMAC`, `OauthExpires`, `IdToken`, `RefreshToken`,
+`OauthNonce`, and `CodeVerifier`, each followed by the policy's eight-digit hex
+suffix. Exact legacy names are reserved too. DSH and unrelated application
+cookies remain intact.
 
 ## State ownership
 

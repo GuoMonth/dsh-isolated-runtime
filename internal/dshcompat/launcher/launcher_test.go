@@ -17,6 +17,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/GuoMonth/dsh-isolated-runtime/internal/accesscontract"
 )
 
 const helperToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -89,7 +91,9 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 	}
 
 	headers := http.Header{
-		"Cookie":               []string{cookie},
+		"Cookie": []string{cookie + "; theme=dark; AccessToken-5f93c2e4=access-secret; OauthHMAC-5f93c2e4=hmac-secret; " +
+			"OauthExpires-5f93c2e4=123; IdToken-5f93c2e4=id-secret; RefreshToken-5f93c2e4=refresh-secret; " +
+			"OauthNonce-5f93c2e4=nonce-secret; CodeVerifier-5f93c2e4=verifier-secret; BearerToken=legacy-secret"},
 		"Origin":               []string{"https://cell.example.test"},
 		"Authorization":        []string{"Bearer must-not-reach-dsh"},
 		"X-Cell-Principal":     []string{"spoofed"},
@@ -107,6 +111,18 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 	}
 	if observed["authorization"] != "" || observed["principal"] != "" || observed["oidc"] != "" {
 		t.Fatalf("proxy forwarded outer identity: %v", observed)
+	}
+	if observed["cookie"] != cookie+"; theme=dark" {
+		t.Fatalf("proxy forwarded unexpected cookies: %q", observed["cookie"])
+	}
+	for _, setCookie := range echo.Header.Values("Set-Cookie") {
+		name, ok := responseCookieName(setCookie)
+		if ok && accesscontract.IsEnvoyOAuthCookie(name) {
+			t.Fatalf("DSH could overwrite an ingress credential cookie: %q", setCookie)
+		}
+	}
+	if got := echo.Header.Get("Set-Cookie"); !strings.HasPrefix(got, "dsh-preference=compact") || !strings.Contains(got, "Secure") {
+		t.Fatalf("ordinary DSH response cookie was not preserved safely: %q", got)
 	}
 
 	get := request(t, client, http.MethodGet, instance.URL+"/download", "", http.Header{"Cookie": []string{cookie}})
@@ -314,7 +330,7 @@ func assertOpaqueUpgrade(t *testing.T, instanceURL, cookie string) {
 		t.Fatal(err)
 	}
 	defer func() { _ = conn.Close() }()
-	if _, err := fmt.Fprintf(conn, "GET /api/remote.mux HTTP/1.1\r\nHost: cell.example.test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nCookie: %s\r\n\r\n", cookie); err != nil {
+	if _, err := fmt.Fprintf(conn, "GET /api/remote.mux HTTP/1.1\r\nHost: cell.example.test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nCookie: %s; IdToken=websocket-secret; RefreshToken=websocket-refresh\r\n\r\n", cookie); err != nil {
 		t.Fatal(err)
 	}
 	reader := bufio.NewReader(conn)
@@ -405,14 +421,23 @@ func helperHandler(authority string) http.Handler {
 			http.Error(writer, "unauthorized", http.StatusUnauthorized)
 			return
 		}
+		for _, cookie := range request.Cookies() {
+			if accesscontract.IsEnvoyOAuthCookie(cookie.Name) {
+				http.Error(writer, "oauth cookie crossed Cell boundary", http.StatusBadRequest)
+				return
+			}
+		}
 		switch request.URL.Path {
 		case "/api/settings/describe":
 			writer.Header().Set("Content-Type", "application/json")
+			writer.Header().Add("Set-Cookie", "AccessToken-5f93c2e4=child-forged; Path=/; Domain=.cells.test")
+			writer.Header().Add("Set-Cookie", "dsh-preference=compact; Path=/")
 			_ = json.NewEncoder(writer).Encode(map[string]string{
 				"host": request.Host, "origin": request.Header.Get("Origin"),
 				"authorization": request.Header.Get("Authorization"),
 				"principal":     request.Header.Get("X-Cell-Principal"),
 				"oidc":          request.Header.Get("X-Dsh-Oidc-Token"),
+				"cookie":        request.Header.Get("Cookie"),
 			})
 		case "/download":
 			writer.Header().Set("Content-Length", fmt.Sprint(len("artifact")))

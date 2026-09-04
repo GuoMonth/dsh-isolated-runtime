@@ -32,8 +32,8 @@ Cell
       └─ HTTPRoute（UID 派生 hostname）
 
 CellSnapshot
-  → launcher POST /quiesce（仅 Operator 到 Pod）
   → StatefulSet replicas=0
+  → 已观察零副本且不存在 owned Pod（writer-stop barrier）
   → CSI VolumeSnapshot（仅 tenant-data PVC）
   → 源 Cell replicas=1
   → fresh Cell data PVC 使用 VolumeSnapshot dataSource
@@ -58,9 +58,11 @@ launcher：
 1. launcher 启动 DSH 子进程并捕获 readiness URL；
 2. token 仅留在 launcher 内存，只用于内部首次根请求，不进入外部 URL、参数或日志；
 3. HTTP、WebSocket、stream 与 Fetch 全部透明转发，不解析 Typert；
-4. 保留外部 Host/Origin 供 DSH 校验；HTTPS 出口将 DSH cookie 规范化为 `Secure`、
-   `HttpOnly` 与 `SameSite=Lax`，以完成外部 OIDC provider 返回后的安全顶层导航；
-5. 身份认证与 Cell 授权位于本 seam 之前；launcher 只信任由 NetworkPolicy 限定的入口。
+4. 保留外部 Host/Origin 供 DSH 校验；HTTPS 出口补 `Secure` 并将 DSH cookie 规范化为
+   `SameSite=Lax`；`HttpOnly` 由 DSH 自身提供；
+5. 身份认证与 Cell 授权位于本 seam 之前；launcher 会剥离身份 header 以及固定 Envoy
+   Gateway v1.9.1 OAuth2 filter 使用的全部凭据 cookie，包括每个 policy 派生的后缀名称，
+   同时保留 DSH 与无关应用 cookie。
 
 独立 sidecar 无法安全获得进程 token；直接暴露既违背 loopback-only CLI，也会泄漏 launch
 URL；纯 Gateway 配置无法完成内存 token exchange 与 cookie rewrite。
@@ -81,19 +83,27 @@ data PVC 保存 workspace、session、附件与 DSH storage domain。DSH 的
 的 `credentialsRef` Secret 作为环境变量提供。数据快照不包含 provider 凭据或浏览器签名记录。
 
 persistence format 与 `compat/dsh/baseline.json` 中的精确 DSH 版本绑定。Restore 是数据操作，
-不承诺迁移外来 session format。创建快照前 controller 必须 quiesce DSH，并且绝不能让两个
+不承诺迁移外来 session format。创建快照前 controller 必须停止唯一 writer，并且绝不能让两个
 Cell writer 并发读写同一个 data volume。
 
-`CellSnapshot` 是不可变的一次性 Kubernetes 意图。launcher 先拒绝新的 proxy 请求，排空
-普通与 upgraded connection；只有 DSH 收到 SIGTERM 后正常退出，操作才算确认。随后 Cell
-controller 将源 StatefulSet 降到零副本；只有观测到全部副本为零，才允许创建 CSI
-`VolumeSnapshot`。Cell 上通过 resourceVersion CAS 获得的注解负责串行化数据操作。快照失败
-时先删除未完成 CSI 对象，再恢复源 Cell；无法确认清理结果时保持源 Cell 停止。
+`CellSnapshot` 是不可变的一次性 Kubernetes 意图。Cell 上通过 resourceVersion CAS 获得的
+UID 注解负责串行化数据操作。接受操作时先记录源 Cell UID 与 data PVC UID，再激活锁。
+`Accepted=True` 后，Cell controller 立即将源 StatefulSet 降到零副本；只有观测到零副本，
+并通过不经缓存的 namespace 全量检查确认当前 StatefulSet 所有的 Pod，以及任何携带精确
+Cell name/UID 的 Pod 均已消失，才写入 `WriterStopped=True`。创建 CSI `VolumeSnapshot` 前还会再次校验 PVC UID 及两侧 CSI
+class driver。精确 DSH RC 无法从退出码区分 dispose
+成功、拒绝或超时，因此这里只承诺 writer-stopped crash consistency，不宣称应用 flush。
+快照失败时先删除 owned Kubernetes snapshot 对象，再恢复源 Cell；后端数据删除/保留由 CSI
+driver 和 VolumeSnapshotClass 策略决定。
 
 Restore 总是创建新的 data PVC 与 Cell identity。输入必须是同 namespace、Ready 的 snapshot，
 使用其记录的精确 image digest、唯一支持的 DSH RC、不小于 restoreSize 的容量及同一
-StorageClass；private PVC 始终全新创建。恢复后可显式 rollout 到同 RC 的另一个 digest；
-rollback 是从旧 snapshot 创建另一个 fresh Cell，绝不是原地 PVC 降级。
+StorageClass；private PVC 始终全新创建。data PVC 记录 snapshot UID、image digest 与 DSH
+version；UID 绑定的 finalizer 会保护来源，直到记录的 image 成为首个 Ready reader。在此之前
+不能换 digest，删除中的输入也不能创建不可变 PVC。CSI 已生成 Bound data PVC 后，该 PVC
+记录的 provenance 与同一组 finalizer 构成持久屏障：后到的 snapshot 删除请求只能等待，
+exact-image 首个 reader 继续启动。之后才可显式 rollout 到同 RC 的另一个 digest；rollback
+是从旧 snapshot 创建另一个 fresh Cell，绝不是原地 PVC 降级。
 
 ## 非目标
 

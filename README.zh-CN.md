@@ -4,9 +4,10 @@
 的 Kubernetes 原生隔离层。本项目只定义一个持久边界——`Cell`；基础设施能力继续由
 Kubernetes、Gateway API 与 CSI 管理。
 
-**当前状态：Phase 3 应用一致数据生命周期已完成（`GO`）。** 在可信浏览器访问之外，Operator 可以先
-quiesce 单个 Cell，再由 CSI 只快照 tenant-data PVC，并将快照恢复为全新的 Cell。本项目不
-引入备份调度器、私有快照仓库或原地回滚机制。
+**当前状态：Phase 3.1 契约加固已完成。** 在可信浏览器访问之外，Operator 会先停止唯一由
+Kubernetes 管理的 writer，再由 CSI 只快照 tenant-data PVC，并将快照恢复为全新的 Cell。
+这里承诺的是 writer-stopped crash consistency，不宣称 DSH 已确认应用 flush。本项目不引入
+备份调度器、私有快照仓库或原地回滚机制。
 
 [English](./README.md)
 
@@ -39,7 +40,7 @@ make verify-cell        # 在临时 kind 集群验证 CRD 行为
 make verify-images      # 生产镜像与真实 DSH 持久化 smoke test
 make verify-kind        # 在 kind 完成 Phase 1 垂直实证
 make verify-kind-phase2 # 用 Envoy、Dex、Chromium 实证 HTTPS/OIDC/RBAC
-make verify-kind-phase3 # 实证 quiesce、CSI restore、rollout 与 fresh rollback
+make verify-kind-phase3 # 实证 writer-stop、CSI restore、rollout 与 fresh rollback
 make verify-dsh         # 运行精确版本的上游 DSH 兼容套件
 golangci-lint run
 ```
@@ -58,6 +59,9 @@ namespace 并启用 Backend extension。
 集群安装 CSI snapshot controller 与兼容 driver 后，`kubectl apply -k config/phase3` 启用
 `CellSnapshot`；本项目不安装生产 CSI 组件。可执行示例见
 [snapshot/restore sample](./config/samples/dsh_v1alpha1_cellsnapshot.yaml)。
+
+发布候选 Cell/Operator 镜像只构建一次；全部门禁按 immutable digest 消费同一产物，成功后才把
+原 digest 晋级为 GHCR `main`/`sha-*` 标签。晋级不重建，SBOM 与 provenance 仍绑定同一 manifest。
 
 ## 设计
 

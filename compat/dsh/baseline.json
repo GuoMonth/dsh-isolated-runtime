@@ -23,6 +23,12 @@
     "cookieAuthorityBound": true,
     "standardCLIListen": "127.0.0.1"
   },
+  "shutdown": {
+    "signal": "SIGTERM",
+    "exitCode": 0,
+    "flushAcknowledgement": false,
+    "reason": "success, disposer rejection, and timeout are externally indistinguishable"
+  },
   "state": [
     { "class": "sessions", "location": "$DSH_HOME/sessions", "snapshot": true },
     { "class": "attachments", "location": "$DSH_HOME/attachments/v1", "snapshot": true },

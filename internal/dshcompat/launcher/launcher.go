@@ -21,6 +21,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/GuoMonth/dsh-isolated-runtime/internal/accesscontract"
 )
 
 const (
@@ -170,7 +172,7 @@ func Start(cfg Config) (*Instance, error) {
 		Handler: http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 			if draining.Load() {
 				response.Header().Set("Connection", "close")
-				http.Error(response, "Cell is quiescing", http.StatusServiceUnavailable)
+				http.Error(response, "Cell is stopping", http.StatusServiceUnavailable)
 				return
 			}
 			proxy.ServeHTTP(response, request)
@@ -340,6 +342,7 @@ func newProxy(target *url.URL, token string) http.Handler {
 		} {
 			request.Header.Del(name)
 		}
+		stripEnvoyOAuthCookies(request.Header)
 		if request.Method == http.MethodGet && request.URL.Path == "/" && request.URL.RawQuery == "" && !hasDSHBrowserCookie(request) {
 			query := request.URL.Query()
 			query.Set("token", token)
@@ -353,6 +356,9 @@ func newProxy(target *url.URL, token string) http.Handler {
 		}
 		response.Header.Del("Set-Cookie")
 		for _, cookie := range cookies {
+			if name, ok := responseCookieName(cookie); !ok || accesscontract.IsEnvoyOAuthCookie(name) {
+				continue
+			}
 			cookie = normalizeDSHBrowserCookie(cookie)
 			if !hasCookieAttribute(cookie, "Secure") {
 				cookie += "; Secure"
@@ -362,6 +368,13 @@ func newProxy(target *url.URL, token string) http.Handler {
 		return nil
 	}
 	return proxy
+}
+
+func responseCookieName(raw string) (string, bool) {
+	pair, _, _ := strings.Cut(raw, ";")
+	name, _, found := strings.Cut(strings.TrimSpace(pair), "=")
+	name = strings.TrimSpace(name)
+	return name, found && name != ""
 }
 
 // DSH uses SameSite=Strict for its authority-bound browser cookie. That cookie
@@ -391,6 +404,29 @@ func normalizeDSHBrowserCookie(raw string) string {
 	}
 	normalized = append(normalized, "SameSite=Lax")
 	return strings.Join(normalized, "; ")
+}
+
+// stripEnvoyOAuthCookies removes every credential cookie owned by the pinned
+// Envoy OAuth2 filter while preserving DSH and unrelated application cookies.
+// Malformed cookie segments are dropped rather than forwarded across the Cell
+// boundary. Values are never returned or logged by this function.
+func stripEnvoyOAuthCookies(header http.Header) {
+	lines := header.Values("Cookie")
+	header.Del("Cookie")
+	kept := make([]string, 0)
+	for _, line := range lines {
+		for _, segment := range strings.Split(line, ";") {
+			segment = strings.TrimSpace(segment)
+			name, _, valid := strings.Cut(segment, "=")
+			if !valid || strings.TrimSpace(name) == "" || accesscontract.IsEnvoyOAuthCookie(strings.TrimSpace(name)) {
+				continue
+			}
+			kept = append(kept, segment)
+		}
+	}
+	if len(kept) != 0 {
+		header.Set("Cookie", strings.Join(kept, "; "))
+	}
 }
 
 func hasDSHBrowserCookie(request *http.Request) bool {

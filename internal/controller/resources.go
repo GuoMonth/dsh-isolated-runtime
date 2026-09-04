@@ -49,6 +49,13 @@ func (r *CellReconciler) reconcileDataPVC(
 					Kind:     "VolumeSnapshot",
 					Name:     restore.VolumeSnapshotName,
 				}
+				if claim.Annotations == nil {
+					claim.Annotations = map[string]string{}
+				}
+				claim.Annotations[cellcontract.RestoreSnapshotUIDAnnotation] = restore.SnapshotUID
+				claim.Annotations[cellcontract.RestoreImageDigestAnnotation] = restore.ImageDigest
+				claim.Annotations[cellcontract.RestoreDSHVersionAnnotation] = restore.DSHVersion
+				claim.Annotations[cellcontract.RestoreInitializedAnnotation] = "false"
 			}
 			return nil
 		}
@@ -67,6 +74,11 @@ func (r *CellReconciler) reconcileDataPVC(
 				claim.Spec.DataSource.Kind != "VolumeSnapshot" || claim.Spec.DataSource.Name != restore.VolumeSnapshotName ||
 				claim.Spec.StorageClassName == nil || *claim.Spec.StorageClassName != restore.StorageClassName {
 				return errors.New("managed restored data PVC source drifted")
+			}
+			if claim.Annotations[cellcontract.RestoreSnapshotUIDAnnotation] != restore.SnapshotUID ||
+				claim.Annotations[cellcontract.RestoreImageDigestAnnotation] != restore.ImageDigest ||
+				claim.Annotations[cellcontract.RestoreDSHVersionAnnotation] != restore.DSHVersion {
+				return errors.New("managed restored data PVC provenance drifted")
 			}
 		}
 		current := claim.Spec.Resources.Requests[corev1.ResourceStorage]
@@ -221,19 +233,6 @@ func (r *CellReconciler) reconcileNetworkPolicy(ctx context.Context, cell *dshv1
 					Protocol: &protocol,
 					Port:     ptr.To(intstr.FromInt32(cellcontract.ProxyContainerPort)),
 				}},
-			}, {
-				From: []networkingv1.NetworkPolicyPeer{{
-					NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
-						corev1.LabelMetadataName: r.SystemNamespace,
-					}},
-					PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
-						cellcontract.ApplicationLabel: cellcontract.OperatorValue,
-					}},
-				}},
-				Ports: []networkingv1.NetworkPolicyPort{{
-					Protocol: &protocol,
-					Port:     ptr.To(intstr.FromInt32(cellcontract.ManagementPort)),
-				}},
 			}},
 		}
 		return nil
@@ -356,12 +355,7 @@ func (r *CellReconciler) ensureManaged(
 	if err != nil && !created {
 		return err
 	}
-	if !created {
-		if err := validateManaged(cell, object, controlled); err != nil {
-			return err
-		}
-	}
-	_, err = controllerutil.CreateOrPatch(ctx, r.Client, object, func() error {
+	prepare := func(created bool) error {
 		setCellMetadata(object, cell)
 		if controlled {
 			if err := controllerutil.SetControllerReference(cell, object, r.Scheme); err != nil {
@@ -369,8 +363,31 @@ func (r *CellReconciler) ensureManaged(
 			}
 		}
 		return mutate(created)
-	})
-	return err
+	}
+	if created {
+		if err := prepare(true); err != nil {
+			return err
+		}
+		if err := r.Create(ctx, object); err == nil {
+			return nil
+		} else if !apierrors.IsAlreadyExists(err) {
+			return err
+		}
+		// A same-name object appeared after the initial GET. Re-read it and
+		// prove ownership before any mutation; a foreign object is never
+		// adopted through a helper's implicit second GET.
+		if err := r.Get(ctx, key, object); err != nil {
+			return err
+		}
+	}
+	if err := validateManaged(cell, object, controlled); err != nil {
+		return err
+	}
+	original := object.DeepCopyObject().(client.Object)
+	if err := prepare(false); err != nil {
+		return err
+	}
+	return r.Patch(ctx, object, client.MergeFromWithOptions(original, client.MergeFromWithOptimisticLock{}))
 }
 
 func validateManaged(cell *dshv1alpha1.Cell, object client.Object, controlled bool) error {

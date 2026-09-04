@@ -22,7 +22,6 @@ const (
 	ProxyServicePort   = 80
 	ManagementPortName = "management"
 	ManagementPort     = 8081
-	QuiescePath        = "/quiesce"
 
 	DataRoot        = "/var/lib/dsh/data"
 	DSHHome         = DataRoot + "/home"
@@ -31,7 +30,6 @@ const (
 	PrivateRoot     = "/var/lib/dsh-private"
 	CredentialsPath = PrivateRoot + "/.credentials.yaml"
 	TemporaryRoot   = "/tmp"
-	QuiesceMarker   = TemporaryRoot + "/dsh-cell-quiesced"
 	PrivatePVCSize  = "1Gi"
 	TemporarySize   = "1Gi"
 
@@ -39,24 +37,37 @@ const (
 	PrivateVolumeName   = "private"
 	TemporaryVolumeName = "tmp"
 
-	ManagedByLabel           = "app.kubernetes.io/managed-by"
-	ApplicationLabel         = "app.kubernetes.io/name"
-	CellUIDLabel             = "dsh.isolated.io/cell-uid"
-	AccessLabel              = "dsh.isolated.io/access"
-	CellNameAnnotation       = "dsh.isolated.io/cell-name"
-	CellUIDAnnotation        = "dsh.isolated.io/cell-uid"
-	SnapshotUIDAnnotation    = "dsh.isolated.io/cell-snapshot-uid"
-	RouteCellNameAnnotation  = "gateway.envoyproxy.io/dsh-cell-name"
-	RouteCellUIDAnnotation   = "gateway.envoyproxy.io/dsh-cell-uid"
-	ActiveSnapshotAnnotation = "dsh.isolated.io/active-snapshot-uid"
-	OIDCTokenHeader          = "X-Dsh-Oidc-Token"
-	SnapshotFinalizer        = "dsh.isolated.io/snapshot-protection"
+	ManagedByLabel                   = "app.kubernetes.io/managed-by"
+	ApplicationLabel                 = "app.kubernetes.io/name"
+	CellUIDLabel                     = "dsh.isolated.io/cell-uid"
+	AccessLabel                      = "dsh.isolated.io/access"
+	CellNameAnnotation               = "dsh.isolated.io/cell-name"
+	CellUIDAnnotation                = "dsh.isolated.io/cell-uid"
+	SnapshotUIDAnnotation            = "dsh.isolated.io/cell-snapshot-uid"
+	RouteCellNameAnnotation          = "gateway.envoyproxy.io/dsh-cell-name"
+	RouteCellUIDAnnotation           = "gateway.envoyproxy.io/dsh-cell-uid"
+	ActiveSnapshotAnnotation         = "dsh.isolated.io/active-snapshot-uid"
+	RestoreSnapshotUIDAnnotation     = "dsh.isolated.io/restore-snapshot-uid"
+	RestoreImageDigestAnnotation     = "dsh.isolated.io/restore-image-digest"
+	RestoreDSHVersionAnnotation      = "dsh.isolated.io/restore-dsh-version"
+	RestoreInitializedAnnotation     = "dsh.isolated.io/restore-initialized"
+	OIDCTokenHeader                  = "X-Dsh-Oidc-Token"
+	SnapshotFinalizer                = "dsh.isolated.io/snapshot-protection"
+	RestoreInitializationFinalizer   = "dsh.isolated.io/restore-initialization"
+	RestoreProtectionFinalizerPrefix = "dsh.isolated.io/restore-"
 
 	ManagedByValue   = "dsh-isolated-runtime"
 	ApplicationValue = "dsh-cell"
 	OperatorValue    = "cell-operator"
 	AccessValue      = "true"
 )
+
+// RestoreProtectionFinalizer keeps one Ready CellSnapshot and its CSI object
+// alive until the target Cell's exact recorded image becomes the first Ready
+// reader. The API-server-issued Cell UID makes concurrent restores distinct.
+func RestoreProtectionFinalizer(cellUID string) string {
+	return RestoreProtectionFinalizerPrefix + cellUID
+}
 
 // Names are all native Kubernetes names derived from one immutable Cell UID.
 type Names struct {

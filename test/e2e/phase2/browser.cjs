@@ -82,24 +82,52 @@ async function holdFollowUntilClosed(page, sessionId) {
       reject(new Error("held websocket open failed"));
     };
   }), sessionId);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Network.enable");
+  await cdp.send("Network.emulateNetworkConditions", {
+    offline: false,
+    latency: 0,
+    downloadThroughput: 64,
+    uploadThroughput: 1024 * 1024,
+    connectionType: "cellular3g",
+  });
+  await page.evaluate(async (sessionId) => {
+    const response = await fetch(`/api/session.export?sessionId=${encodeURIComponent(sessionId)}`);
+    if (!response.ok || !response.body) throw new Error(`held HTTP stream status ${response.status}`);
+    window.phase3HTTPReader = response.body.getReader();
+  }, sessionId);
   fs.writeFileSync("/work/hold-ready", "ready\n", { mode: 0o600 });
-  await page.evaluate(() => new Promise((resolve, reject) => {
+  fs.writeFileSync("/work/hold-http-ready", "ready\n", { mode: 0o600 });
+  await page.evaluate(() => new Promise((resolve) => {
     if (window.phase3Socket.readyState === WebSocket.CLOSED) {
       resolve();
       return;
     }
-    const timeout = setTimeout(() => reject(new Error("held websocket was not drained")), 120000);
+    // A downstream Envoy connection can outlive the upstream Cell while data
+    // is buffered. The Kubernetes Pod/StatefulSet barrier, not a browser close
+    // frame, proves that the writer stopped. Keep the request active across
+    // snapshot initiation, then bound the fixture itself.
+    const timeout = setTimeout(resolve, 45000);
     window.phase3Socket.addEventListener("close", () => {
       clearTimeout(timeout);
       resolve();
     });
-    window.phase3Socket.addEventListener("error", () => {
-      if (window.phase3Socket.readyState === WebSocket.CLOSED) {
-        clearTimeout(timeout);
-        resolve();
-      }
-    });
   }));
+  await page.evaluate(() => {
+    if (window.phase3Socket.readyState === WebSocket.OPEN) {
+      window.phase3Socket.close(1000, "fixture complete");
+    }
+  });
+  // Envoy may hold an already-buffered export body after the Cell has stopped,
+  // so consuming it is neither a writer-liveness check nor an application-flush
+  // guarantee. Cancel it when the bounded holder completes.
+  await page.evaluate(async () => {
+    try {
+      await window.phase3HTTPReader.cancel("source writer stopped");
+    } catch {
+      // A transport abort can race cancellation and is equivalent here.
+    }
+  });
 }
 
 async function protocol(page, existingSession) {
@@ -109,6 +137,22 @@ async function protocol(page, existingSession) {
     const created = await rpc(page, "session/create", { request: {} });
     sessionId = created.sessionId;
     if (!sessionId) throw new Error("session/create returned no id");
+    await rpc(page, "session/selectModel", { request: {
+      sessionId,
+      provider: "deepseek-official",
+      model: "deepseek-v4-flash-vision-exp",
+    } });
+    await rpc(page, "session/prompt", { request: {
+      requestId: `phase3-attachment-${Date.now()}`,
+      sessionId,
+      mode: "queue",
+      content: [{
+        type: "image",
+        mediaType: "image/png",
+        name: "phase3-proof.png",
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      }],
+    } });
   }
   const listed = await rpc(page, "session/list", { _request: {} });
   if (!listed.items.some((item) => item.sessionId === sessionId)) throw new Error("durable session was not listed");
@@ -268,6 +312,34 @@ async function main() {
       await login(page, cellA, requireEnv("USERNAME"));
       const state = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
       await holdFollowUntilClosed(page, state.sessionId);
+    } else if (mode === "credential-capture") {
+      const response = await page.goto(`${cellA}/credential-capture`, { waitUntil: "domcontentloaded" });
+      if (!response || response.status() !== 200) throw new Error(`credential capture status ${response?.status()}`);
+      const observed = JSON.parse(await response.text());
+      const upstreamNames = new Set(observed.oauthCookieNames || []);
+      const cookiePattern = /^(AccessToken|OauthHMAC|OauthExpires|IdToken|RefreshToken|OauthNonce|CodeVerifier)-[0-9a-f]{8}$/i;
+      const browserNames = new Set((await context.cookies(cellA)).map(({ name }) => name).filter((name) => cookiePattern.test(name)));
+      // The browser must hold the pinned filter's complete session proof. The
+      // data plane is allowed to consume any subset before proxying upstream;
+      // every name that does arrive is still bound to the launcher's filter by
+      // the unit and image-smoke tests.
+      const expectedBases = ["AccessToken", "OauthHMAC", "OauthExpires", "IdToken"];
+      const suffixes = new Set();
+      for (const required of expectedBases) {
+        const matches = [...browserNames].filter((name) => new RegExp(`^${required}-([0-9a-f]{8})$`, "i").test(name));
+        if (matches.length !== 1) {
+          throw new Error(`browser held ${matches.length} ${required} cookies; observed safe names: ${[...browserNames].join(",")}`);
+        }
+        suffixes.add(matches[0].slice(required.length + 1).toLowerCase());
+      }
+      if (suffixes.size !== 1) throw new Error(`pinned Envoy credential cookies did not share one policy suffix`);
+      for (const name of upstreamNames) {
+        if (!browserNames.has(name)) throw new Error(`upstream observed an unknown credential cookie name: ${name}`);
+      }
+      if (!observed.oidcHeader) throw new Error("pinned Envoy did not forward the configured OIDC identity header");
+      if ("cookie" in observed || "token" in observed || "authorization" in observed) {
+        throw new Error("credential capture exposed a credential value");
+      }
     } else {
       throw new Error(`unknown MODE ${mode}`);
     }

@@ -94,7 +94,7 @@ func TestEnvtestReconcileAndAdmission(t *testing.T) {
 	}
 	enabledSnapshots := &CellSnapshotReconciler{
 		Client: manager.GetClient(), Scheme: scheme,
-		Config: SnapshotConfig{Enabled: true, QuiesceTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
+		Config: SnapshotConfig{Enabled: true, WriterStopTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
 	}
 	if err := enabledSnapshots.SetupWithManager(manager); err == nil || !strings.Contains(err.Error(), "VolumeSnapshot") {
 		t.Fatalf("enabled snapshots without CSI snapshot CRDs error = %v", err)

@@ -1,0 +1,248 @@
+name: Tested OCI promotion
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  CELL_REPOSITORY: ghcr.io/guomonth/dsh-isolated-runtime-cell
+  OPERATOR_REPOSITORY: ghcr.io/guomonth/dsh-isolated-runtime-operator
+
+jobs:
+  candidate:
+    name: Build candidates once
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    outputs:
+      cell-digest: ${{ steps.cell.outputs.digest }}
+      operator-digest: ${{ steps.operator.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        id: cell
+        with:
+          context: .
+          file: images/cell/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.CELL_REPOSITORY }}:candidate-${{ github.sha }}
+          build-args: SOURCE_REVISION=${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=release-cell
+          cache-to: type=gha,mode=max,scope=release-cell
+      - uses: docker/build-push-action@v6
+        id: operator
+        with:
+          context: .
+          file: images/operator/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.OPERATOR_REPOSITORY }}:candidate-${{ github.sha }}
+          build-args: SOURCE_REVISION=${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=release-operator
+          cache-to: type=gha,mode=max,scope=release-operator
+      - name: Record immutable candidates
+        run: |
+          printf '%s@%s\n' "$CELL_REPOSITORY" '${{ steps.cell.outputs.digest }}' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s@%s\n' "$OPERATOR_REPOSITORY" '${{ steps.operator.outputs.digest }}' >> "$GITHUB_STEP_SUMMARY"
+
+  core:
+    name: Go, generated API, envtest and CRD
+    needs: candidate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - name: Install kind
+        run: go install sigs.k8s.io/kind@v0.32.0
+      - name: Verify code and generated surfaces
+        run: make verify test-envtest verify-cell
+
+  compatibility:
+    name: Exact DSH compatibility
+    needs: candidate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Enable Corepack
+        run: npm install --global corepack@latest && corepack enable
+      - uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/dsh-compat
+          key: dsh-rc1-${{ hashFiles('compat/dsh/baseline.json') }}
+      - name: Verify exact DSH behavior
+        env:
+          DSH_COMPAT_CACHE: ${{ runner.temp }}/dsh-compat
+          DSH_E2E_MAX_WORKERS: 8
+        run: make verify-dsh
+
+  image-smoke:
+    name: Candidate image smoke
+    needs: candidate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull and verify exact candidates
+        env:
+          CELL_REF: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}
+          OPERATOR_REF: ${{ env.OPERATOR_REPOSITORY }}@${{ needs.candidate.outputs.operator-digest }}
+        run: |
+          docker pull --platform linux/amd64 "$CELL_REF"
+          docker pull --platform linux/amd64 "$OPERATOR_REF"
+          SKIP_IMAGE_BUILD=1 CELL_IMAGE="$CELL_REF" OPERATOR_IMAGE="$OPERATOR_REF" make verify-images
+
+  phase1:
+    name: Candidate Phase 1 kind
+    needs: candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: go install sigs.k8s.io/kind@v0.32.0
+      - name: Run exact candidates
+        env:
+          CELL_IMAGE: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}
+          OPERATOR_IMAGE: ${{ env.OPERATOR_REPOSITORY }}@${{ needs.candidate.outputs.operator-digest }}
+          SKIP_IMAGE_BUILD: "1"
+        run: docker pull "$CELL_IMAGE" && docker pull "$OPERATOR_IMAGE" && make verify-kind
+
+  phase2:
+    name: Candidate Phase 2 browser
+    needs: candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: go install sigs.k8s.io/kind@v0.32.0
+      - name: Run exact candidates
+        env:
+          CELL_IMAGE: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}
+          OPERATOR_IMAGE: ${{ env.OPERATOR_REPOSITORY }}@${{ needs.candidate.outputs.operator-digest }}
+          SKIP_IMAGE_BUILD: "1"
+        run: docker pull "$CELL_IMAGE" && docker pull "$OPERATOR_IMAGE" && make verify-kind-phase2
+
+  phase3:
+    name: Candidate Phase 3 lifecycle
+    needs: candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: go install sigs.k8s.io/kind@v0.32.0
+      - name: Run exact candidates
+        env:
+          CELL_IMAGE: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}
+          OPERATOR_IMAGE: ${{ env.OPERATOR_REPOSITORY }}@${{ needs.candidate.outputs.operator-digest }}
+          SKIP_IMAGE_BUILD: "1"
+        run: docker pull "$CELL_IMAGE" && docker pull "$OPERATOR_IMAGE" && make verify-kind-phase3
+
+  promote:
+    name: Promote tested digests
+    if: github.ref == 'refs/heads/main'
+    needs: [candidate, core, compatibility, image-smoke, phase1, phase2, phase3]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Attach release tags without rebuilding
+        env:
+          CELL_DIGEST: ${{ needs.candidate.outputs.cell-digest }}
+          OPERATOR_DIGEST: ${{ needs.candidate.outputs.operator-digest }}
+        run: |
+          docker buildx imagetools create \
+            -t "$CELL_REPOSITORY:main" -t "$CELL_REPOSITORY:sha-${GITHUB_SHA::7}" \
+            "$CELL_REPOSITORY@$CELL_DIGEST"
+          docker buildx imagetools create \
+            -t "$OPERATOR_REPOSITORY:main" -t "$OPERATOR_REPOSITORY:sha-${GITHUB_SHA::7}" \
+            "$OPERATOR_REPOSITORY@$OPERATOR_DIGEST"
+          promoted_cell_digest="$(docker buildx imagetools inspect "$CELL_REPOSITORY:main" | awk "\$1 == \"Digest:\" { print \$2; exit }")"
+          promoted_operator_digest="$(docker buildx imagetools inspect "$OPERATOR_REPOSITORY:main" | awk "\$1 == \"Digest:\" { print \$2; exit }")"
+          test "$promoted_cell_digest" = "$CELL_DIGEST"
+          test "$promoted_operator_digest" = "$OPERATOR_DIGEST"
+          printf 'Cell: %s@%s\n\nOperator: %s@%s\n' \
+            "$CELL_REPOSITORY" "$CELL_DIGEST" "$OPERATOR_REPOSITORY" "$OPERATOR_DIGEST" >> "$GITHUB_STEP_SUMMARY"

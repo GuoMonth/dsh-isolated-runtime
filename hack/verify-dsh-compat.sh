@@ -27,6 +27,13 @@ test "$(jq -r '.version' "$checkout/package.json")" = "$source_version"
 test "$(jq -r '.packageManager' "$checkout/package.json")" = "$package_manager"
 test "$(sha256sum "$checkout/pnpm-lock.yaml" | awk '{print $1}')" = "$lock_sha"
 
+# This exact release maps SIGTERM to exit code zero and uses the same forced
+# exit code after successful disposal, disposal rejection, or timeout. The
+# source therefore cannot provide an application-flush acknowledgement.
+grep -Fq "process.on('SIGTERM', () => { interrupt(0) })" "$checkout/apps/cli/src/profile-boot.ts"
+grep -Fq "() => { forceExitOnce(code) }" "$checkout/apps/cli/src/process-shutdown.ts"
+grep -Fq "timeout = setTimeout(() => { forceExitOnce(code) }, timeoutMs)" "$checkout/apps/cli/src/process-shutdown.ts"
+
 cd "$checkout"
 export CI=1
 export DSH_E2E_MAX_WORKERS="${DSH_E2E_MAX_WORKERS:-8}"

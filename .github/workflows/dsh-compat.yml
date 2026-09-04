@@ -2,27 +2,7 @@ name: DSH compatibility
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "compat/dsh/**"
-      - "internal/dshcompat/**"
-      - "internal/cellcontract/**"
-      - "cmd/cell-launcher/**"
-      - "images/cell/**"
-      - "test/e2e/dshprobe/**"
-      - "hack/verify-dsh-compat.sh"
-      - ".github/workflows/dsh-compat.yml"
   pull_request:
-    paths:
-      - "compat/dsh/**"
-      - "internal/dshcompat/**"
-      - "internal/cellcontract/**"
-      - "cmd/cell-launcher/**"
-      - "images/cell/**"
-      - "test/e2e/dshprobe/**"
-      - "hack/verify-dsh-compat.sh"
-      - ".github/workflows/dsh-compat.yml"
 
 permissions:
   contents: read

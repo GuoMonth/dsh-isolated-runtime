@@ -54,8 +54,8 @@ Delivered by this milestone:
 
 - introduce immutable `CellSnapshot` intent and creation-only
   `storage.restoreFrom` without creating a backup control plane;
-- drain launcher traffic, require normal DSH exit, scale the StatefulSet to
-  zero, then snapshot only the data PVC through the stable CSI API;
+- scale the StatefulSet to zero and snapshot only the data PVC through the
+  stable CSI API after a Kubernetes writer-stop barrier;
 - serialize operations per Cell, fail closed on cleanup ambiguity, and resume
   the source automatically only after snapshot success or proven cleanup;
 - restore only into a fresh Cell with the exact recorded image digest and DSH
@@ -67,6 +67,25 @@ The reference kind fixture installs external-snapshotter and the CSI hostpath
 test driver only for verification. Production CSI lifecycle remains owned by
 the cluster administrator. Evidence and the `GO` decision are recorded in the
 [Phase 3 retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/33).
+
+## Phase 3.1 — Contract hardening
+
+This corrective milestone replaces conclusions that were stronger than the
+evidence:
+
+- strip the pinned Envoy OAuth2 access, ID, refresh, nonce, expiry, and HMAC
+  cookies at the launcher boundary while preserving DSH cookies;
+- remove the unprovable application-quiesce protocol and state the exact
+  writer-stopped, crash-consistent CSI guarantee;
+- bind the source data PVC UID and close workload-lineage, stale-lock,
+  create/adopt, EndpointSlice, restore
+  deletion, and first-reader races with API-visible Kubernetes invariants;
+- build release candidates once, run every required gate against those exact
+  digests, then promote the same manifests with SBOM and provenance.
+
+Phase 4 remains blocked until the
+[Phase 3.1 retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/44)
+records `GO` from post-merge evidence.
 
 ## Phase 4 — Fleet operations
 

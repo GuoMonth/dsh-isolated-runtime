@@ -33,10 +33,10 @@ const (
 )
 
 const (
-	ConditionSnapshotAccepted = "Accepted"
-	ConditionSnapshotQuiesced = "Quiesced"
-	ConditionSnapshotReady    = ConditionReady
-	ConditionSnapshotFailed   = "Failed"
+	ConditionSnapshotAccepted      = "Accepted"
+	ConditionSnapshotWriterStopped = "WriterStopped"
+	ConditionSnapshotReady         = ConditionReady
+	ConditionSnapshotFailed        = "Failed"
 )
 
 // LocalCellSnapshotReference names a CellSnapshot in the Cell namespace.
@@ -150,8 +150,8 @@ type LocalCellReference struct {
 	Name string `json:"name"`
 }
 
-// CellSnapshotSpec requests one application-consistent snapshot of a Cell's
-// tenant-data PVC. The complete request is immutable.
+// CellSnapshotSpec requests one writer-stopped, crash-consistent snapshot of a
+// Cell's tenant-data PVC. The complete request is immutable.
 // +kubebuilder:validation:XValidation:rule="self == oldSelf",message="CellSnapshot spec is immutable"
 type CellSnapshotSpec struct {
 	CellRef LocalCellReference `json:"cellRef"`
@@ -168,9 +168,10 @@ type CellSnapshotStatus struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=type
-	// +kubebuilder:validation:XValidation:rule="self.all(c, c.type in ['Accepted', 'Quiesced', 'Ready', 'Failed'])",message="unsupported CellSnapshot condition type"
+	// +kubebuilder:validation:XValidation:rule="self.all(c, c.type in ['Accepted', 'WriterStopped', 'Ready', 'Failed'])",message="unsupported CellSnapshot condition type"
 	Conditions       []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 	SourceCellUID    string             `json:"sourceCellUID,omitempty"`
+	SourcePVCUID     string             `json:"sourcePVCUID,omitempty"`
 	SourceGeneration int64              `json:"sourceGeneration,omitempty"`
 	DSHVersion       string             `json:"dshVersion,omitempty"`
 	// +kubebuilder:validation:Pattern=`^sha256:[a-f0-9]{64}$`
@@ -180,8 +181,8 @@ type CellSnapshotStatus struct {
 	RestoreSize *resource.Quantity `json:"restoreSize,omitempty"`
 }
 
-// CellSnapshot is the single public trigger for quiescing a Cell and creating
-// a CSI snapshot of its tenant-data PVC.
+// CellSnapshot is the single public trigger for stopping a Cell writer and
+// creating a crash-consistent CSI snapshot of its tenant-data PVC.
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,shortName=dshsnap
 // +kubebuilder:subresource:status

@@ -27,10 +27,16 @@ launcher 完成真实 browser exchange。
 `node --expose-internals` 调用官方 CLI；这是 DSH 自身 HMR loader 的要求，不会暴露 launch
 token。
 
-Phase 3 将同一精确 RC 的 shutdown 实证作为应用一致性边界。内部 `POST /quiesce` 与操作 UID
-绑定：launcher 先变为 unready、拒绝新流量并排空连接，再发送 SIGTERM；只有 DSH 正常退出才
-确认成功。强制 kill 只能判定 snapshot 失败，绝不是 flush 证据。Pod `/tmp` 中的 marker 让
-重试保持幂等，直至 Kubernetes 删除该 Pod。
+精确 RC 不提供应用 flush acknowledgement：SIGTERM 路径在 dispose 成功、拒绝与超时后都可
+使用退出码 0，外部无法区分。Phase 3.1 因此删除 `POST /quiesce`；只有 StatefulSet 设为零、
+观测到零副本，并证明该 StatefulSet UID 不再拥有任何 Pod 后才允许快照。保证明确收敛为
+writer-stopped crash consistency，而非 application consistency。普通 Pod 终止仍使用 launcher
+的有界 HTTP/WebSocket drain 与 SIGTERM 转发。
+
+在访问边界，launcher 会在进入 DSH 前删除身份 header 和固定 Envoy Gateway v1.9.1 的全部
+默认凭据 cookie。当前名称为 `AccessToken`、`OauthHMAC`、`OauthExpires`、`IdToken`、
+`RefreshToken`、`OauthNonce`、`CodeVerifier`，每个名称后都有 policy 的 8 位十六进制后缀；
+无后缀旧名称也被保留为禁区。同时保留 DSH 与无关应用 cookie。
 
 ## 状态归属
 

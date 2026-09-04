@@ -29,7 +29,7 @@ func main() {
 	var baseDomain string
 	var externalHTTPSPort int
 	var enableSnapshots bool
-	var quiesceTimeout time.Duration
+	var writerStopTimeout time.Duration
 	var snapshotTimeout time.Duration
 	flag.StringVar(&systemNamespace, "system-namespace", "", "namespace whose labelled access Pods may reach Cells (defaults to POD_NAMESPACE)")
 	flag.StringVar(&sandboxedRuntimeClass, "sandboxed-runtime-class", "", "cluster-owned RuntimeClass used for sandboxed Cells")
@@ -39,7 +39,7 @@ func main() {
 	flag.StringVar(&baseDomain, "base-domain", "", "base domain used for cell-<UID> hostnames")
 	flag.IntVar(&externalHTTPSPort, "external-https-port", 443, "external HTTPS authority port")
 	flag.BoolVar(&enableSnapshots, "enable-snapshots", false, "enable CellSnapshot reconciliation and require CSI snapshot APIs")
-	flag.DurationVar(&quiesceTimeout, "quiesce-timeout", 2*time.Minute, "maximum time for launcher acknowledgement and StatefulSet scale-down")
+	flag.DurationVar(&writerStopTimeout, "writer-stop-timeout", 2*time.Minute, "maximum time for StatefulSet scale-down and managed Pod removal")
 	flag.DurationVar(&snapshotTimeout, "snapshot-timeout", 30*time.Minute, "maximum time for one CSI VolumeSnapshot to become ready")
 	flag.Parse()
 	if strings.TrimSpace(systemNamespace) == "" {
@@ -75,6 +75,7 @@ func main() {
 	}
 	reconciler := &cellcontroller.CellReconciler{
 		Client:                manager.GetClient(),
+		APIReader:             manager.GetAPIReader(),
 		Scheme:                manager.GetScheme(),
 		SystemNamespace:       systemNamespace,
 		SandboxedRuntimeClass: sandboxedRuntimeClass,
@@ -96,9 +97,9 @@ func main() {
 		APIReader: manager.GetAPIReader(),
 		Scheme:    manager.GetScheme(),
 		Config: cellcontroller.SnapshotConfig{
-			Enabled:         enableSnapshots,
-			QuiesceTimeout:  quiesceTimeout,
-			SnapshotTimeout: snapshotTimeout,
+			Enabled:           enableSnapshots,
+			WriterStopTimeout: writerStopTimeout,
+			SnapshotTimeout:   snapshotTimeout,
 		},
 	}
 	if err := snapshotReconciler.SetupWithManager(manager); err != nil {
