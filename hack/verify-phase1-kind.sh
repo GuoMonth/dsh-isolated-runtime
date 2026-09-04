@@ -7,6 +7,7 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cluster_name="dsh-phase1-${RANDOM}"
 registry_name="dsh-phase1-registry-${RANDOM}"
 registry_port="$((30000 + RANDOM % 10000))"
+registry_manifest_accept="application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json"
 kubeconfig="$(mktemp)"
 kind_config="$(mktemp)"
 test_root="$(mktemp -d)"
@@ -14,6 +15,16 @@ port_forward_pid=""
 
 k() {
   kubectl --kubeconfig "$kubeconfig" "$@"
+}
+
+registry_digest() {
+  local repository="$1" tag="$2" digest
+  digest="$(curl -fsSI \
+    -H "Accept: ${registry_manifest_accept}" \
+    "http://127.0.0.1:${registry_port}/v2/${repository}/manifests/${tag}" |
+    awk 'tolower($1) == "docker-content-digest:" { gsub(/\r/, "", $2); print $2; exit }')"
+  [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+  printf '%s\n' "$digest"
 }
 
 expect_failure() {
@@ -93,12 +104,16 @@ docker tag "$local_cell" "$cell_repo:e2e"
 docker tag "$local_operator" "$operator_repo:e2e"
 docker push "$cell_repo:e2e" >/dev/null
 docker push "$operator_repo:e2e" >/dev/null
-cell_repo_digest="$(docker inspect "$cell_repo:e2e" --format '{{index .RepoDigests 0}}')"
-operator_repo_digest="$(docker inspect "$operator_repo:e2e" --format '{{index .RepoDigests 0}}')"
-cell_digest="${cell_repo_digest##*@}"
-operator_digest="${operator_repo_digest##*@}"
-test "$cell_digest" != "$cell_repo_digest"
-test "$operator_digest" != "$operator_repo_digest"
+cell_digest="$(registry_digest dsh-cell e2e)"
+operator_digest="$(registry_digest dsh-operator e2e)"
+curl -fsSI -H "Accept: ${registry_manifest_accept}" \
+  "http://127.0.0.1:${registry_port}/v2/dsh-cell/manifests/${cell_digest}" >/dev/null
+curl -fsSI -H "Accept: ${registry_manifest_accept}" \
+  "http://127.0.0.1:${registry_port}/v2/dsh-operator/manifests/${operator_digest}" >/dev/null
+test "$(docker image inspect "$local_cell" --format '{{.Id}}')" = \
+  "$(docker image inspect "$cell_repo:e2e" --format '{{.Id}}')"
+test "$(docker image inspect "$local_operator" --format '{{.Id}}')" = \
+  "$(docker image inspect "$operator_repo:e2e" --format '{{.Id}}')"
 
 k apply -f "$repo_root/config/crd/bases/dsh.isolated.io_cells.yaml"
 k wait --for=condition=Established crd/cells.dsh.isolated.io --timeout=60s
