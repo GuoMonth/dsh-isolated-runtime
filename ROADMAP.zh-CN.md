@@ -71,11 +71,22 @@ lifecycle 仍由集群管理员负责。证据与 `GO` 结论记录在
   stale lock、create/adopt、EndpointSlice、restore 删除和 first-reader 竞态；
 - 发布候选只构建一次，全部门禁消费相同 digest，随后把同一带 SBOM/provenance 的 manifest 晋级。
 
-只有 [Phase 3.1 复盘](https://github.com/GuoMonth/dsh-isolated-runtime/issues/44)
-根据 post-merge 证据记录 `GO`，Phase 4 才解除阻塞。
+[Phase 3.1 复盘](https://github.com/GuoMonth/dsh-isolated-runtime/issues/44)
+已经根据 post-merge 证据记录 `GO`，Phase 4 因此解除阻塞。
 
 ## Phase 4 —— Fleet 运维
 
-补充 fleet policy、topology-free observability、quota/backpressure 与多 namespace scale
-运维。Kubernetes 始终是 fleet 的调度器
-和状态协调器；本项目不生长出第二套集群编排器。
+本里程碑交付：
+
+- 定义基于 capability 的 namespace conformance 契约，但不读取、复制或持有 namespace policy；
+- ResourceQuota、LimitRange、admission、APF、调度与垃圾回收继续作为 Kubernetes 原生失败和
+  恢复面；
+- 用对象 watch、精确 deadline 唤醒与 controller-runtime 指数错误退避替代稳定态轮询，并显式
+  限制 Cell / CellSnapshot worker 数量；
+- 提供可选私有 Prometheus endpoint；label 只允许 controller-runtime 维度与封闭的授权结果枚举；
+- 在文档化参考 runner 上实证 10 namespace / 50 Cell 的收敛与恢复、原生 quota / LimitRange
+  拒绝、namespace 重建、controller 重启和 8 个重叠 CSI 操作。
+
+Kubernetes 始终是 fleet 的调度器和状态协调器。Phase 4 不增加 Fleet API、inventory database、
+policy engine、自定义队列或第二套集群编排器。证据与结论记录在
+[Phase 4 复盘](https://github.com/GuoMonth/dsh-isolated-runtime/issues/39)。

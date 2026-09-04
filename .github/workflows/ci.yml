@@ -61,6 +61,7 @@ jobs:
           kubectl kustomize config/default > /tmp/dsh-install.yaml
           kubectl kustomize config/phase2 > /tmp/dsh-phase2-install.yaml
           kubectl kustomize config/phase3 > /tmp/dsh-phase3-install.yaml
+          kubectl kustomize config/phase4 > /tmp/dsh-phase4-install.yaml
       - name: Assert one controller and both public CRDs
         run: |
           test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-install.yaml)" = 2
@@ -69,12 +70,18 @@ jobs:
           test "$(grep -c '^kind: Deployment$' /tmp/dsh-phase2-install.yaml)" = 2
           test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-phase3-install.yaml)" = 2
           test "$(grep -c '^kind: Deployment$' /tmp/dsh-phase3-install.yaml)" = 2
+          test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-phase4-install.yaml)" = 2
+          test "$(grep -c '^kind: Deployment$' /tmp/dsh-phase4-install.yaml)" = 2
           grep -q '^kind: Gateway$' /tmp/dsh-phase2-install.yaml
           grep -q '^kind: Backend$' /tmp/dsh-phase2-install.yaml
           grep -q '^kind: SecurityPolicy$' /tmp/dsh-phase2-install.yaml
           grep -q -- '--enable-snapshots=true' /tmp/dsh-phase3-install.yaml
           grep -q -- '--writer-stop-timeout=2m' /tmp/dsh-phase3-install.yaml
           grep -q -- '--snapshot-timeout=30m' /tmp/dsh-phase3-install.yaml
+          grep -q -- '--metrics-bind-address=:8080' /tmp/dsh-phase4-install.yaml
+          grep -q -- '--cell-concurrency=4' /tmp/dsh-phase4-install.yaml
+          grep -q -- '--snapshot-concurrency=2' /tmp/dsh-phase4-install.yaml
+          grep -q -- '--metrics-bind-address=:9090' /tmp/dsh-phase4-install.yaml
 
   lint:
     name: lint

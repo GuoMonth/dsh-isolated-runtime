@@ -83,13 +83,27 @@ evidence:
 - build release candidates once, run every required gate against those exact
   digests, then promote the same manifests with SBOM and provenance.
 
-Phase 4 remains blocked until the
-[Phase 3.1 retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/44)
-records `GO` from post-merge evidence.
+The [Phase 3.1 retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/44)
+recorded `GO` from post-merge evidence and unblocked Phase 4.
 
 ## Phase 4 — Fleet operations
 
-Add fleet policy, topology-free observability, quota/backpressure, and
-multi-namespace scale operations.
-Kubernetes remains the fleet scheduler and state reconciler; this project does
-not grow a second cluster orchestrator.
+Delivered by this milestone:
+
+- define a capability-based namespace conformance contract without reading,
+  copying, or owning namespace policy;
+- retain ResourceQuota, LimitRange, admission, APF, scheduling and garbage
+  collection as native Kubernetes failure and recovery surfaces;
+- replace steady polling with object watches, exact deadline wakeups and
+  controller-runtime exponential error backoff, with explicitly bounded Cell
+  and CellSnapshot worker pools;
+- expose optional private Prometheus endpoints whose labels are limited to
+  controller-runtime dimensions and a closed authorization-decision enum;
+- prove convergence and recovery for 50 Cells in 10 namespaces, native quota
+  and LimitRange denial, namespace recreation, controller restart and eight
+  overlapping CSI operations on the documented reference runner.
+
+Kubernetes remains the fleet scheduler and state reconciler. Phase 4 adds no
+Fleet API, inventory database, policy engine, custom queue or second cluster
+orchestrator. Evidence and the gate decision are recorded in the
+[Phase 4 retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/39).

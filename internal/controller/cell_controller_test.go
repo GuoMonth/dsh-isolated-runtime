@@ -159,8 +159,8 @@ func TestForeignResourceFailsClosed(t *testing.T) {
 	foreign := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: names.Base, Namespace: cell.Namespace}}
 	reconciler, kube := testReconciler(t, cell, foreign)
 	result, err := reconciler.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(cell)})
-	if err == nil {
-		t.Fatalf("collision returned no error, result=%#v", result)
+	if err != nil || result != (ctrl.Result{}) {
+		t.Fatalf("collision result=%#v, error=%v", result, err)
 	}
 	observed := get[*dshv1alpha1.Cell](t, kube, cell.Namespace, cell.Name)
 	condition := meta.FindStatusCondition(observed.Status.Conditions, dshv1alpha1.ConditionAccessReady)
@@ -198,8 +198,13 @@ func TestCreateRaceNeverAdoptsForeignObject(t *testing.T) {
 	foreign := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: names.Headless, Namespace: cell.Namespace}}
 	reconciler.Client = &createCollisionClient{Client: kube, foreign: foreign}
 	result, err := reconciler.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(cell)})
-	if err == nil {
-		t.Fatalf("create collision returned no error: %#v", result)
+	if err != nil || result != (ctrl.Result{}) {
+		t.Fatalf("create collision result=%#v, error=%v", result, err)
+	}
+	observed := get[*dshv1alpha1.Cell](t, kube, cell.Namespace, cell.Name)
+	condition := meta.FindStatusCondition(observed.Status.Conditions, dshv1alpha1.ConditionWorkloadReady)
+	if condition == nil || condition.Reason != reasonOwnershipConflict {
+		t.Fatalf("unexpected create-race condition: %#v", condition)
 	}
 	unchanged := get[*corev1.Service](t, kube, cell.Namespace, names.Headless)
 	if len(unchanged.OwnerReferences) != 0 || len(unchanged.Annotations) != 0 || len(unchanged.Spec.Ports) != 0 {

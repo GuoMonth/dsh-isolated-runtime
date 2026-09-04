@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	controlleroptions "sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -33,7 +34,11 @@ import (
 	"github.com/GuoMonth/dsh-isolated-runtime/internal/cellcontract"
 )
 
-const pendingRequeue = 3 * time.Second
+const externalPrerequisiteRequeue = time.Minute
+
+func immediateRequeueResult() ctrl.Result {
+	return ctrl.Result{RequeueAfter: time.Nanosecond}
+}
 
 const (
 	reasonPVCsPending                     = "PVCsPending"
@@ -53,14 +58,15 @@ const (
 // CellReconciler reconciles Cells across all namespaces.
 type CellReconciler struct {
 	client.Client
-	APIReader             client.Reader
-	Scheme                *runtime.Scheme
-	SystemNamespace       string
-	SandboxedRuntimeClass string
-	RouteConfig           RouteConfig
-	Recorder              record.EventRecorder
-	routeAPIAvailable     bool
-	SnapshotEnabled       bool
+	APIReader               client.Reader
+	Scheme                  *runtime.Scheme
+	SystemNamespace         string
+	SandboxedRuntimeClass   string
+	RouteConfig             RouteConfig
+	Recorder                record.EventRecorder
+	routeAPIAvailable       bool
+	SnapshotEnabled         bool
+	MaxConcurrentReconciles int
 }
 
 // The access verb is required by Kubernetes RBAC escalation prevention: the
@@ -95,12 +101,13 @@ func (r *CellReconciler) SetupWithManager(manager ctrl.Manager) error {
 	}
 
 	builder := ctrl.NewControllerManagedBy(manager).
+		WithOptions(controlleroptions.Options{MaxConcurrentReconciles: normalizedConcurrency(r.MaxConcurrentReconciles)}).
 		For(&dshv1alpha1.Cell{}).
-		Owns(&corev1.ServiceAccount{}).
-		Owns(&appsv1.StatefulSet{}).
-		Owns(&corev1.Service{}).
+		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(r.mapManagedObject)).
+		Watches(&appsv1.StatefulSet{}, handler.EnqueueRequestsFromMapFunc(r.mapManagedObject)).
+		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(r.mapManagedObject)).
 		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(r.mapDerivedAccessObject)).
-		Owns(&networkingv1.NetworkPolicy{}).
+		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(r.mapManagedObject)).
 		Watches(&corev1.PersistentVolumeClaim{}, handler.EnqueueRequestsFromMapFunc(r.mapManagedObject)).
 		Watches(&discoveryv1.EndpointSlice{}, handler.EnqueueRequestsFromMapFunc(r.mapEndpointSlice)).
 		Watches(&dshv1alpha1.CellSnapshot{}, handler.EnqueueRequestsFromMapFunc(r.mapCellSnapshot))
@@ -110,6 +117,13 @@ func (r *CellReconciler) SetupWithManager(manager ctrl.Manager) error {
 	return builder.Complete(r)
 }
 
+func normalizedConcurrency(configured int) int {
+	if configured < 1 {
+		return 1
+	}
+	return configured
+}
+
 // Reconcile converges a Cell entirely through Kubernetes observed state.
 func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
 	var cell dshv1alpha1.Cell
@@ -117,12 +131,12 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if cell.UID == "" {
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+		return ctrl.Result{}, nil
 	}
 	if cell.DeletionTimestamp != nil {
 		handled, err := r.cleanupDeletingRestore(ctx, &cell)
 		if handled {
-			return ctrl.Result{RequeueAfter: pendingRequeue}, err
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
@@ -156,7 +170,7 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 		return r.finish(ctx, &cell, state, err)
 	}
 	if snapshotActivity.StaleLockCleared {
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+		return immediateRequeueResult(), nil
 	}
 
 	if err := r.reconcileServiceAccount(ctx, &cell); err != nil {
@@ -207,7 +221,7 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 			state.Workload = failedCondition(err, "restore initialization completion failed")
 			return r.finish(ctx, &cell, state, err)
 		}
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+		return immediateRequeueResult(), nil
 	}
 	if statefulSetReady(workload) && !snapshotActivity.Active {
 		state.Workload = trueCondition(reasonStatefulSetReady, "current StatefulSet revision has one ready replica")
@@ -239,8 +253,11 @@ func (r *CellReconciler) finishPublic(
 	if err != nil || publicErr == nil {
 		return result, err
 	}
-	result.RequeueAfter = pendingRequeue
-	return result, nil
+	var conflict *ownershipConflictError
+	if errors.As(publicErr, &conflict) {
+		return result, nil
+	}
+	return result, publicErr
 }
 
 type componentState struct {
@@ -316,10 +333,11 @@ func (r *CellReconciler) finish(
 		}
 	}
 	if reconcileErr != nil {
+		var conflict *ownershipConflictError
+		if errors.As(reconcileErr, &conflict) {
+			return ctrl.Result{}, nil
+		}
 		return ctrl.Result{}, reconcileErr
-	}
-	if !ready {
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
 	}
 	return ctrl.Result{}, nil
 }
@@ -434,13 +452,42 @@ func (r *CellReconciler) accessEndpointReady(ctx context.Context, cell *dshv1alp
 	return false, nil
 }
 
-func (r *CellReconciler) mapManagedObject(_ context.Context, object client.Object) []reconcile.Request {
+func (r *CellReconciler) mapManagedObject(ctx context.Context, object client.Object) []reconcile.Request {
 	annotations := object.GetAnnotations()
 	name := annotations[cellcontract.CellNameAnnotation]
-	if name == "" || annotations[cellcontract.CellUIDAnnotation] == "" {
+	if name != "" && annotations[cellcontract.CellUIDAnnotation] != "" {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: object.GetNamespace(), Name: name}}}
+	}
+
+	// Foreign collisions intentionally have no Cell annotations. Resolve them
+	// by the UID-derived name so deletion or replacement wakes the affected
+	// Cell without a permanent polling loop.
+	var cells dshv1alpha1.CellList
+	if err := r.List(ctx, &cells, client.InNamespace(object.GetNamespace())); err != nil {
 		return nil
 	}
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: object.GetNamespace(), Name: name}}}
+	requests := make([]reconcile.Request, 0, 1)
+	for index := range cells.Items {
+		cell := &cells.Items[index]
+		names := cellcontract.ResourceNames(string(cell.UID))
+		if managedObjectNameMatches(object, names) {
+			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cell)})
+		}
+	}
+	return requests
+}
+
+func managedObjectNameMatches(object client.Object, names cellcontract.Names) bool {
+	switch object.(type) {
+	case *corev1.PersistentVolumeClaim:
+		return object.GetName() == names.DataPVC || object.GetName() == names.PrivatePVC
+	case *corev1.Service:
+		return object.GetName() == names.Base || object.GetName() == names.Headless
+	case *corev1.ServiceAccount, *appsv1.StatefulSet, *networkingv1.NetworkPolicy:
+		return object.GetName() == names.Base
+	default:
+		return false
+	}
 }
 
 func (r *CellReconciler) mapEndpointSlice(ctx context.Context, object client.Object) []reconcile.Request {

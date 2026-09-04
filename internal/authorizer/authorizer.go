@@ -51,6 +51,31 @@ type Reviewer interface {
 	Create(context.Context, *authorizationv1.SubjectAccessReview, metav1.CreateOptions) (*authorizationv1.SubjectAccessReview, error)
 }
 
+// Decision is a closed, topology- and identity-free authorization outcome.
+// Values are also metric label values, so callers must never derive one from
+// an error, claim, route, or Kubernetes object.
+type Decision string
+
+const (
+	DecisionAllow           Decision = "allow"
+	DecisionUnauthenticated Decision = "unauthenticated"
+	DecisionDenied          Decision = "denied"
+	DecisionRouteMismatch   Decision = "route_mismatch"
+	DecisionDependencyError Decision = "dependency_error"
+)
+
+var allDecisions = [...]Decision{
+	DecisionAllow,
+	DecisionUnauthenticated,
+	DecisionDenied,
+	DecisionRouteMismatch,
+	DecisionDependencyError,
+}
+
+type DecisionRecorder interface {
+	RecordDecision(Decision)
+}
+
 type Server struct {
 	authv3.UnimplementedAuthorizationServer
 
@@ -59,6 +84,7 @@ type Server struct {
 	Verifier    TokenVerifier
 	Issuer      string
 	RouteConfig accesscontract.Config
+	Decisions   DecisionRecorder
 }
 
 func (s *Server) Validate() error {
@@ -76,6 +102,7 @@ func (s *Server) Validate() error {
 
 func (s *Server) Check(ctx context.Context, request *authv3.CheckRequest) (*authv3.CheckResponse, error) {
 	if err := s.authorize(ctx, request); err != nil {
+		s.recordDecision(decisionForError(err))
 		// Decision reasons are deliberately coarse: they make fail-closed behavior
 		// diagnosable without logging tokens, claims, authorities, or route data.
 		log.Printf("cell-authorizer decision=deny reason=%s", decisionReason(err))
@@ -88,12 +115,32 @@ func (s *Server) Check(ctx context.Context, request *authv3.CheckRequest) (*auth
 			return nil, status.Error(codes.Unavailable, "authorization unavailable")
 		}
 	}
+	s.recordDecision(DecisionAllow)
 	return &authv3.CheckResponse{
 		Status: &statuspb.Status{Code: int32(codes.OK)},
 		HttpResponse: &authv3.CheckResponse_OkResponse{
 			OkResponse: &authv3.OkHttpResponse{},
 		},
 	}, nil
+}
+
+func (s *Server) recordDecision(decision Decision) {
+	if s.Decisions != nil {
+		s.Decisions.RecordDecision(decision)
+	}
+}
+
+func decisionForError(err error) Decision {
+	switch {
+	case errors.Is(err, errUnauthenticated):
+		return DecisionUnauthenticated
+	case errors.Is(err, errUnavailable):
+		return DecisionDependencyError
+	case errors.Is(err, errRBACDenied):
+		return DecisionDenied
+	default:
+		return DecisionRouteMismatch
+	}
 }
 
 func decisionReason(err error) string {
@@ -166,7 +213,7 @@ func (s *Server) authorize(ctx context.Context, request *authv3.CheckRequest) er
 		return fmt.Errorf("%w: kubernetes-review", errUnavailable)
 	}
 	if !result.Status.Allowed {
-		return fmt.Errorf("%w: rbac-denied", errForbidden)
+		return fmt.Errorf("%w: %w", errForbidden, errRBACDenied)
 	}
 	return nil
 }

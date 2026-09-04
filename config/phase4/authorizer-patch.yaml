@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cell-authorizer
+spec:
+  template:
+    spec:
+      containers:
+        - name: authorizer
+          args:
+            - --oidc-issuer=https://idp.example.com
+            - --oidc-client-id=dsh-browser
+            - --gateway-name=dsh
+            - --gateway-namespace=dsh-system
+            - --gateway-section-name=https
+            - --base-domain=cells.example.com
+            - --external-https-port=443
+            - --metrics-bind-address=:9090
+          ports:
+            - name: callback
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+            - name: grpc
+              containerPort: 9001
+            - name: metrics
+              containerPort: 9090

@@ -31,6 +31,9 @@ func main() {
 	var enableSnapshots bool
 	var writerStopTimeout time.Duration
 	var snapshotTimeout time.Duration
+	var metricsBindAddress string
+	var cellConcurrency int
+	var snapshotConcurrency int
 	flag.StringVar(&systemNamespace, "system-namespace", "", "namespace whose labelled access Pods may reach Cells (defaults to POD_NAMESPACE)")
 	flag.StringVar(&sandboxedRuntimeClass, "sandboxed-runtime-class", "", "cluster-owned RuntimeClass used for sandboxed Cells")
 	flag.StringVar(&gatewayName, "gateway-name", "", "Gateway used for derived Cell HTTPRoutes; empty disables public routing")
@@ -41,12 +44,22 @@ func main() {
 	flag.BoolVar(&enableSnapshots, "enable-snapshots", false, "enable CellSnapshot reconciliation and require CSI snapshot APIs")
 	flag.DurationVar(&writerStopTimeout, "writer-stop-timeout", 2*time.Minute, "maximum time for StatefulSet scale-down and managed Pod removal")
 	flag.DurationVar(&snapshotTimeout, "snapshot-timeout", 30*time.Minute, "maximum time for one CSI VolumeSnapshot to become ready")
+	flag.StringVar(&metricsBindAddress, "metrics-bind-address", "0", "Prometheus listen address; 0 disables metrics")
+	flag.IntVar(&cellConcurrency, "cell-concurrency", 1, "maximum concurrent Cell reconciles")
+	flag.IntVar(&snapshotConcurrency, "snapshot-concurrency", 1, "maximum concurrent CellSnapshot reconciles")
 	flag.Parse()
 	if strings.TrimSpace(systemNamespace) == "" {
 		systemNamespace = os.Getenv("POD_NAMESPACE")
 	}
 	if strings.TrimSpace(systemNamespace) == "" {
 		fatal(fmt.Errorf("system namespace is required through --system-namespace or POD_NAMESPACE"))
+	}
+	metricsBindAddress = strings.TrimSpace(metricsBindAddress)
+	if strings.TrimSpace(metricsBindAddress) == "" {
+		fatal(fmt.Errorf("--metrics-bind-address must be 0 or a non-empty listen address"))
+	}
+	if cellConcurrency < 1 || snapshotConcurrency < 1 {
+		fatal(fmt.Errorf("controller concurrency must be at least 1"))
 	}
 
 	scheme := runtime.NewScheme()
@@ -66,7 +79,7 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(false)))
 	manager, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: "0"},
+		Metrics:                metricsserver.Options{BindAddress: metricsBindAddress},
 		HealthProbeBindAddress: ":8081",
 		LeaderElection:         false,
 	})
@@ -86,8 +99,9 @@ func main() {
 			BaseDomain:        baseDomain,
 			ExternalHTTPSPort: externalHTTPSPort,
 		},
-		Recorder:        manager.GetEventRecorderFor("cell-operator"),
-		SnapshotEnabled: enableSnapshots,
+		Recorder:                manager.GetEventRecorderFor("cell-operator"),
+		SnapshotEnabled:         enableSnapshots,
+		MaxConcurrentReconciles: cellConcurrency,
 	}
 	if err := reconciler.SetupWithManager(manager); err != nil {
 		fatal(err)
@@ -101,6 +115,7 @@ func main() {
 			WriterStopTimeout: writerStopTimeout,
 			SnapshotTimeout:   snapshotTimeout,
 		},
+		MaxConcurrentReconciles: snapshotConcurrency,
 	}
 	if err := snapshotReconciler.SetupWithManager(manager); err != nil {
 		fatal(err)

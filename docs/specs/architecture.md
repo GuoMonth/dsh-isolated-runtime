@@ -132,6 +132,30 @@ another digest of the same RC is explicit only after this first-reader barrier.
 Rollback is another fresh Cell from an older
 snapshot, never an in-place PVC downgrade.
 
+## Fleet operations
+
+Fleet scale is repetition of the same namespaced graph, not a new object or
+control plane. A namespace supplies capabilities independently: core Cell
+resources require ordinary namespaced workload and PVC admission; public
+access additionally requires Gateway route eligibility; snapshots require CSI
+classes and APIs; sandboxing requires the configured RuntimeClass. The operator
+does not list, watch, own, or interpret Namespace, ResourceQuota, LimitRange,
+PriorityClass, or API Priority and Fairness objects.
+
+Both reconcilers have explicit worker limits. Kubernetes object watches drive
+normal progress, controller-runtime rate limiting handles API errors, and only
+real writer-stop/snapshot deadlines schedule exact wakeups. A one-minute retry
+is retained solely for cluster-scoped StorageClass/VolumeSnapshotClass changes
+that cannot be mapped safely to individual namespaced requests without a
+cluster-wide fan-out. A quiet cluster therefore produces no Cell polling loop.
+
+Metrics are disabled by default and have no Service or scraper. When enabled,
+the operator exposes controller-runtime process/work-queue aggregates and the
+authorizer exposes a counter labeled only by a closed decision enum. Cell,
+snapshot, namespace, user, hostname, UID, route, Pod, Node, address, provider,
+or credential values are never metric labels. Kubernetes objects remain the
+only inventory and diagnostic authority.
+
 ## Non-goals
 
 - Replacing kube-scheduler, Gateway API, CSI, or a cluster fleet manager.
@@ -140,3 +164,5 @@ snapshot, never an in-place PVC downgrade.
 - Promising host-compromise resistance for ordinary containers.
 - Supporting removed pre-Cell APIs or floating DSH versions.
 - Scheduling backups, copying snapshots across clusters, or replacing CSI.
+- Defining a Fleet CRD, namespace template, quota policy, custom scheduler,
+  autoscaler, telemetry backend, SLO product, or topology inventory.

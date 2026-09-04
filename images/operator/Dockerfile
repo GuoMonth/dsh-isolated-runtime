@@ -24,5 +24,5 @@ COPY --from=builder /out/cell-operator /cell-operator
 COPY --from=builder /out/cell-authorizer /cell-authorizer
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 USER 65532:65532
-EXPOSE 8080 8081 9001
+EXPOSE 8080 8081 9001 9090
 ENTRYPOINT ["/cell-operator"]

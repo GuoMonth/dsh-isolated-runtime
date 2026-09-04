@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	controlleroptions "sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -77,9 +78,10 @@ func (c SnapshotConfig) Validate() error {
 // acknowledgement because the exact supported release cannot provide one.
 type CellSnapshotReconciler struct {
 	client.Client
-	APIReader client.Reader
-	Scheme    *runtime.Scheme
-	Config    SnapshotConfig
+	APIReader               client.Reader
+	Scheme                  *runtime.Scheme
+	Config                  SnapshotConfig
+	MaxConcurrentReconciles int
 }
 
 // +kubebuilder:rbac:groups=dsh.isolated.io,resources=cellsnapshots,verbs=get;list;watch;update;patch
@@ -96,6 +98,7 @@ func (r *CellSnapshotReconciler) SetupWithManager(manager ctrl.Manager) error {
 		return err
 	}
 	builder := ctrl.NewControllerManagedBy(manager).
+		WithOptions(controlleroptions.Options{MaxConcurrentReconciles: normalizedConcurrency(r.MaxConcurrentReconciles)}).
 		For(&dshv1alpha1.CellSnapshot{}).
 		Watches(&dshv1alpha1.Cell{}, handler.EnqueueRequestsFromMapFunc(r.mapCellToSnapshots)).
 		Watches(&appsv1.StatefulSet{}, handler.EnqueueRequestsFromMapFunc(r.mapManagedToSnapshots)).
@@ -121,7 +124,7 @@ func (r *CellSnapshotReconciler) Reconcile(ctx context.Context, request ctrl.Req
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if snapshot.UID == "" {
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+		return ctrl.Result{}, nil
 	}
 	if snapshot.DeletionTimestamp != nil {
 		return r.reconcileDeleting(ctx, &snapshot)
@@ -187,7 +190,7 @@ func (r *CellSnapshotReconciler) accept(ctx context.Context, snapshot *dshv1alph
 		if err := r.Update(ctx, copy); err != nil {
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+		return immediateRequeueResult(), nil
 	}
 
 	bound := snapshot.Status.SourceCellUID == string(cell.UID) &&
@@ -209,7 +212,7 @@ func (r *CellSnapshotReconciler) accept(ctx context.Context, snapshot *dshv1alph
 			setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotReady, metav1.ConditionFalse, reasonSnapshotPending, "waiting for CSI snapshot")
 			setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotFailed, metav1.ConditionFalse, reasonSnapshotPending, "snapshot has not failed")
 		})
-		return ctrl.Result{RequeueAfter: pendingRequeue}, err
+		return immediateRequeueResult(), err
 	}
 
 	// Re-read after status persistence. The lock is acquired only against the
@@ -228,7 +231,7 @@ func (r *CellSnapshotReconciler) accept(ctx context.Context, snapshot *dshv1alph
 		if err := r.patchCellOperation(ctx, &cell, string(snapshot.UID)); err != nil {
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+		return immediateRequeueResult(), nil
 	} else if active != string(snapshot.UID) {
 		return r.setPending(ctx, snapshot, reasonSnapshotOperationQueued, "another CellSnapshot is active")
 	}
@@ -236,7 +239,7 @@ func (r *CellSnapshotReconciler) accept(ctx context.Context, snapshot *dshv1alph
 	err = r.patchStatus(ctx, snapshot, func(status *dshv1alpha1.CellSnapshotStatus) {
 		setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotAccepted, metav1.ConditionTrue, reasonSnapshotPrerequisites, "snapshot prerequisites are satisfied and the source operation is locked")
 	})
-	return ctrl.Result{RequeueAfter: pendingRequeue}, err
+	return immediateRequeueResult(), err
 }
 
 func (r *CellSnapshotReconciler) snapshotPrerequisites(
@@ -356,12 +359,15 @@ func (r *CellSnapshotReconciler) waitForWriterStop(ctx context.Context, snapshot
 		return ctrl.Result{}, err
 	}
 	if !stopped {
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+		return timeoutResult(
+			conditionAge(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted),
+			r.Config.WriterStopTimeout,
+		), nil
 	}
 	err = r.patchStatus(ctx, snapshot, func(status *dshv1alpha1.CellSnapshotStatus) {
 		setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotWriterStopped, metav1.ConditionTrue, reasonSnapshotWriterStopped, "StatefulSet is observed at zero and no managed Pod remains; no application flush is claimed")
 	})
-	return ctrl.Result{RequeueAfter: pendingRequeue}, err
+	return immediateRequeueResult(), err
 }
 
 func (r *CellSnapshotReconciler) managedWriterStopped(ctx context.Context, cell *dshv1alpha1.Cell) (bool, error) {
@@ -409,7 +415,10 @@ func (r *CellSnapshotReconciler) snapshot(ctx context.Context, snapshot *dshv1al
 		err := r.patchStatus(ctx, snapshot, func(status *dshv1alpha1.CellSnapshotStatus) {
 			setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotWriterStopped, metav1.ConditionFalse, reasonSnapshotWriterStopPending, "writer-stop barrier was lost before CSI snapshot")
 		})
-		return ctrl.Result{RequeueAfter: pendingRequeue}, err
+		return timeoutResult(
+			conditionAge(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted),
+			r.Config.WriterStopTimeout,
+		), err
 	}
 	data, _, _, err := r.acceptedSnapshotInputs(ctx, snapshot, cell)
 	if err != nil {
@@ -433,7 +442,11 @@ func (r *CellSnapshotReconciler) snapshot(ctx context.Context, snapshot *dshv1al
 		return r.fail(ctx, snapshot, reasonSnapshotTimedOut, "CSI snapshot timed out")
 	}
 	if volumeSnapshot.Status == nil || volumeSnapshot.Status.ReadyToUse == nil || !*volumeSnapshot.Status.ReadyToUse || volumeSnapshot.Status.RestoreSize == nil {
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+		age := time.Duration(0)
+		if !volumeSnapshot.CreationTimestamp.IsZero() {
+			age = time.Since(volumeSnapshot.CreationTimestamp.Time)
+		}
+		return timeoutResult(age, r.Config.SnapshotTimeout), nil
 	}
 	restoreSize := volumeSnapshot.Status.RestoreSize.DeepCopy()
 	err = r.patchStatus(ctx, snapshot, func(status *dshv1alpha1.CellSnapshotStatus) {
@@ -467,14 +480,17 @@ func (r *CellSnapshotReconciler) completeFailure(ctx context.Context, snapshot *
 				statusErr := r.patchStatus(ctx, snapshot, func(status *dshv1alpha1.CellSnapshotStatus) {
 					setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotFailed, metav1.ConditionFalse, reasonSnapshotCleanupBlocked, "source writer is not yet fenced; the operation lock remains held")
 				})
-				return ctrl.Result{RequeueAfter: pendingRequeue}, errors.Join(stopErr, statusErr)
+				return timeoutResult(
+					conditionAge(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted),
+					r.Config.WriterStopTimeout,
+				), errors.Join(stopErr, statusErr)
 			}
 			if err := r.patchStatus(ctx, snapshot, func(status *dshv1alpha1.CellSnapshotStatus) {
 				setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotWriterStopped, metav1.ConditionTrue, reasonSnapshotWriterStopped, "writer-stop barrier completed while reconciling failure")
 			}); err != nil {
 				return ctrl.Result{}, err
 			}
-			return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+			return immediateRequeueResult(), nil
 		}
 		if !apierrors.IsNotFound(err) && !errors.Is(err, errSnapshotSourceChanged) {
 			return ctrl.Result{}, err
@@ -485,13 +501,13 @@ func (r *CellSnapshotReconciler) completeFailure(ctx context.Context, snapshot *
 		statusErr := r.patchStatus(ctx, snapshot, func(status *dshv1alpha1.CellSnapshotStatus) {
 			setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotFailed, metav1.ConditionFalse, reasonSnapshotCleanupBlocked, "owned Kubernetes VolumeSnapshot deletion is blocked; backend state remains CSI-owned")
 		})
-		return ctrl.Result{RequeueAfter: pendingRequeue}, errors.Join(cleanupErr, statusErr)
+		return ctrl.Result{}, errors.Join(cleanupErr, statusErr)
 	}
 	if !gone {
 		reason := reasonSnapshotCleanupPending
 		message := "waiting for owned Kubernetes VolumeSnapshot deletion"
 		if blocked, err := r.volumeSnapshotDeletionStarted(ctx, snapshot); err != nil {
-			return ctrl.Result{RequeueAfter: pendingRequeue}, err
+			return ctrl.Result{}, err
 		} else if blocked {
 			reason = reasonSnapshotCleanupBlocked
 			message = "owned Kubernetes VolumeSnapshot remains after deletion was requested; backend state remains CSI-owned"
@@ -499,7 +515,7 @@ func (r *CellSnapshotReconciler) completeFailure(ctx context.Context, snapshot *
 		statusErr := r.patchStatus(ctx, snapshot, func(status *dshv1alpha1.CellSnapshotStatus) {
 			setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotFailed, metav1.ConditionFalse, reason, message)
 		})
-		return ctrl.Result{RequeueAfter: pendingRequeue}, statusErr
+		return ctrl.Result{}, statusErr
 	}
 	cause := meta.FindStatusCondition(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotReady)
 	reason, message := reasonSnapshotFailed, "snapshot failed"
@@ -532,30 +548,33 @@ func (r *CellSnapshotReconciler) reconcileDeleting(ctx context.Context, snapshot
 	}
 	active, changed, err := r.pruneRestoreProtections(ctx, snapshot)
 	if err != nil {
-		return ctrl.Result{RequeueAfter: pendingRequeue}, err
+		return ctrl.Result{}, err
 	}
 	if active || changed {
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+		if changed {
+			return immediateRequeueResult(), nil
+		}
+		return ctrl.Result{}, nil
 	}
 	if conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted) {
 		if cell, sourceErr := r.operationSource(ctx, snapshot); sourceErr == nil {
 			stopped, stopErr := r.managedWriterStopped(ctx, cell)
 			if stopErr != nil {
-				return ctrl.Result{RequeueAfter: pendingRequeue}, stopErr
+				return ctrl.Result{}, stopErr
 			}
 			if !stopped {
-				return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+				return ctrl.Result{}, nil
 			}
 		} else if !apierrors.IsNotFound(sourceErr) && !errors.Is(sourceErr, errSnapshotSourceChanged) {
-			return ctrl.Result{RequeueAfter: pendingRequeue}, sourceErr
+			return ctrl.Result{}, sourceErr
 		}
 	}
 	gone, err := r.deleteVolumeSnapshot(ctx, snapshot)
 	if err != nil {
-		return ctrl.Result{RequeueAfter: pendingRequeue}, err
+		return ctrl.Result{}, err
 	}
 	if !gone {
-		return ctrl.Result{RequeueAfter: pendingRequeue}, nil
+		return ctrl.Result{}, nil
 	}
 	if err := r.releaseCell(ctx, snapshot); err != nil {
 		return ctrl.Result{}, err
@@ -611,7 +630,28 @@ func (r *CellSnapshotReconciler) setPending(ctx context.Context, snapshot *dshv1
 		setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotReady, metav1.ConditionFalse, reasonSnapshotPending, "snapshot is not ready")
 		setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotFailed, metav1.ConditionFalse, reasonSnapshotPending, "snapshot has not failed")
 	})
-	return ctrl.Result{RequeueAfter: pendingRequeue}, err
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	return pendingSnapshotResult(reason), nil
+}
+
+func pendingSnapshotResult(reason string) ctrl.Result {
+	if reason == reasonSnapshotClassMissing || reason == reasonSnapshotDriverMismatch {
+		return ctrl.Result{RequeueAfter: externalPrerequisiteRequeue}
+	}
+	return ctrl.Result{}
+}
+
+// timeoutResult schedules only the wake-up that gives a time-bounded
+// operation its deadline. Normal progress is driven by watched Kubernetes
+// state changes.
+func timeoutResult(age, timeout time.Duration) ctrl.Result {
+	remaining := timeout - age
+	if remaining <= 0 {
+		return immediateRequeueResult()
+	}
+	return ctrl.Result{RequeueAfter: remaining}
 }
 
 func (r *CellSnapshotReconciler) ensureVolumeSnapshot(ctx context.Context, snapshot *dshv1alpha1.CellSnapshot, cell *dshv1alpha1.Cell, claimName string) (*volumesnapshotv1.VolumeSnapshot, error) {
@@ -776,7 +816,11 @@ func (r *CellSnapshotReconciler) mapCellToSnapshots(ctx context.Context, object 
 	}
 	requests := make([]reconcile.Request, 0)
 	for _, snapshot := range snapshots.Items {
-		if snapshot.Spec.CellRef.Name == object.GetName() {
+		restoreReference := false
+		if cell, ok := object.(*dshv1alpha1.Cell); ok && cell.Spec.Storage.RestoreFrom != nil {
+			restoreReference = cell.Spec.Storage.RestoreFrom.Name == snapshot.Name
+		}
+		if snapshot.Spec.CellRef.Name == object.GetName() || restoreReference {
 			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&snapshot)})
 		}
 	}

@@ -214,10 +214,38 @@ jobs:
           SKIP_IMAGE_BUILD: "1"
         run: docker pull "$CELL_IMAGE" && docker pull "$OPERATOR_IMAGE" && make verify-kind-phase3
 
+  phase4:
+    name: Candidate Phase 4 fleet
+    needs: candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: go install sigs.k8s.io/kind@v0.32.0
+      - name: Run exact candidates
+        env:
+          CELL_IMAGE: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}
+          OPERATOR_IMAGE: ${{ env.OPERATOR_REPOSITORY }}@${{ needs.candidate.outputs.operator-digest }}
+          SKIP_IMAGE_BUILD: "1"
+        run: docker pull "$CELL_IMAGE" && docker pull "$OPERATOR_IMAGE" && make verify-kind-phase4
+
   promote:
     name: Promote tested digests
     if: github.ref == 'refs/heads/main'
-    needs: [candidate, core, compatibility, image-smoke, phase1, phase2, phase3]
+    needs: [candidate, core, compatibility, image-smoke, phase1, phase2, phase3, phase4]
     runs-on: ubuntu-latest
     permissions:
       contents: read

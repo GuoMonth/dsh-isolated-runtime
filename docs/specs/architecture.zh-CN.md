@@ -105,6 +105,25 @@ version；UID 绑定的 finalizer 会保护来源，直到记录的 image 成为
 exact-image 首个 reader 继续启动。之后才可显式 rollout 到同 RC 的另一个 digest；rollback
 是从旧 snapshot 创建另一个 fresh Cell，绝不是原地 PVC 降级。
 
+## Fleet 运维
+
+Fleet scale 只是同一个 namespaced 资源图的重复，而不是新的对象或控制面。Namespace 独立提供
+capability：核心 Cell 资源只要求普通 namespaced workload 与 PVC admission；公网访问还要求
+Gateway route eligibility；snapshot 要求 CSI class/API；sandboxing 要求配置好的 RuntimeClass。
+Operator 不 list、watch、持有或解释 Namespace、ResourceQuota、LimitRange、PriorityClass 或
+API Priority and Fairness 对象。
+
+两个 reconciler 都有显式 worker 上限。正常进展由 Kubernetes 对象 watch 驱动，API 错误交给
+controller-runtime rate limiter，只有真实 writer-stop / snapshot deadline 才安排精确唤醒。
+唯一保留的一分钟 retry 用于 cluster-scoped StorageClass / VolumeSnapshotClass 变化；如果没有
+项目私有全局 fan-out，就无法把这种变化安全映射到单个 namespaced request。稳定集群因此没有
+Cell 轮询循环。
+
+Metrics 默认关闭，也不创建 Service 或 scraper。开启时，Operator 只暴露 controller-runtime
+process/work-queue 聚合，authorizer 只暴露以封闭 decision 枚举为 label 的 counter。Cell、
+snapshot、namespace、user、hostname、UID、route、Pod、Node、address、provider 或 credential
+均不得成为 metric label；Kubernetes 对象仍是唯一 inventory 与诊断权威。
+
 ## 非目标
 
 - 替代 kube-scheduler、Gateway API、CSI 或集群 fleet manager；
@@ -113,3 +132,5 @@ exact-image 首个 reader 继续启动。之后才可显式 rollout 到同 RC �
 - 承诺普通容器可以抵御宿主机失陷；
 - 支持已删除的 pre-Cell API 或浮动 DSH 版本。
 - 调度备份、跨集群复制 snapshot 或替代 CSI。
+- 定义 Fleet CRD、namespace template、quota policy、自定义 scheduler、autoscaler、telemetry
+  backend、SLO 产品或 topology inventory。
