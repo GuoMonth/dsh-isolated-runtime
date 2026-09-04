@@ -566,7 +566,10 @@ gateway_forward_pid="$(start_forward dsh-system "service/${gateway_service}" 184
 dex_forward_pid="$(start_forward dsh-system service/dex 15556:15556 "$test_root/dex-forward.log" 15556)"
 mkdir -p "$test_root/browser"
 
-browser initial alice@example.com
+# Gateway Programmed and Route Accepted precede complete xDS convergence by a
+# short interval. Keep the proof strict, but tolerate that transport window:
+# every attempt still has to complete OIDC plus the full DSH protocol suite.
+browser_eventually initial alice@example.com
 
 # Observe the exact credential names held by the browser and the subset Envoy
 # Gateway forwards upstream, without ever returning or logging their values.
