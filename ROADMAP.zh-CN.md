@@ -47,7 +47,7 @@ Roadmap 按垂直大里程碑推进。每个大里程碑结束时必须复盘并
 
 - 增加完全不可变的 `CellSnapshot` 意图，以及只能在创建时指定的
   `storage.restoreFrom`，不生成项目私有备份控制面；
-- launcher 排空流量、确认 DSH 正常退出、StatefulSet 降到零副本后，才通过稳定 CSI API
+- StatefulSet 降到零副本并通过 Kubernetes writer-stop barrier 后，才通过稳定 CSI API
   快照 data PVC；
 - 每个 Cell 串行执行数据操作；清理结果不明确时 fail closed，只有成功或确认清理后才恢复源
   Cell；
@@ -59,6 +59,20 @@ Roadmap 按垂直大里程碑推进。每个大里程碑结束时必须复盘并
 参考 kind 夹具只为验证安装 external-snapshotter 与 CSI hostpath test driver；生产 CSI
 lifecycle 仍由集群管理员负责。证据与 `GO` 结论记录在
 [Phase 3 复盘](https://github.com/GuoMonth/dsh-isolated-runtime/issues/33)。
+
+## Phase 3.1 —— 契约加固
+
+这个纠偏里程碑用可验证结论替换此前过强的表述：
+
+- 在 launcher 边界剥离固定 Envoy OAuth2 的 access、ID、refresh、nonce、expiry 与 HMAC
+  cookie，同时保留 DSH cookie；
+- 删除无法实证的应用 quiesce 协议，精确声明 writer-stopped、crash-consistent CSI 保证；
+- 绑定源 data PVC UID，并以 API 可见的 Kubernetes invariant 关闭 workload lineage、
+  stale lock、create/adopt、EndpointSlice、restore 删除和 first-reader 竞态；
+- 发布候选只构建一次，全部门禁消费相同 digest，随后把同一带 SBOM/provenance 的 manifest 晋级。
+
+只有 [Phase 3.1 复盘](https://github.com/GuoMonth/dsh-isolated-runtime/issues/44)
+根据 post-merge 证据记录 `GO`，Phase 4 才解除阻塞。
 
 ## Phase 4 —— Fleet 运维
 

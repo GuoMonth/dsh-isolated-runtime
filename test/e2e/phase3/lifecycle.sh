@@ -83,11 +83,10 @@ csi_images=(
   registry.k8s.io/sig-storage/csi-resizer:v2.2.1
   registry.k8s.io/sig-storage/csi-snapshotter:v8.5.0
 )
+printf '%s\0' "${csi_images[@]}" | xargs -0 -n1 -P4 docker pull --platform linux/amd64 >/dev/null
 for image in "${csi_images[@]}"; do
-  docker pull --platform linux/amd64 "$image" >/dev/null
   docker save "$image" | docker exec --privileged -i "${cluster_name}-control-plane" \
     ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
-  docker image rm "$image" >/dev/null
 done
 
 for crd in volumesnapshotclasses volumesnapshotcontents volumesnapshots; do
@@ -114,7 +113,7 @@ k get volumesnapshotclass csi-hostpath-snapclass -o json | jq -e '
 
 # Restart only the operator after the stable snapshot API exists. The Phase 2
 # deployment and Cell contracts remain otherwise unchanged.
-k -n dsh-system patch deployment cell-operator --type=strategic -p "$(jq -cn '{spec:{template:{spec:{containers:[{name:"manager",args:["--gateway-name=dsh","--gateway-namespace=dsh-system","--gateway-section-name=https","--base-domain=cells.test","--external-https-port=18443","--enable-snapshots=true","--quiesce-timeout=2m","--snapshot-timeout=1m"]}]}}}}')"
+k -n dsh-system patch deployment cell-operator --type=strategic -p "$(jq -cn '{spec:{template:{spec:{containers:[{name:"manager",args:["--gateway-name=dsh","--gateway-namespace=dsh-system","--gateway-section-name=https","--base-domain=cells.test","--external-https-port=18443","--enable-snapshots=true","--writer-stop-timeout=2m","--snapshot-timeout=1m"]}]}}}}')"
 k -n dsh-system rollout status deployment/cell-operator --timeout=180s
 
 # Build a second exact-RC image whose only intended difference is immutable OCI
@@ -130,6 +129,11 @@ cell_b_repo_digest="$(docker inspect "$cell_repo:e2e-b" --format '{{index .RepoD
 cell_b_digest="${cell_b_repo_digest##*@}"
 test "$cell_b_digest" != "$cell_digest"
 test "$(docker run --rm --entrypoint node "$local_cell_b" -e "process.stdout.write(require('/opt/dsh/node_modules/@deepseek-ai/dsh/package.json').version)")" = "0.1.2-rc.1"
+test "$(docker image inspect "$local_cell" --format '{{json .RootFS.Layers}}')" = \
+  "$(docker image inspect "$local_cell_b" --format '{{json .RootFS.Layers}}')"
+runtime_config_a="$(docker image inspect "$local_cell" | jq -cS '.[0].Config | {User,Entrypoint,Cmd,Env,WorkingDir,Labels:(.Labels | del(."org.opencontainers.image.revision"))}')"
+runtime_config_b="$(docker image inspect "$local_cell_b" | jq -cS '.[0].Config | {User,Entrypoint,Cmd,Env,WorkingDir,Labels:(.Labels | del(."org.opencontainers.image.revision"))}')"
+test "$runtime_config_a" = "$runtime_config_b"
 
 fault_image="dsh-phase3-fault:test"
 docker buildx build --builder default --platform linux/amd64 --load \
@@ -173,31 +177,51 @@ k -n tenant-snapshot create rolebinding alice-source \
 cell_a_host="$source_host"
 cell_a_authority="$source_authority"
 hold_marker="$test_root/browser/hold-ready"
+hold_http_marker="$test_root/browser/hold-http-ready"
 hold_log="$test_root/browser/hold.log"
-rm -f "$hold_marker"
+rm -f "$hold_marker" "$hold_http_marker"
 browser initial-hold alice@example.com >"$hold_log" 2>&1 &
 hold_pid=$!
 extension_pids+=("$hold_pid")
 for _ in $(seq 1 90); do
-  [[ -f "$hold_marker" ]] && break
+  [[ -f "$hold_marker" && -f "$hold_http_marker" ]] && break
   sleep 1
 done
-if [[ ! -f "$hold_marker" ]]; then
+if [[ ! -f "$hold_marker" || ! -f "$hold_http_marker" ]]; then
   sed -n '1,160p' "$hold_log" >&2
-  echo "Phase 3 browser did not establish the held WebSocket" >&2
+  echo "Phase 3 browser did not establish held WebSocket and HTTP streams" >&2
   exit 1
 fi
 
 source_pod="$(k -n tenant-snapshot get pod -l "dsh.isolated.io/cell-uid=${source_uid}" -o jsonpath='{.items[0].metadata.name}')"
 k -n tenant-snapshot exec "$source_pod" -- sh -euc '
-  mkdir -p /var/lib/dsh/data/home/attachments/v1 /var/lib/dsh/data/workspace
+  mkdir -p /var/lib/dsh/data/workspace
   printf durable-workspace > /var/lib/dsh/data/workspace/phase3-source
   printf durable-home > /var/lib/dsh/data/home/phase3-home
-  printf durable-attachment > /var/lib/dsh/data/home/attachments/v1/phase3-attachment
+  find /var/lib/dsh/data/home/attachments/v1 -type f | grep -q .
   printf private-source-only > /var/lib/dsh-private/phase3-private
   test "$PHASE3_PROVIDER_MARKER" = phase3-provider-51bd0c
 '
 source_private_hash="$(k -n tenant-snapshot exec "$source_pod" -- sha256sum /var/lib/dsh-private/.credentials.yaml | awk '{print $1}')"
+k apply -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: writer-fence-probe
+  namespace: tenant-snapshot
+  labels:
+    test.dsh.isolated.io/purpose: writer-fence-label-drift
+  annotations:
+    dsh.isolated.io/cell-name: source
+    dsh.isolated.io/cell-uid: ${source_uid}
+spec:
+  restartPolicy: Never
+  containers:
+    - name: fence
+      image: ${cell_repo}@${cell_digest}
+      command: ["/usr/local/bin/node", "-e", "setInterval(()=>{},60000)"]
+EOF
+k -n tenant-snapshot wait pod/writer-fence-probe --for=condition=Ready --timeout=120s
 
 # Hold the external snapshot-controller so the first operation remains active
 # long enough to prove that a concurrent request exposes OperationQueued. The
@@ -230,19 +254,31 @@ spec:
   volumeSnapshotClassName: csi-hostpath-snapclass
 EOF
 wait_snapshot_condition tenant-snapshot queued-backup Accepted False OperationQueued
-wait_snapshot_condition tenant-snapshot source-backup Quiesced True
 k -n tenant-snapshot delete cellsnapshot queued-backup --wait=true
 
-# Kill the controller after durable launcher acknowledgement. Both reconcilers
-# must recover from API state alone, finish the scale-to-zero barrier, and
-# resume the source without an in-memory transaction record.
+# An unowned and deliberately unlabeled Pod carrying the exact Cell identity
+# blocks the CSI action even after the StatefulSet itself reports zero.
+for _ in $(seq 1 120); do
+  if [[ "$(k -n tenant-snapshot get statefulset "$source_base" -o jsonpath='{.spec.replicas}')" = "0" &&
+        "$(k -n tenant-snapshot get statefulset "$source_base" -o jsonpath='{.status.replicas}')" = "0" ]]; then
+    break
+  fi
+  sleep 1
+done
+volume_snapshot="cellsnapshot-$(k -n tenant-snapshot get cellsnapshot source-backup -o jsonpath='{.metadata.uid}')"
+expect_failure k -n tenant-snapshot get volumesnapshot "$volume_snapshot"
+k -n tenant-snapshot delete pod writer-fence-probe --wait=true
+wait_snapshot_condition tenant-snapshot source-backup WriterStopped True
+
+# Kill the controller after the durable writer-stop barrier. Both reconcilers
+# must recover from API state alone and resume the source without an in-memory
+# transaction record.
 k -n dsh-system scale deployment cell-operator --replicas=0
 k -n dsh-system wait --for=delete pod -l app.kubernetes.io/name=cell-operator --timeout=120s
 k -n dsh-system scale deployment cell-operator --replicas=1
 k -n dsh-system rollout status deployment/cell-operator --timeout=180s
 
 # The VolumeSnapshot may only exist after the StatefulSet is fully at zero.
-volume_snapshot="cellsnapshot-$(k -n tenant-snapshot get cellsnapshot source-backup -o jsonpath='{.metadata.uid}')"
 for _ in $(seq 1 180); do
   if k -n tenant-snapshot get volumesnapshot "$volume_snapshot" >/dev/null 2>&1; then
     test "$(k -n tenant-snapshot get statefulset "$source_base" -o jsonpath='{.spec.replicas}')" = "0"
@@ -254,7 +290,11 @@ done
 k -n tenant-snapshot get volumesnapshot "$volume_snapshot" >/dev/null
 k -n kube-system scale deployment snapshot-controller --replicas=2
 k -n kube-system rollout status deployment/snapshot-controller --timeout=180s
-wait "$hold_pid"
+if ! wait "$hold_pid"; then
+  sed -n '1,160p' "$hold_log" >&2
+  echo "Phase 3 active-connection fixture failed" >&2
+  exit 1
+fi
 extension_pids=()
 wait_snapshot_condition tenant-snapshot source-backup Ready True
 wait_cell tenant-snapshot source True
@@ -294,7 +334,7 @@ restored_pod="$(k -n tenant-snapshot get pod -l "dsh.isolated.io/cell-uid=${rest
 k -n tenant-snapshot exec "$restored_pod" -- sh -euc '
   test "$(cat /var/lib/dsh/data/workspace/phase3-source)" = durable-workspace
   test "$(cat /var/lib/dsh/data/home/phase3-home)" = durable-home
-  test "$(cat /var/lib/dsh/data/home/attachments/v1/phase3-attachment)" = durable-attachment
+  find /var/lib/dsh/data/home/attachments/v1 -type f | grep -q .
   test ! -e /var/lib/dsh-private/phase3-private
   test -z "${PHASE3_PROVIDER_MARKER:-}"
 '
@@ -397,6 +437,124 @@ cell_a_host="$rollback_host"
 cell_a_authority="$rollback_authority"
 browser resume alice@example.com
 
+# Exercise failure interleavings against the real API server while the CSI
+# controller is paused so each transition remains observable.
+k -n kube-system scale deployment snapshot-controller --replicas=0
+k -n kube-system wait --for=delete pod -l app=snapshot-controller --timeout=120s
+k -n dsh-system patch deployment cell-operator --type=strategic -p "$(jq -cn '{spec:{template:{spec:{containers:[{name:"manager",args:["--gateway-name=dsh","--gateway-namespace=dsh-system","--gateway-section-name=https","--base-domain=cells.test","--external-https-port=18443","--enable-snapshots=true","--writer-stop-timeout=30s","--snapshot-timeout=1m"]}]}}}}')"
+k -n dsh-system rollout status deployment/cell-operator --timeout=180s
+k apply -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: writer-stop-timeout-probe
+  namespace: tenant-snapshot
+  labels:
+    test.dsh.isolated.io/purpose: writer-fence-label-drift
+  annotations:
+    dsh.isolated.io/cell-name: rollback
+    dsh.isolated.io/cell-uid: ${rollback_uid}
+spec:
+  restartPolicy: Never
+  containers:
+    - name: fence
+      image: ${cell_repo}@${cell_digest}
+      command: ["/usr/local/bin/node", "-e", "setInterval(()=>{},60000)"]
+EOF
+k -n tenant-snapshot wait pod/writer-stop-timeout-probe --for=condition=Ready --timeout=120s
+k apply -f - <<EOF
+apiVersion: dsh.isolated.io/v1alpha1
+kind: CellSnapshot
+metadata:
+  name: writer-stop-timeout
+  namespace: tenant-snapshot
+spec:
+  cellRef:
+    name: rollback
+  volumeSnapshotClassName: csi-hostpath-snapclass
+EOF
+wait_snapshot_condition tenant-snapshot writer-stop-timeout Accepted True
+wait_snapshot_condition tenant-snapshot writer-stop-timeout Failed False CleanupBlocked
+writer_timeout_uid="$(k -n tenant-snapshot get cellsnapshot writer-stop-timeout -o jsonpath='{.metadata.uid}')"
+expect_failure k -n tenant-snapshot get volumesnapshot "cellsnapshot-${writer_timeout_uid}"
+test "$(k -n tenant-snapshot get statefulset "$rollback_base" -o jsonpath='{.spec.replicas}')" = "0"
+k -n tenant-snapshot delete pod writer-stop-timeout-probe --wait=true
+wait_snapshot_condition tenant-snapshot writer-stop-timeout Failed True WriterStopTimedOut
+wait_cell tenant-snapshot rollback True
+k -n tenant-snapshot delete cellsnapshot writer-stop-timeout --wait=true
+
+k apply -f - <<EOF
+apiVersion: dsh.isolated.io/v1alpha1
+kind: CellSnapshot
+metadata:
+  name: source-changed
+  namespace: tenant-snapshot
+spec:
+  cellRef:
+    name: rollback
+  volumeSnapshotClassName: csi-hostpath-snapclass
+EOF
+wait_snapshot_condition tenant-snapshot source-changed Accepted True
+k -n tenant-snapshot patch cell rollback --type=merge -p '{"spec":{"resources":{"requests":{"cpu":"10m"}}}}'
+wait_snapshot_condition tenant-snapshot source-changed Failed True SourceChanged
+wait_cell tenant-snapshot rollback True
+k -n tenant-snapshot delete cellsnapshot source-changed --wait=true
+
+k apply -f - <<EOF
+apiVersion: dsh.isolated.io/v1alpha1
+kind: CellSnapshot
+metadata:
+  name: timed-out
+  namespace: tenant-snapshot
+spec:
+  cellRef:
+    name: rollback
+  volumeSnapshotClassName: csi-hostpath-snapclass
+EOF
+wait_snapshot_condition tenant-snapshot timed-out WriterStopped True
+timed_out_uid="$(k -n tenant-snapshot get cellsnapshot timed-out -o jsonpath='{.metadata.uid}')"
+timed_out_volume="cellsnapshot-${timed_out_uid}"
+for _ in $(seq 1 60); do
+  k -n tenant-snapshot get volumesnapshot "$timed_out_volume" >/dev/null 2>&1 && break
+  sleep 1
+done
+k -n tenant-snapshot get volumesnapshot "$timed_out_volume" >/dev/null
+wait_snapshot_condition tenant-snapshot timed-out Failed True SnapshotTimedOut
+wait_cell tenant-snapshot rollback True
+k -n tenant-snapshot delete cellsnapshot timed-out --wait=true
+
+k apply -f - <<EOF
+apiVersion: dsh.isolated.io/v1alpha1
+kind: CellSnapshot
+metadata:
+  name: cleanup-blocked
+  namespace: tenant-snapshot
+spec:
+  cellRef:
+    name: rollback
+  volumeSnapshotClassName: csi-hostpath-snapclass
+EOF
+wait_snapshot_condition tenant-snapshot cleanup-blocked WriterStopped True
+cleanup_uid="$(k -n tenant-snapshot get cellsnapshot cleanup-blocked -o jsonpath='{.metadata.uid}')"
+cleanup_volume="cellsnapshot-${cleanup_uid}"
+for _ in $(seq 1 60); do
+  k -n tenant-snapshot get volumesnapshot "$cleanup_volume" >/dev/null 2>&1 && break
+  sleep 1
+done
+k -n tenant-snapshot patch volumesnapshot "$cleanup_volume" --type=merge \
+  -p '{"metadata":{"finalizers":["phase31.dsh.isolated.io/hold-cleanup"]}}'
+k -n tenant-snapshot patch volumesnapshot "$cleanup_volume" --subresource=status --type=merge \
+  -p '{"status":{"error":{"message":"phase31 injected CSI error"}}}'
+wait_snapshot_condition tenant-snapshot cleanup-blocked Failed False CleanupBlocked
+wait_cell_condition tenant-snapshot rollback Ready False SnapshotInProgress
+test "$(k -n tenant-snapshot get statefulset "$rollback_base" -o jsonpath='{.spec.replicas}')" = "0"
+k -n tenant-snapshot patch volumesnapshot "$cleanup_volume" --type=merge -p '{"metadata":{"finalizers":[]}}'
+wait_snapshot_condition tenant-snapshot cleanup-blocked Failed True
+wait_cell tenant-snapshot rollback True
+k -n tenant-snapshot delete cellsnapshot cleanup-blocked --wait=true
+k -n kube-system scale deployment snapshot-controller --replicas=2
+k -n kube-system rollout status deployment/snapshot-controller --timeout=180s
+
 # Correctable prerequisite errors do not interrupt the source Cell.
 k apply -f - <<EOF
 apiVersion: snapshot.storage.k8s.io/v1
@@ -431,9 +589,18 @@ wait_snapshot_condition tenant-snapshot wrong-driver Accepted False SnapshotClas
 wait_cell tenant-snapshot rollback True
 k -n tenant-snapshot delete cellsnapshot missing-class wrong-driver --wait=true
 
-# Cancellation is a reconciled operation: once accepted, deletion still
-# quiesces and reaches the zero-writer barrier before cleaning any CSI object
-# and restoring the source.
+# An operation UID with no matching CellSnapshot is stale API state, not a
+# permanent queue. The Cell reconciler removes only the exact stale marker.
+k -n tenant-snapshot annotate cell rollback dsh.isolated.io/active-snapshot-uid=00000000-0000-0000-0000-000000000000 --overwrite
+for _ in $(seq 1 60); do
+  test -z "$(k -n tenant-snapshot get cell rollback -o jsonpath='{.metadata.annotations.dsh\.isolated\.io/active-snapshot-uid}')" && break
+  sleep 1
+done
+test -z "$(k -n tenant-snapshot get cell rollback -o jsonpath='{.metadata.annotations.dsh\.isolated\.io/active-snapshot-uid}')"
+wait_cell tenant-snapshot rollback True
+
+# Cancellation is reconciled: an owned CSI object is removed while the writer
+# remains fenced, then the operation lock is released and the source resumes.
 k apply -f - <<EOF
 apiVersion: dsh.isolated.io/v1alpha1
 kind: CellSnapshot
@@ -491,12 +658,56 @@ wait_cell tenant-snapshot rollback True
 k -n tenant-snapshot delete cellsnapshot foreign-collision --wait=true
 k -n tenant-snapshot delete volumesnapshot "$foreign_volume_snapshot" --wait=true
 
-# Successful snapshots outlive their source Cell. Deleting the CellSnapshot
-# removes its VolumeSnapshot object; backend retention remains the class policy.
+# Successful snapshots outlive their source Cell.
 k -n tenant-snapshot delete cell source --wait=true
 k -n tenant-snapshot get cellsnapshot source-backup >/dev/null
-k -n tenant-snapshot delete cellsnapshot source-backup --wait=true
+
+# A delete racing a fresh restore cannot remove the immutable dataSource before
+# the exact recorded image becomes the first Ready reader. A missing Secret
+# keeps that barrier open without changing the public Cell API.
+k apply -f - <<EOF
+apiVersion: dsh.isolated.io/v1alpha1
+kind: Cell
+metadata:
+  name: deletion-race
+  namespace: tenant-snapshot
+spec:
+  image: ${cell_repo}@${cell_digest}
+  credentialsRef:
+    name: delayed-race-provider
+  storage:
+    size: 1Gi
+    retentionPolicy: Delete
+    restoreFrom:
+      name: source-backup
+EOF
+deletion_race_uid="$(k -n tenant-snapshot get cell deletion-race -o jsonpath='{.metadata.uid}')"
+deletion_race_base="cell-${deletion_race_uid}"
+for _ in $(seq 1 120); do
+  if k -n tenant-snapshot get pvc "${deletion_race_base}-data" >/dev/null 2>&1 &&
+     k -n tenant-snapshot get cellsnapshot source-backup -o json | jq -e --arg uid "$deletion_race_uid" '
+       any(.metadata.finalizers[]?; . == ("dsh.isolated.io/restore-" + $uid))
+     ' >/dev/null; then
+    break
+  fi
+  sleep 1
+done
+k -n tenant-snapshot get pvc "${deletion_race_base}-data" >/dev/null
+k -n tenant-snapshot patch cell deletion-race --type=merge \
+  -p "{\"spec\":{\"image\":\"${cell_repo}@${cell_b_digest}\"}}"
+wait_cell_condition tenant-snapshot deletion-race StorageReady False RestoreImageMismatch
+test "$(k -n tenant-snapshot get statefulset "$deletion_race_base" -o jsonpath='{.spec.template.spec.containers[0].image}')" = "${cell_repo}@${cell_digest}"
+k -n tenant-snapshot patch cell deletion-race --type=merge \
+  -p "{\"spec\":{\"image\":\"${cell_repo}@${cell_digest}\"}}"
+k -n tenant-snapshot delete cellsnapshot source-backup --wait=false
+sleep 5
+k -n tenant-snapshot get cellsnapshot source-backup >/dev/null
+k -n tenant-snapshot get volumesnapshot "$volume_snapshot" >/dev/null
+k -n tenant-snapshot create secret generic delayed-race-provider --from-literal=PHASE31_RACE_MARKER=ready
+wait_cell tenant-snapshot deletion-race True
+wait_absent tenant-snapshot cellsnapshot source-backup
 wait_absent tenant-snapshot volumesnapshot "$volume_snapshot"
+k -n tenant-snapshot delete cell deletion-race --wait=true
 
 if { k get cells,cellsnapshots -A -o json; k get events -A -o json; \
      k logs -n dsh-system deployment/cell-operator; } | \
@@ -505,4 +716,4 @@ if { k get cells,cellsnapshots -A -o json; k get events -A -o json; \
   exit 1
 fi
 
-echo "Phase 3 application-consistent lifecycle passed"
+echo "Phase 3 writer-stopped crash-consistent lifecycle passed"

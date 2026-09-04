@@ -34,8 +34,8 @@ Cell
       └─ HTTPRoute (UID-derived hostname)
 
 CellSnapshot
-  → launcher POST /quiesce (operator-to-Pod only)
   → StatefulSet replicas=0
+  → observed zero replicas + no owned Pod (writer-stop barrier)
   → CSI VolumeSnapshot (tenant-data PVC only)
   → source Cell replicas=1
   → fresh Cell data PVC with VolumeSnapshot dataSource
@@ -64,10 +64,14 @@ is a launcher in the same container:
    root request; it never enters the public URL, arguments, or logs.
 3. HTTP, WebSocket, streams, and Fetch are proxied opaquely. Typert is not parsed.
 4. External Host and Origin remain intact for DSH validation. HTTPS egress
-   normalizes the DSH cookie to `Secure`, `HttpOnly`, and `SameSite=Lax`; Lax is
-   required for the safe top-level return from an external OIDC provider.
+   adds `Secure` and normalizes the DSH cookie to `SameSite=Lax`; DSH itself
+   supplies `HttpOnly`. Lax is required for the safe top-level return from an
+   external OIDC provider.
 5. Authentication and Cell authorization happen before this seam. The launcher
-   trusts only the ingress path constrained by NetworkPolicy.
+   strips identity headers and every credential cookie used by the pinned Envoy
+   Gateway v1.9.1 OAuth2 filter, including its per-policy suffixed names, while
+   preserving DSH and unrelated application cookies. It trusts only the ingress
+   path constrained by NetworkPolicy.
 
 A detached sidecar cannot safely obtain the process token. Direct exposure
 conflicts with the loopback-only CLI and leaks the launch URL. Pure Gateway
@@ -95,23 +99,38 @@ part of data snapshots.
 
 The persistence format is bound to the exact DSH version in
 `compat/dsh/baseline.json`. Restore is a data operation, not a promise to migrate
-foreign session formats. Before a snapshot the controller must quiesce DSH and
-must never attach one read-write data volume to concurrent Cell writers.
+foreign session formats. Before a snapshot the controller must stop the sole
+managed writer and must never attach one read-write data volume to concurrent
+Cell writers.
 
-`CellSnapshot` is an immutable, one-shot Kubernetes intent. The launcher first
-rejects new proxy requests, drains normal and upgraded connections, and accepts
-the operation only when DSH exits normally after SIGTERM. The Cell controller
-then scales the source StatefulSet to zero; only observed zero replicas permits
-creation of the CSI `VolumeSnapshot`. A Cell annotation acquired with
-resource-version compare-and-swap serializes data operations. Snapshot errors
-delete the incomplete CSI object before the source resumes; ambiguous cleanup
-keeps the source stopped.
+`CellSnapshot` is an immutable, one-shot Kubernetes intent. A UID-bound Cell
+annotation acquired with resource-version compare-and-swap serializes data
+operations. Acceptance records both the source Cell UID and data PVC UID before
+the lock becomes active. Once `Accepted=True`, the Cell controller sets the
+StatefulSet to zero. Only an observed-zero StatefulSet plus an uncached,
+namespace-wide check proving that neither a Pod owned by the current StatefulSet
+nor any Pod carrying the exact Cell name and UID remains establishes
+`WriterStopped=True` and permits creation of the CSI `VolumeSnapshot`. The
+controller revalidates the PVC UID and both CSI
+class drivers immediately before creation. DSH 0.1.2 RC maps successful disposal, disposal
+rejection, and timeout to externally indistinguishable process termination, so
+the public contract deliberately claims crash consistency and never application
+flush. Snapshot errors delete the owned Kubernetes snapshot object before the
+source resumes; backend retention remains the CSI driver and
+VolumeSnapshotClass policy.
 
 A restore always creates a new data PVC and Cell identity. It requires a Ready,
 same-namespace snapshot, its exact recorded image digest, the one supported DSH
 RC, compatible size, and the same StorageClass. The private PVC is always new.
-Rollout to another digest of the same RC is explicit after restore; rollback is
-another fresh Cell from an older snapshot, never an in-place PVC downgrade.
+The data PVC records the snapshot UID, image digest, and DSH version. UID-bound
+finalizers keep the snapshot alive until that recorded image becomes the first
+Ready reader; another digest cannot enter first and deleting inputs cannot create
+an immutable PVC. Once CSI has materialized a Bound data PVC, that PVC's recorded
+provenance and the same finalizers form the durable barrier: a later snapshot
+delete request waits while the exact-image first reader continues. Rollout to
+another digest of the same RC is explicit only after this first-reader barrier.
+Rollback is another fresh Cell from an older
+snapshot, never an in-place PVC downgrade.
 
 ## Non-goals
 

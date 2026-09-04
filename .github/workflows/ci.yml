@@ -73,7 +73,7 @@ jobs:
           grep -q '^kind: Backend$' /tmp/dsh-phase2-install.yaml
           grep -q '^kind: SecurityPolicy$' /tmp/dsh-phase2-install.yaml
           grep -q -- '--enable-snapshots=true' /tmp/dsh-phase3-install.yaml
-          grep -q -- '--quiesce-timeout=2m' /tmp/dsh-phase3-install.yaml
+          grep -q -- '--writer-stop-timeout=2m' /tmp/dsh-phase3-install.yaml
           grep -q -- '--snapshot-timeout=30m' /tmp/dsh-phase3-install.yaml
 
   lint:

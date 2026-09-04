@@ -125,7 +125,7 @@ if kubectl --kubeconfig "$kubeconfig" -n tenant-alice patch cell assistant --sub
 fi
 
 kubectl --kubeconfig "$kubeconfig" -n tenant-alice patch cellsnapshot assistant-backup --subresource=status --type=merge \
-  -p '{"status":{"observedGeneration":1,"conditions":[{"type":"Accepted","status":"True","reason":"ContractVerified","message":"contract fixture is accepted","lastTransitionTime":"2026-01-01T00:00:00Z"}],"sourceCellUID":"fixture-uid","sourceGeneration":1,"dshVersion":"0.1.2-rc.1","imageDigest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","storageClassName":"standard","restoreSize":"20Gi"}}'
+  -p '{"status":{"observedGeneration":1,"conditions":[{"type":"Accepted","status":"True","reason":"ContractVerified","message":"contract fixture is accepted","lastTransitionTime":"2026-01-01T00:00:00Z"}],"sourceCellUID":"fixture-cell-uid","sourcePVCUID":"fixture-pvc-uid","sourceGeneration":1,"dshVersion":"0.1.2-rc.1","imageDigest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","storageClassName":"standard","restoreSize":"20Gi"}}'
 test "$(kubectl --kubeconfig "$kubeconfig" -n tenant-alice get cellsnapshot assistant-backup -o jsonpath='{.status.restoreSize}')" = "20Gi"
 if kubectl --kubeconfig "$kubeconfig" -n tenant-alice patch cellsnapshot assistant-backup --subresource=status --type=merge \
   -p '{"status":{"conditions":[{"type":"PodFrozen","status":"True","reason":"LegacyTopology","message":"must be rejected","lastTransitionTime":"2026-01-01T00:00:00Z"}]}}'; then

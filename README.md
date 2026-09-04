@@ -4,10 +4,12 @@ Kubernetes-native isolation for [DeepSeek Harness (DSH)](https://github.com/deep
 The project defines one durable boundary—`Cell`—and lets Kubernetes, Gateway
 API, and CSI keep ownership of the infrastructure they already model.
 
-**Current state: Phase 3 application-consistent data lifecycle is complete (`GO`).** In addition to
-the trusted browser path, the operator can quiesce one Cell, snapshot only its
-tenant-data PVC through CSI, and restore that snapshot into a fresh Cell. There
-is no project backup scheduler, snapshot store, or in-place rollback mechanism.
+**Current state: Phase 3.1 contract hardening is complete.** In addition to the
+trusted browser path, the operator can stop the sole Kubernetes-managed writer,
+snapshot only its tenant-data PVC through CSI, and restore that snapshot into a
+fresh Cell. The guarantee is writer-stopped and crash-consistent—not an
+application flush acknowledgement. There is no project backup scheduler,
+snapshot store, or in-place rollback mechanism.
 
 [中文](./README.zh-CN.md)
 
@@ -42,7 +44,7 @@ make verify-cell        # CRD behavior in a disposable kind cluster
 make verify-images      # production images and real DSH persistence smoke test
 make verify-kind        # complete Phase 1 vertical slice in kind
 make verify-kind-phase2 # HTTPS/OIDC/RBAC browser proof with Envoy, Dex, Chromium
-make verify-kind-phase3 # quiesce/CSI restore/rollout/fresh rollback browser proof
+make verify-kind-phase3 # writer-stop/CSI restore/rollout/fresh rollback proof
 make verify-dsh         # exact upstream DSH compatibility suite
 golangci-lint run
 ```
@@ -64,6 +66,11 @@ After a CSI snapshot controller and compatible driver are installed,
 `kubectl apply -k config/phase3` enables `CellSnapshot`. The project does not
 install production CSI components. See the executable
 [snapshot/restore sample](./config/samples/dsh_v1alpha1_cellsnapshot.yaml).
+
+Release candidates are built once, tested by immutable Cell and Operator
+digests across every gate, and only then promoted to `main`/`sha-*` GHCR tags.
+The promoted manifests retain the candidate SBOM and provenance; promotion does
+not rebuild them.
 
 ## Design
 

@@ -20,7 +20,8 @@ dex_image="ghcr.io/dexidp/dex@sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20
 dex_cache_image="dsh-phase2-dex-cache:test"
 envoy_data_plane_image="docker.io/envoyproxy/envoy:distroless-v1.39.1@sha256:eb2c01c13125d1629637cb4e4cce7207009fb7cc2c8027f9742758549d15b6f4"
 envoy_data_plane_cache_image="dsh-phase2-envoy-cache:test"
-envoy_shutdown_image="docker.io/envoyproxy/gateway-dev:latest"
+envoy_shutdown_image="docker.io/envoyproxy/gateway-dev@sha256:a4a8e6e8135d61a91b6c57859929991bae67b1ddfe1f923ee786fbf4b4253331"
+envoy_shutdown_cache_image="dsh-phase2-envoy-shutdown-cache:test"
 dex_issuer="https://dex.dsh-system.svc:15556/dex"
 # Dex encodes (userID, connectorID) as the standards-facing OIDC subject.
 dex_alice_sub="CglhbGljZS1zdWISBWxvY2Fs"
@@ -272,8 +273,11 @@ docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag \
 if ! docker image inspect "$envoy_shutdown_image" >/dev/null 2>&1; then
   docker pull --platform linux/amd64 "$envoy_shutdown_image" >/dev/null
 fi
-docker save "$envoy_shutdown_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
+docker tag "$envoy_shutdown_image" "$envoy_shutdown_cache_image"
+docker save "$envoy_shutdown_cache_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
   ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
+docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag \
+  "docker.io/library/${envoy_shutdown_cache_image}" "docker.io/envoyproxy/gateway-dev:latest" >/dev/null
 
 revision="$(git -C "$repo_root" rev-parse HEAD)"
 local_cell="${CELL_IMAGE:-dsh-phase2-cell:test}"
@@ -548,11 +552,44 @@ dex_forward_pid="$(start_forward dsh-system service/dex 15556:15556 "$test_root/
 mkdir -p "$test_root/browser"
 
 browser initial alice@example.com
+
+# Observe the exact credential names held by the browser and the subset Envoy
+# Gateway forwards upstream, without ever returning or logging their values.
+# This short-lived backend runs behind the real Cell route and authorizer. The
+# launcher tests bind the complete browser-side contract to the pre-DSH filter.
+k -n dsh-system scale deployment/cell-operator --replicas=0
+k -n dsh-system wait pod -l app.kubernetes.io/name=cell-operator --for=delete --timeout=90s
+credential_capture='const h=require("http");const reserved=/^(AccessToken|OauthHMAC|OauthExpires|IdToken|RefreshToken|OauthNonce|CodeVerifier)-[0-9a-f]{8}$/i;h.createServer((q,s)=>{const names=(q.headers.cookie||"").split(";").map(x=>x.trim().split("=",1)[0]).filter(x=>reserved.test(x));s.setHeader("content-type","application/json");s.end(JSON.stringify({oauthCookieNames:names,oidcHeader:typeof q.headers["x-dsh-oidc-token"]==="string"}))}).listen(8080,"0.0.0.0");h.createServer((q,s)=>{s.statusCode=200;s.end()}).listen(8081,"0.0.0.0");'
+k -n tenant-a patch statefulset "$cell_a_base" --type=strategic -p "$(jq -cn --arg script "$credential_capture" '{spec:{template:{spec:{containers:[{name:"cell",command:["/usr/local/bin/node"],args:["-e",$script]}]}}}}')"
+k -n tenant-a rollout status statefulset "$cell_a_base" --timeout=180s
+browser credential-capture alice@example.com
+k -n dsh-system scale deployment/cell-operator --replicas=1
+k -n dsh-system rollout status deployment/cell-operator --timeout=180s
+# Cell status can still be the last valid observation while a deliberately
+# drifted StatefulSet is waiting for the restarted controller's first
+# reconcile. Observe the managed pod template itself before trusting rollout
+# and status again.
+for _ in $(seq 1 120); do
+  if [[ "$(k -n tenant-a get statefulset "$cell_a_base" -o jsonpath='{.spec.template.spec.containers[0].command[0]}')" = "/usr/local/bin/cell-launcher" ]]; then
+    break
+  fi
+  sleep 1
+done
+test "$(k -n tenant-a get statefulset "$cell_a_base" -o jsonpath='{.spec.template.spec.containers[0].command[0]}')" = "/usr/local/bin/cell-launcher"
+k -n tenant-a rollout status statefulset "$cell_a_base" --timeout=180s
+wait_cell tenant-a main True
+browser resume alice@example.com
+
 k -n tenant-b create rolebinding alice-cell-b \
   --role="${cell_b_base}-access" --user="${dex_issuer}#${dex_alice_sub}"
-browser grant alice@example.com
+k auth can-i access "cells.dsh.isolated.io/main" \
+  --namespace=tenant-b --as="${dex_issuer}#${dex_alice_sub}" | grep -qx yes
+# A healthy authorizer performs a fresh SAR for each attempt. Transient
+# Kubernetes API throttling is deliberately fail-closed as 503, so retry that
+# transport outcome without accepting stale authorization.
+browser_eventually grant alice@example.com
 k -n tenant-b delete rolebinding alice-cell-b
-browser deny alice@example.com
+browser_eventually deny alice@example.com
 k -n tenant-b create rolebinding team-b-cell-b \
   --role="${cell_b_base}-access" --group="${dex_issuer}#team-b"
 browser_eventually group bob@example.com

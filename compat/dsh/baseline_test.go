@@ -29,6 +29,12 @@ type baseline struct {
 		Tarball   string `json:"tarball"`
 		Integrity string `json:"integrity"`
 	} `json:"distribution"`
+	Shutdown struct {
+		Signal               string `json:"signal"`
+		ExitCode             int    `json:"exitCode"`
+		FlushAcknowledgement bool   `json:"flushAcknowledgement"`
+		Reason               string `json:"reason"`
+	} `json:"shutdown"`
 	State []struct {
 		Class    string `json:"class"`
 		Location string `json:"location"`
@@ -64,6 +70,10 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(string(baselineJSON)), "latest") {
 		t.Fatal("compatibility baseline contains a floating latest reference")
+	}
+	if value.Shutdown.Signal != "SIGTERM" || value.Shutdown.ExitCode != 0 || value.Shutdown.FlushAcknowledgement ||
+		!strings.Contains(value.Shutdown.Reason, "indistinguishable") {
+		t.Fatalf("shutdown ambiguity is not explicit: %+v", value.Shutdown)
 	}
 	wantState := map[string]bool{
 		"sessions": true, "attachments": true, "storage-domains": true,

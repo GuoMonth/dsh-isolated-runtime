@@ -14,5 +14,5 @@ spec:
             - --base-domain=cells.example.com
             - --external-https-port=443
             - --enable-snapshots=true
-            - --quiesce-timeout=2m
+            - --writer-stop-timeout=2m
             - --snapshot-timeout=30m

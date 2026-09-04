@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"net/http"
 	"testing"
 	"time"
 
@@ -20,18 +19,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	dshv1alpha1 "github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
 	"github.com/GuoMonth/dsh-isolated-runtime/internal/cellcontract"
 )
 
 const testSnapshotUID = types.UID("87654321-4321-4321-4321-cba987654321")
-
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
-	return f(request)
-}
 
 func TestSnapshotLifecycleAndFreshCellRestore(t *testing.T) {
 	t.Parallel()
@@ -48,6 +42,10 @@ func TestSnapshotLifecycleAndFreshCellRestore(t *testing.T) {
 	reconcileCell(t, cellReconciler, cell)
 	names := cellcontract.ResourceNames(string(cell.UID))
 	data := get[*corev1.PersistentVolumeClaim](t, kube, cell.Namespace, names.DataPVC)
+	data.UID = types.UID("source-data-pvc-uid")
+	if err := kube.Update(ctx, data); err != nil {
+		t.Fatal(err)
+	}
 	private := get[*corev1.PersistentVolumeClaim](t, kube, cell.Namespace, names.PrivatePVC)
 	workload := get[*appsv1.StatefulSet](t, kube, cell.Namespace, names.Base)
 	workload.UID = types.UID("statefulset-snapshot-source")
@@ -58,19 +56,6 @@ func TestSnapshotLifecycleAndFreshCellRestore(t *testing.T) {
 	markReady(t, kube, data, private, workload, access)
 	reconcileCell(t, cellReconciler, cell)
 
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "snapshot-source-0", Namespace: cell.Namespace,
-			Labels: workloadSelector(cell),
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: "apps/v1", Kind: "StatefulSet", Name: workload.Name, UID: workload.UID, Controller: ptr.To(true),
-			}},
-		},
-		Status: corev1.PodStatus{Phase: corev1.PodRunning, PodIP: "10.0.0.10"},
-	}
-	if err := kube.Create(ctx, pod); err != nil {
-		t.Fatal(err)
-	}
 	snapshot := &dshv1alpha1.CellSnapshot{
 		TypeMeta:   metav1.TypeMeta{APIVersion: dshv1alpha1.GroupVersion.String(), Kind: "CellSnapshot"},
 		ObjectMeta: metav1.ObjectMeta{Name: "source-backup", Namespace: cell.Namespace, UID: testSnapshotUID, Generation: 1},
@@ -81,36 +66,29 @@ func TestSnapshotLifecycleAndFreshCellRestore(t *testing.T) {
 	if err := kube.Create(ctx, snapshot); err != nil {
 		t.Fatal(err)
 	}
-	requests := 0
 	snapshotReconciler := &CellSnapshotReconciler{
 		Client: kube, Scheme: cellReconciler.Scheme,
-		Config: SnapshotConfig{
-			Enabled: true, QuiesceTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute,
-			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-				requests++
-				if request.URL.Path != cellcontract.QuiescePath {
-					t.Fatalf("quiesce path = %q", request.URL.Path)
-				}
-				return &http.Response{StatusCode: http.StatusNoContent, Body: http.NoBody, Header: http.Header{}}, nil
-			})},
-		},
+		Config: SnapshotConfig{Enabled: true, WriterStopTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
 	}
-	reconcileSnapshot(t, snapshotReconciler, snapshot, 3)
+	reconcileSnapshot(t, snapshotReconciler, snapshot, 4)
 	accepted := get[*dshv1alpha1.CellSnapshot](t, kube, snapshot.Namespace, snapshot.Name)
-	if !conditionTrue(accepted.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted) || !conditionTrue(accepted.Status.Conditions, dshv1alpha1.ConditionSnapshotQuiesced) || requests != 1 {
-		t.Fatalf("snapshot was not accepted and quiesced: status=%#v requests=%d", accepted.Status, requests)
+	if !conditionTrue(accepted.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted) || conditionTrue(accepted.Status.Conditions, dshv1alpha1.ConditionSnapshotWriterStopped) {
+		t.Fatalf("snapshot lock did not precede writer stop: status=%#v", accepted.Status)
 	}
 
 	reconcileCell(t, cellReconciler, cell)
 	workload = get[*appsv1.StatefulSet](t, kube, cell.Namespace, names.Base)
 	if workload.Spec.Replicas == nil || *workload.Spec.Replicas != 0 {
-		t.Fatalf("quiesced replicas = %#v", workload.Spec.Replicas)
+		t.Fatalf("writer-stop replicas = %#v", workload.Spec.Replicas)
+	}
+	if err := kube.Delete(ctx, get[*corev1.Pod](t, kube, cell.Namespace, workload.Name+"-0")); err != nil {
+		t.Fatal(err)
 	}
 	workload.Status = appsv1.StatefulSetStatus{ObservedGeneration: workload.Generation}
 	if err := kube.Status().Update(ctx, workload); err != nil {
 		t.Fatal(err)
 	}
-	reconcileSnapshot(t, snapshotReconciler, snapshot, 1)
+	reconcileSnapshot(t, snapshotReconciler, snapshot, 2)
 	volumeSnapshot := get[*volumesnapshotv1.VolumeSnapshot](t, kube, snapshot.Namespace, cellcontract.SnapshotName(string(snapshot.UID)))
 	if volumeSnapshot.Spec.Source.PersistentVolumeClaimName == nil || *volumeSnapshot.Spec.Source.PersistentVolumeClaimName != names.DataPVC {
 		t.Fatalf("snapshot source = %#v", volumeSnapshot.Spec.Source)
@@ -135,6 +113,8 @@ func TestSnapshotLifecycleAndFreshCellRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	reconcileCell(t, cellReconciler, restored)
+	reconcileCell(t, cellReconciler, restored)
+	reconcileCell(t, cellReconciler, restored)
 	restoredNames := cellcontract.ResourceNames(string(restored.UID))
 	restoredData := get[*corev1.PersistentVolumeClaim](t, kube, restored.Namespace, restoredNames.DataPVC)
 	if restoredData.Spec.DataSource == nil || restoredData.Spec.DataSource.Name != volumeSnapshot.Name || restoredData.Spec.StorageClassName == nil || *restoredData.Spec.StorageClassName != storageClassName {
@@ -143,6 +123,44 @@ func TestSnapshotLifecycleAndFreshCellRestore(t *testing.T) {
 	restoredPrivate := get[*corev1.PersistentVolumeClaim](t, kube, restored.Namespace, restoredNames.PrivatePVC)
 	if restoredPrivate.Spec.DataSource != nil {
 		t.Fatalf("private PVC inherited snapshot source: %#v", restoredPrivate.Spec.DataSource)
+	}
+	prematureUpgrade := get[*dshv1alpha1.Cell](t, kube, restored.Namespace, restored.Name)
+	prematureUpgrade.Spec.Image = "example.test/cell@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	if err := kube.Update(ctx, prematureUpgrade); err != nil {
+		t.Fatal(err)
+	}
+	reconcileCell(t, cellReconciler, prematureUpgrade)
+	blocked := get[*dshv1alpha1.Cell](t, kube, restored.Namespace, restored.Name)
+	storageCondition := meta.FindStatusCondition(blocked.Status.Conditions, dshv1alpha1.ConditionStorageReady)
+	if storageCondition == nil || storageCondition.Reason != reasonRestoreImageMismatch {
+		t.Fatalf("premature restore upgrade was not blocked: %#v", storageCondition)
+	}
+	if got := get[*appsv1.StatefulSet](t, kube, restored.Namespace, restoredNames.Base).Spec.Template.Spec.Containers[0].Image; got != restored.Spec.Image {
+		t.Fatalf("alternate digest became the first restore reader: %q", got)
+	}
+	blocked.Spec.Image = restored.Spec.Image
+	if err := kube.Update(ctx, blocked); err != nil {
+		t.Fatal(err)
+	}
+	reconcileCell(t, cellReconciler, blocked)
+	restoredData = get[*corev1.PersistentVolumeClaim](t, kube, restored.Namespace, restoredNames.DataPVC)
+	restoredPrivate = get[*corev1.PersistentVolumeClaim](t, kube, restored.Namespace, restoredNames.PrivatePVC)
+	restoredWorkload := get[*appsv1.StatefulSet](t, kube, restored.Namespace, restoredNames.Base)
+	restoredAccess := get[*corev1.Service](t, kube, restored.Namespace, restoredNames.Base)
+	markReady(t, kube, restoredData, restoredPrivate, restoredWorkload, restoredAccess)
+	reconcileCell(t, cellReconciler, restored)
+	reconcileCell(t, cellReconciler, restored)
+	initialized := get[*corev1.PersistentVolumeClaim](t, kube, restored.Namespace, restoredNames.DataPVC)
+	if initialized.Annotations[cellcontract.RestoreInitializedAnnotation] != "true" {
+		t.Fatalf("first Ready reader did not seal restore provenance: %#v", initialized.Annotations)
+	}
+	protectedSnapshot := get[*dshv1alpha1.CellSnapshot](t, kube, snapshot.Namespace, snapshot.Name)
+	if controllerutil.ContainsFinalizer(protectedSnapshot, cellcontract.RestoreProtectionFinalizer(string(restored.UID))) {
+		t.Fatal("restore protection remained after the first Ready reader")
+	}
+	initializedCell := get[*dshv1alpha1.Cell](t, kube, restored.Namespace, restored.Name)
+	if controllerutil.ContainsFinalizer(initializedCell, cellcontract.RestoreInitializationFinalizer) {
+		t.Fatal("target Cell restore finalizer remained after initialization")
 	}
 
 	upgraded := get[*dshv1alpha1.Cell](t, kube, restored.Namespace, restored.Name)
@@ -172,7 +190,7 @@ func TestRestoreRejectsWrongImageBeforePVC(t *testing.T) {
 	snapshot := &dshv1alpha1.CellSnapshot{
 		ObjectMeta: metav1.ObjectMeta{Name: "backup", Namespace: "tenant-a", UID: testSnapshotUID, Generation: 1},
 		Status: dshv1alpha1.CellSnapshotStatus{
-			ObservedGeneration: 1, SourceCellUID: string(testUID), SourceGeneration: 1,
+			ObservedGeneration: 1, SourceCellUID: string(testUID), SourcePVCUID: "source-data-pvc-uid", SourceGeneration: 1,
 			DSHVersion: cellcontract.DSHVersion, ImageDigest: testDigest,
 			StorageClassName: "snapshot-storage", RestoreSize: &size,
 			Conditions: []metav1.Condition{{Type: dshv1alpha1.ConditionSnapshotReady, Status: metav1.ConditionTrue, Reason: reasonSnapshotReady, ObservedGeneration: 1}},
@@ -195,6 +213,117 @@ func TestRestoreRejectsWrongImageBeforePVC(t *testing.T) {
 	err := kube.Get(context.Background(), types.NamespacedName{Namespace: cell.Namespace, Name: cellcontract.ResourceNames(string(cell.UID)).DataPVC}, &claim)
 	if err == nil {
 		t.Fatal("wrong-image restore created a data PVC")
+	}
+}
+
+func TestRestoreRejectsDeletingInputsBeforePVC(t *testing.T) {
+	t.Parallel()
+	for _, target := range []string{"CellSnapshot", "VolumeSnapshot"} {
+		target := target
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+			now := metav1.Now()
+			size := resource.MustParse("1Gi")
+			snapshot := &dshv1alpha1.CellSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "deleting", Namespace: "tenant-a", UID: testSnapshotUID, Generation: 1,
+					Finalizers: []string{cellcontract.SnapshotFinalizer},
+				},
+				Status: dshv1alpha1.CellSnapshotStatus{
+					ObservedGeneration: 1, SourceCellUID: string(testUID), SourcePVCUID: "source-data-pvc-uid", SourceGeneration: 1,
+					DSHVersion: cellcontract.DSHVersion, ImageDigest: testDigest,
+					StorageClassName: "snapshot-storage", RestoreSize: &size,
+					Conditions: []metav1.Condition{{
+						Type: dshv1alpha1.ConditionSnapshotReady, Status: metav1.ConditionTrue,
+						Reason: reasonSnapshotReady, ObservedGeneration: 1,
+					}},
+				},
+			}
+			volumeSnapshot := readyVolumeSnapshot(snapshot, "source-data", size)
+			if target == "CellSnapshot" {
+				snapshot.DeletionTimestamp = &now
+			} else {
+				volumeSnapshot.Finalizers = append(volumeSnapshot.Finalizers, "snapshot.storage.kubernetes.io/volumesnapshot-bound-protection")
+				volumeSnapshot.DeletionTimestamp = &now
+			}
+			cell := testCell("restore-deleting", dshv1alpha1.RetentionDelete)
+			cell.UID = types.UID("restore-deleting-uid")
+			cell.Spec.Storage.RestoreFrom = &dshv1alpha1.LocalCellSnapshotReference{Name: snapshot.Name}
+			reconciler, kube := testReconciler(t, cell, snapshot, volumeSnapshot)
+			reconciler.SnapshotEnabled = true
+			reconcileCell(t, reconciler, cell)
+			observed := get[*dshv1alpha1.Cell](t, kube, cell.Namespace, cell.Name)
+			condition := meta.FindStatusCondition(observed.Status.Conditions, dshv1alpha1.ConditionStorageReady)
+			if condition == nil || condition.Reason != reasonRestoreSourceInvalid {
+				t.Fatalf("deleting %s restore status = %#v", target, condition)
+			}
+			var claim corev1.PersistentVolumeClaim
+			err := kube.Get(context.Background(), types.NamespacedName{
+				Namespace: cell.Namespace, Name: cellcontract.ResourceNames(string(cell.UID)).DataPVC,
+			}, &claim)
+			if !apierrors.IsNotFound(err) {
+				t.Fatalf("deleting %s created immutable restore PVC: %v", target, err)
+			}
+		})
+	}
+}
+
+func TestBoundRestoreContinuesWhileProtectedSnapshotIsDeleting(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	now := metav1.Now()
+	size := resource.MustParse("1Gi")
+	cell := testCell("deletion-race", dshv1alpha1.RetentionRetain)
+	cell.UID = types.UID("restore-deletion-race-uid")
+	cell.Spec.Storage.RestoreFrom = &dshv1alpha1.LocalCellSnapshotReference{Name: "source-backup"}
+	cell.Finalizers = []string{cellcontract.RestoreInitializationFinalizer}
+	protection := cellcontract.RestoreProtectionFinalizer(string(cell.UID))
+	snapshot := &dshv1alpha1.CellSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "source-backup", Namespace: cell.Namespace, UID: testSnapshotUID, Generation: 1,
+			DeletionTimestamp: &now, Finalizers: []string{cellcontract.SnapshotFinalizer, protection},
+		},
+		Status: dshv1alpha1.CellSnapshotStatus{
+			ObservedGeneration: 1, SourceCellUID: string(testUID), SourcePVCUID: "source-pvc", SourceGeneration: 1,
+			DSHVersion: cellcontract.DSHVersion, ImageDigest: testDigest,
+			StorageClassName: "snapshot-storage", RestoreSize: &size,
+			Conditions: []metav1.Condition{{
+				Type: dshv1alpha1.ConditionSnapshotReady, Status: metav1.ConditionFalse,
+				Reason: reasonSnapshotPending, ObservedGeneration: 1,
+			}},
+		},
+	}
+	volumeSnapshot := readyVolumeSnapshot(snapshot, "source-data", size)
+	names := cellcontract.ResourceNames(string(cell.UID))
+	claim := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: names.DataPVC, Namespace: cell.Namespace,
+			Annotations: map[string]string{
+				cellcontract.RestoreSnapshotUIDAnnotation: string(snapshot.UID),
+				cellcontract.RestoreImageDigestAnnotation: testDigest,
+				cellcontract.RestoreDSHVersionAnnotation:  cellcontract.DSHVersion,
+				cellcontract.RestoreInitializedAnnotation: "false",
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			StorageClassName: ptr.To("snapshot-storage"),
+			DataSource: &corev1.TypedLocalObjectReference{
+				APIGroup: ptr.To(volumesnapshotv1.GroupName), Kind: "VolumeSnapshot", Name: volumeSnapshot.Name,
+			},
+		},
+		Status: corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+	}
+	setCellMetadata(claim, cell)
+	reconciler, _ := testReconciler(t, cell, snapshot, volumeSnapshot, claim)
+	reconciler.SnapshotEnabled = true
+
+	source, state, err := reconciler.existingRestoreSource(ctx, cell)
+	if err != nil || state != nil || source == nil {
+		t.Fatalf("bound protected restore did not survive snapshot deletion: source=%#v state=%#v err=%v", source, state, err)
+	}
+	if source.SnapshotUID != string(snapshot.UID) || source.ImageDigest != testDigest {
+		t.Fatalf("bound restore provenance changed: %#v", source)
 	}
 }
 
@@ -231,10 +360,11 @@ func TestSnapshotOperationsQueueAndRecoverAfterLockRelease(t *testing.T) {
 	}
 	names := cellcontract.ResourceNames(string(cell.UID))
 	data := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{Name: names.DataPVC, Namespace: cell.Namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: names.DataPVC, Namespace: cell.Namespace, UID: types.UID("source-data-pvc-uid")},
 		Spec:       corev1.PersistentVolumeClaimSpec{StorageClassName: &storageClassName},
 		Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
 	}
+	setCellMetadata(data, cell)
 	first := &dshv1alpha1.CellSnapshot{
 		ObjectMeta: metav1.ObjectMeta{Name: "first", Namespace: cell.Namespace, UID: testSnapshotUID, Generation: 1},
 		Spec:       dshv1alpha1.CellSnapshotSpec{CellRef: dshv1alpha1.LocalCellReference{Name: cell.Name}, VolumeSnapshotClassName: "snapshot-class"},
@@ -249,10 +379,10 @@ func TestSnapshotOperationsQueueAndRecoverAfterLockRelease(t *testing.T) {
 	)
 	reconciler := &CellSnapshotReconciler{
 		Client: kube, Scheme: cellReconciler.Scheme,
-		Config: SnapshotConfig{Enabled: true, QuiesceTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
+		Config: SnapshotConfig{Enabled: true, WriterStopTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
 	}
 
-	reconcileSnapshot(t, reconciler, first, 2)
+	reconcileSnapshot(t, reconciler, first, 3)
 	reconcileSnapshot(t, reconciler, second, 1)
 	queued := get[*dshv1alpha1.CellSnapshot](t, kube, second.Namespace, second.Name)
 	accepted := meta.FindStatusCondition(queued.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted)
@@ -273,7 +403,7 @@ func TestSnapshotOperationsQueueAndRecoverAfterLockRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	reconcileSnapshot(t, reconciler, first, 1)
-	reconcileSnapshot(t, reconciler, second, 2)
+	reconcileSnapshot(t, reconciler, second, 4)
 	recovered := get[*dshv1alpha1.CellSnapshot](t, kube, second.Namespace, second.Name)
 	if !conditionTrue(recovered.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted) {
 		t.Fatalf("queued operation did not acquire the released lock: %#v", recovered.Status)
@@ -296,10 +426,11 @@ func TestSnapshotLockUsesUncachedReader(t *testing.T) {
 	}
 	names := cellcontract.ResourceNames(string(cell.UID))
 	data := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{Name: names.DataPVC, Namespace: cell.Namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: names.DataPVC, Namespace: cell.Namespace, UID: types.UID("source-data-pvc-uid")},
 		Spec:       corev1.PersistentVolumeClaimSpec{StorageClassName: &storageClassName},
 		Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
 	}
+	setCellMetadata(data, cell)
 	second := &dshv1alpha1.CellSnapshot{
 		ObjectMeta: metav1.ObjectMeta{Name: "second", Namespace: cell.Namespace, UID: testSnapshotUID, Generation: 1},
 		Spec:       dshv1alpha1.CellSnapshotSpec{CellRef: dshv1alpha1.LocalCellReference{Name: cell.Name}, VolumeSnapshotClassName: "snapshot-class"},
@@ -315,7 +446,7 @@ func TestSnapshotLockUsesUncachedReader(t *testing.T) {
 	direct := fake.NewClientBuilder().WithScheme(cellReconciler.Scheme).WithObjects(directCell).Build()
 	reconciler := &CellSnapshotReconciler{
 		Client: cached, APIReader: direct, Scheme: cellReconciler.Scheme,
-		Config: SnapshotConfig{Enabled: true, QuiesceTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
+		Config: SnapshotConfig{Enabled: true, WriterStopTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
 	}
 
 	reconcileSnapshot(t, reconciler, second, 1)
@@ -323,6 +454,52 @@ func TestSnapshotLockUsesUncachedReader(t *testing.T) {
 	accepted := meta.FindStatusCondition(queued.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted)
 	if accepted == nil || accepted.Status != metav1.ConditionFalse || accepted.Reason != reasonSnapshotOperationQueued {
 		t.Fatalf("stale cache bypass did not preserve active operation: %#v", accepted)
+	}
+}
+
+func TestWriterStopBarrierUsesUncachedUnfilteredPodList(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cell := testCell("source", dshv1alpha1.RetentionRetain)
+	names := cellcontract.ResourceNames(string(cell.UID))
+	zero := int32(0)
+	workload := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: names.Base, Namespace: cell.Namespace, UID: types.UID("current-workload"), Generation: 1},
+		Spec:       appsv1.StatefulSetSpec{Replicas: &zero},
+		Status:     appsv1.StatefulSetStatus{ObservedGeneration: 1},
+	}
+	setCellMetadata(workload, cell)
+	workload.OwnerReferences = []metav1.OwnerReference{{
+		APIVersion: dshv1alpha1.GroupVersion.String(), Kind: "Cell", Name: cell.Name, UID: cell.UID, Controller: ptr.To(true),
+	}}
+	possibleWriter := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: names.Base + "-0", Namespace: cell.Namespace,
+			// Labels and owner are deliberately absent: a mutable selector or a
+			// replaced controller must never hide a Cell-identified writer.
+			Annotations: cellAnnotations(cell),
+		},
+	}
+	base, cached := testReconciler(t)
+	direct := fake.NewClientBuilder().WithScheme(base.Scheme).WithObjects(workload, possibleWriter).Build()
+	reconciler := &CellSnapshotReconciler{Client: cached, APIReader: direct, Scheme: base.Scheme}
+
+	stopped, err := reconciler.managedWriterStopped(ctx, cell)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped {
+		t.Fatal("unowned, unlabeled Pod carrying exact Cell identity was missed")
+	}
+	if err := direct.Delete(ctx, possibleWriter); err != nil {
+		t.Fatal(err)
+	}
+	stopped, err = reconciler.managedWriterStopped(ctx, cell)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stopped {
+		t.Fatal("writer barrier did not complete after the directly observed Pod disappeared")
 	}
 }
 
@@ -340,7 +517,7 @@ func TestForeignVolumeSnapshotIsNeverAdoptedOrDeleted(t *testing.T) {
 			DSHVersion: cellcontract.DSHVersion, ImageDigest: testDigest, StorageClassName: "snapshot-storage",
 			Conditions: []metav1.Condition{
 				{Type: dshv1alpha1.ConditionSnapshotAccepted, Status: metav1.ConditionTrue, Reason: reasonSnapshotPrerequisites},
-				{Type: dshv1alpha1.ConditionSnapshotQuiesced, Status: metav1.ConditionTrue, Reason: reasonSnapshotQuiesced},
+				{Type: dshv1alpha1.ConditionSnapshotWriterStopped, Status: metav1.ConditionTrue, Reason: reasonSnapshotWriterStopped},
 			},
 		},
 	}
@@ -353,6 +530,10 @@ func TestForeignVolumeSnapshotIsNeverAdoptedOrDeleted(t *testing.T) {
 		Spec:       appsv1.StatefulSetSpec{Replicas: &zero},
 		Status:     appsv1.StatefulSetStatus{ObservedGeneration: 1},
 	}
+	setCellMetadata(workload, cell)
+	workload.OwnerReferences = []metav1.OwnerReference{{
+		APIVersion: dshv1alpha1.GroupVersion.String(), Kind: "Cell", Name: cell.Name, UID: cell.UID, Controller: ptr.To(true),
+	}}
 	claimName := names.DataPVC
 	className := snapshot.Spec.VolumeSnapshotClassName
 	foreign := &volumesnapshotv1.VolumeSnapshot{
@@ -365,7 +546,7 @@ func TestForeignVolumeSnapshotIsNeverAdoptedOrDeleted(t *testing.T) {
 	cellReconciler, kube := testReconciler(t, cell, snapshot, workload, foreign)
 	reconciler := &CellSnapshotReconciler{
 		Client: kube, Scheme: cellReconciler.Scheme,
-		Config: SnapshotConfig{Enabled: true, QuiesceTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
+		Config: SnapshotConfig{Enabled: true, WriterStopTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
 	}
 
 	reconcileSnapshot(t, reconciler, snapshot, 1)
@@ -375,6 +556,44 @@ func TestForeignVolumeSnapshotIsNeverAdoptedOrDeleted(t *testing.T) {
 	}
 	if err := kube.Get(ctx, client.ObjectKeyFromObject(foreign), &volumesnapshotv1.VolumeSnapshot{}); err != nil {
 		t.Fatalf("foreign VolumeSnapshot was removed: %v", err)
+	}
+}
+
+func TestSnapshotDeletionWaitsForFirstReadyRestoreReader(t *testing.T) {
+	t.Parallel()
+	now := metav1.Now()
+	restoreUID := types.UID("restore-reader-uid")
+	snapshot := &dshv1alpha1.CellSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "protected", Namespace: "tenant-a", UID: testSnapshotUID, Generation: 1,
+			DeletionTimestamp: &now,
+			Finalizers: []string{
+				cellcontract.SnapshotFinalizer,
+				cellcontract.RestoreProtectionFinalizer(string(restoreUID)),
+			},
+		},
+		Spec: dshv1alpha1.CellSnapshotSpec{
+			CellRef: dshv1alpha1.LocalCellReference{Name: "source"}, VolumeSnapshotClassName: "snapshot-class",
+		},
+	}
+	restoreCell := testCell("restore-reader", dshv1alpha1.RetentionDelete)
+	restoreCell.UID = restoreUID
+	restoreCell.Spec.Storage.RestoreFrom = &dshv1alpha1.LocalCellSnapshotReference{Name: snapshot.Name}
+	restoreCell.Finalizers = []string{cellcontract.RestoreInitializationFinalizer}
+	volumeSnapshot := readyVolumeSnapshot(snapshot, "source-data", resource.MustParse("1Gi"))
+	cellReconciler, kube := testReconciler(t, snapshot, restoreCell, volumeSnapshot)
+	reconciler := &CellSnapshotReconciler{
+		Client: kube, Scheme: cellReconciler.Scheme,
+		Config: SnapshotConfig{Enabled: true, WriterStopTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
+	}
+
+	reconcileSnapshot(t, reconciler, snapshot, 1)
+	if err := kube.Get(context.Background(), client.ObjectKeyFromObject(volumeSnapshot), &volumesnapshotv1.VolumeSnapshot{}); err != nil {
+		t.Fatalf("protected CSI snapshot was deleted before first Ready reader: %v", err)
+	}
+	observed := get[*dshv1alpha1.CellSnapshot](t, kube, snapshot.Namespace, snapshot.Name)
+	if !controllerutil.ContainsFinalizer(observed, cellcontract.RestoreProtectionFinalizer(string(restoreUID))) {
+		t.Fatal("active restore protection was pruned")
 	}
 }
 
@@ -393,7 +612,7 @@ func TestSnapshotFailureDeletesCSIObjectBeforeResuming(t *testing.T) {
 			DSHVersion: cellcontract.DSHVersion, ImageDigest: testDigest, StorageClassName: "snapshot-storage",
 			Conditions: []metav1.Condition{
 				{Type: dshv1alpha1.ConditionSnapshotAccepted, Status: metav1.ConditionTrue, Reason: reasonSnapshotPrerequisites},
-				{Type: dshv1alpha1.ConditionSnapshotQuiesced, Status: metav1.ConditionTrue, Reason: reasonSnapshotQuiesced},
+				{Type: dshv1alpha1.ConditionSnapshotWriterStopped, Status: metav1.ConditionTrue, Reason: reasonSnapshotWriterStopped},
 			},
 		},
 	}
@@ -406,19 +625,23 @@ func TestSnapshotFailureDeletesCSIObjectBeforeResuming(t *testing.T) {
 		Spec:       appsv1.StatefulSetSpec{Replicas: &zero},
 		Status:     appsv1.StatefulSetStatus{ObservedGeneration: 1},
 	}
+	setCellMetadata(workload, cell)
+	workload.OwnerReferences = []metav1.OwnerReference{{
+		APIVersion: dshv1alpha1.GroupVersion.String(), Kind: "Cell", Name: cell.Name, UID: cell.UID, Controller: ptr.To(true),
+	}}
 	message := "fixture CSI failure"
 	volumeSnapshot := readyVolumeSnapshot(snapshot, names.DataPVC, resource.MustParse("1Gi"))
 	volumeSnapshot.Status.Error = &volumesnapshotv1.VolumeSnapshotError{Message: &message}
 	cellReconciler, kube := testReconciler(t, cell, snapshot, workload, volumeSnapshot)
 	reconciler := &CellSnapshotReconciler{
 		Client: kube, Scheme: cellReconciler.Scheme,
-		Config: SnapshotConfig{Enabled: true, QuiesceTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
+		Config: SnapshotConfig{Enabled: true, WriterStopTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
 	}
 
 	reconcileSnapshot(t, reconciler, snapshot, 2)
 	failed := get[*dshv1alpha1.CellSnapshot](t, kube, snapshot.Namespace, snapshot.Name)
-	if !conditionTrue(failed.Status.Conditions, dshv1alpha1.ConditionSnapshotFailed) || len(failed.Finalizers) != 0 {
-		t.Fatalf("failed snapshot was not finalized after cleanup: %#v", failed)
+	if !conditionTrue(failed.Status.Conditions, dshv1alpha1.ConditionSnapshotFailed) || !controllerutil.ContainsFinalizer(failed, cellcontract.SnapshotFinalizer) {
+		t.Fatalf("failed snapshot did not retain deletion protection after cleanup: %#v", failed)
 	}
 	var deleted volumesnapshotv1.VolumeSnapshot
 	if err := kube.Get(ctx, client.ObjectKeyFromObject(volumeSnapshot), &deleted); err == nil {
@@ -445,7 +668,7 @@ func TestSnapshotFailureIsNotTerminalUntilCSIDeletionIsObserved(t *testing.T) {
 			DSHVersion: cellcontract.DSHVersion, ImageDigest: testDigest, StorageClassName: "snapshot-storage",
 			Conditions: []metav1.Condition{
 				{Type: dshv1alpha1.ConditionSnapshotAccepted, Status: metav1.ConditionTrue, Reason: reasonSnapshotPrerequisites},
-				{Type: dshv1alpha1.ConditionSnapshotQuiesced, Status: metav1.ConditionTrue, Reason: reasonSnapshotQuiesced},
+				{Type: dshv1alpha1.ConditionSnapshotWriterStopped, Status: metav1.ConditionTrue, Reason: reasonSnapshotWriterStopped},
 			},
 		},
 	}
@@ -458,6 +681,10 @@ func TestSnapshotFailureIsNotTerminalUntilCSIDeletionIsObserved(t *testing.T) {
 		Spec:       appsv1.StatefulSetSpec{Replicas: &zero},
 		Status:     appsv1.StatefulSetStatus{ObservedGeneration: 1},
 	}
+	setCellMetadata(workload, cell)
+	workload.OwnerReferences = []metav1.OwnerReference{{
+		APIVersion: dshv1alpha1.GroupVersion.String(), Kind: "Cell", Name: cell.Name, UID: cell.UID, Controller: ptr.To(true),
+	}}
 	message := "fixture CSI failure"
 	volumeSnapshot := readyVolumeSnapshot(snapshot, names.DataPVC, resource.MustParse("1Gi"))
 	volumeSnapshot.Finalizers = []string{"snapshot.test/hold-deletion"}
@@ -465,13 +692,13 @@ func TestSnapshotFailureIsNotTerminalUntilCSIDeletionIsObserved(t *testing.T) {
 	cellReconciler, kube := testReconciler(t, cell, snapshot, workload, volumeSnapshot)
 	reconciler := &CellSnapshotReconciler{
 		Client: kube, Scheme: cellReconciler.Scheme,
-		Config: SnapshotConfig{Enabled: true, QuiesceTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
+		Config: SnapshotConfig{Enabled: true, WriterStopTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
 	}
 
 	reconcileSnapshot(t, reconciler, snapshot, 1)
 	pending := get[*dshv1alpha1.CellSnapshot](t, kube, snapshot.Namespace, snapshot.Name)
 	failed := meta.FindStatusCondition(pending.Status.Conditions, dshv1alpha1.ConditionSnapshotFailed)
-	if failed == nil || failed.Status != metav1.ConditionFalse || failed.Reason != reasonSnapshotCleanupPending {
+	if failed == nil || failed.Status != metav1.ConditionFalse || failed.Reason != reasonSnapshotCleanupBlocked {
 		t.Fatalf("failure became terminal before CSI deletion: %#v", failed)
 	}
 	stillStopped := get[*dshv1alpha1.Cell](t, kube, cell.Namespace, cell.Name)
@@ -498,8 +725,8 @@ func TestSnapshotFailureIsNotTerminalUntilCSIDeletionIsObserved(t *testing.T) {
 func TestSnapshotConfigRequiresBoundedMinimums(t *testing.T) {
 	t.Parallel()
 	for _, config := range []SnapshotConfig{
-		{Enabled: true, QuiesceTimeout: 29 * time.Second, SnapshotTimeout: time.Minute},
-		{Enabled: true, QuiesceTimeout: 30 * time.Second, SnapshotTimeout: 59 * time.Second},
+		{Enabled: true, WriterStopTimeout: 29 * time.Second, SnapshotTimeout: time.Minute},
+		{Enabled: true, WriterStopTimeout: 30 * time.Second, SnapshotTimeout: 59 * time.Second},
 	} {
 		if err := config.Validate(); err == nil {
 			t.Fatalf("invalid snapshot config was accepted: %#v", config)
@@ -508,7 +735,7 @@ func TestSnapshotConfigRequiresBoundedMinimums(t *testing.T) {
 	if err := (SnapshotConfig{Enabled: false}).Validate(); err != nil {
 		t.Fatalf("disabled snapshot config required external settings: %v", err)
 	}
-	if err := (SnapshotConfig{Enabled: true, QuiesceTimeout: 30 * time.Second, SnapshotTimeout: time.Minute}).Validate(); err != nil {
+	if err := (SnapshotConfig{Enabled: true, WriterStopTimeout: 30 * time.Second, SnapshotTimeout: time.Minute}).Validate(); err != nil {
 		t.Fatalf("minimum snapshot config was rejected: %v", err)
 	}
 }

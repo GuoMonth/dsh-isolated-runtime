@@ -2,27 +2,7 @@ name: Phase 1 kind vertical slice
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "api/**"
-      - "cmd/**"
-      - "config/**"
-      - "images/**"
-      - "internal/**"
-      - "test/e2e/**"
-      - "hack/verify-phase1-kind.sh"
-      - ".github/workflows/phase1-kind.yml"
   pull_request:
-    paths:
-      - "api/**"
-      - "cmd/**"
-      - "config/**"
-      - "images/**"
-      - "internal/**"
-      - "test/e2e/**"
-      - "hack/verify-phase1-kind.sh"
-      - ".github/workflows/phase1-kind.yml"
 
 permissions:
   contents: read

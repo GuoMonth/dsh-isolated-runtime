@@ -95,36 +95,11 @@ docker exec "$container_name" sh -c 'test ! -e /var/lib/dsh/data/home/.credentia
 
 management_address="$(docker port "$container_name" 8081/tcp)"
 management_port="${management_address##*:}"
-curl --silent --show-error --fail -X POST \
-  -H 'Content-Type: application/json' \
-  --data '{"operationUID":"phase3-smoke-operation"}' \
-  "http://127.0.0.1:$management_port/quiesce" >/dev/null
-if curl --silent --show-error --fail "http://127.0.0.1:$management_port/readyz" >/dev/null 2>&1; then
-  echo "quiesced Cell remained ready" >&2
-  exit 1
-fi
-curl --silent --show-error --fail "http://127.0.0.1:$management_port/livez" >/dev/null
-test "$(docker inspect "$container_name" --format '{{.State.Running}}')" = true
-docker restart --timeout 30 "$container_name" >/dev/null
-management_address="$(docker port "$container_name" 8081/tcp)"
-management_port="${management_address##*:}"
-for _ in $(seq 1 30); do
-  curl --silent --show-error --fail "http://127.0.0.1:$management_port/livez" >/dev/null 2>&1 && break
-  sleep 1
-done
-curl --silent --show-error --fail "http://127.0.0.1:$management_port/livez" >/dev/null
-if curl --silent --show-error --fail "http://127.0.0.1:$management_port/readyz" >/dev/null 2>&1; then
-  echo "launcher forgot the Pod-local quiesce marker after restart" >&2
-  exit 1
-fi
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST \
-  -H 'Content-Type: application/json' \
-  --data '{"operationUID":"phase3-smoke-operation"}' \
-  "http://127.0.0.1:$management_port/quiesce")" = 204
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST \
-  -H 'Content-Type: application/json' \
-  --data '{"operationUID":"other-operation"}' \
-  "http://127.0.0.1:$management_port/quiesce")" = 409
+  "http://127.0.0.1:$management_port/quiesce")" = 404
+curl --silent --show-error --fail "http://127.0.0.1:$management_port/livez" >/dev/null
+curl --silent --show-error --fail "http://127.0.0.1:$management_port/readyz" >/dev/null
+docker stop --time 30 "$container_name" >/dev/null
 
 test "$(docker inspect "$container_name" --format '{{.Config.User}}')" = "1000:1000"
 test "$(docker inspect "$container_name" --format '{{.HostConfig.ReadonlyRootfs}}')" = "true"
