@@ -27,6 +27,11 @@ launcher 完成真实 browser exchange。
 `node --expose-internals` 调用官方 CLI；这是 DSH 自身 HMR loader 的要求，不会暴露 launch
 token。
 
+Phase 3 将同一精确 RC 的 shutdown 实证作为应用一致性边界。内部 `POST /quiesce` 与操作 UID
+绑定：launcher 先变为 unready、拒绝新流量并排空连接，再发送 SIGTERM；只有 DSH 正常退出才
+确认成功。强制 kill 只能判定 snapshot 失败，绝不是 flush 证据。Pod `/tmp` 中的 marker 让
+重试保持幂等，直至 Kubernetes 删除该 Pod。
+
 ## 状态归属
 
 | 状态 | 权威 | 数据快照 |

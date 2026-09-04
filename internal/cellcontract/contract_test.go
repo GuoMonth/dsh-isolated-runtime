@@ -12,4 +12,7 @@ func TestResourceContract(t *testing.T) {
 	if got := Authority("tenant-a", uid); got != names.Base+".tenant-a.svc" {
 		t.Fatalf("authority = %q", got)
 	}
+	if got := SnapshotName(uid); got != "cellsnapshot-"+uid {
+		t.Fatalf("snapshot name = %q", got)
+	}
 }

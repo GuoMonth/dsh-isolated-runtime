@@ -31,6 +31,13 @@ Cell
       ├─ Role（单个 Cell 的 `access` verb）
       └─ HTTPRoute（UID 派生 hostname）
 
+CellSnapshot
+  → launcher POST /quiesce（仅 Operator 到 Pod）
+  → StatefulSet replicas=0
+  → CSI VolumeSnapshot（仅 tenant-data PVC）
+  → 源 Cell replicas=1
+  → fresh Cell data PVC 使用 VolumeSnapshot dataSource
+
 Browser
   → Envoy Gateway（HTTPS + OIDC）
   → cell-authorizer（route 校验 + SubjectAccessReview）
@@ -77,6 +84,17 @@ persistence format 与 `compat/dsh/baseline.json` 中的精确 DSH 版本绑定�
 不承诺迁移外来 session format。创建快照前 controller 必须 quiesce DSH，并且绝不能让两个
 Cell writer 并发读写同一个 data volume。
 
+`CellSnapshot` 是不可变的一次性 Kubernetes 意图。launcher 先拒绝新的 proxy 请求，排空
+普通与 upgraded connection；只有 DSH 收到 SIGTERM 后正常退出，操作才算确认。随后 Cell
+controller 将源 StatefulSet 降到零副本；只有观测到全部副本为零，才允许创建 CSI
+`VolumeSnapshot`。Cell 上通过 resourceVersion CAS 获得的注解负责串行化数据操作。快照失败
+时先删除未完成 CSI 对象，再恢复源 Cell；无法确认清理结果时保持源 Cell 停止。
+
+Restore 总是创建新的 data PVC 与 Cell identity。输入必须是同 namespace、Ready 的 snapshot，
+使用其记录的精确 image digest、唯一支持的 DSH RC、不小于 restoreSize 的容量及同一
+StorageClass；private PVC 始终全新创建。恢复后可显式 rollout 到同 RC 的另一个 digest；
+rollback 是从旧 snapshot 创建另一个 fresh Cell，绝不是原地 PVC 降级。
+
 ## 非目标
 
 - 替代 kube-scheduler、Gateway API、CSI 或集群 fleet manager；
@@ -84,3 +102,4 @@ Cell writer 并发读写同一个 data volume。
 - 解释 DSH 应用协议；
 - 承诺普通容器可以抵御宿主机失陷；
 - 支持已删除的 pre-Cell API 或浮动 DSH 版本。
+- 调度备份、跨集群复制 snapshot 或替代 CSI。

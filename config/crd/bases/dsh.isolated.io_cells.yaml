@@ -109,6 +109,17 @@ spec:
               storage:
                 description: Storage is durable DSH and workspace data.
                 properties:
+                  restoreFrom:
+                    description: |-
+                      RestoreFrom creates the initial data PVC from a Ready CellSnapshot in
+                      this namespace. It is creation-only because PVC dataSource is immutable.
+                    properties:
+                      name:
+                        minLength: 1
+                        type: string
+                    required:
+                    - name
+                    type: object
                   retentionPolicy:
                     default: Retain
                     description: |-
@@ -144,6 +155,9 @@ spec:
                     && (!has(self.storageClassName) || self.storageClassName == oldSelf.storageClassName)
                 - message: retentionPolicy is immutable
                   rule: self.retentionPolicy == oldSelf.retentionPolicy
+                - message: restoreFrom is immutable
+                  rule: has(self.restoreFrom) == has(oldSelf.restoreFrom) && (!has(self.restoreFrom)
+                    || self.restoreFrom == oldSelf.restoreFrom)
             required:
             - image
             - storage

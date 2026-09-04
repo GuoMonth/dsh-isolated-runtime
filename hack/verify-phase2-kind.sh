@@ -14,10 +14,17 @@ gateway_forward_pid=""
 dex_forward_pid=""
 envoy_gateway_version="v1.9.1"
 envoy_gateway_sha256="72b3971364f172eb0b9636c7142cc84ff695467bc065897958bde85a3c06cfd5"
+envoy_gateway_image="envoyproxy/gateway:${envoy_gateway_version}"
 playwright_image="mcr.microsoft.com/playwright@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e"
+dex_image="ghcr.io/dexidp/dex@sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20332cd697dc9937f808462"
+dex_cache_image="dsh-phase2-dex-cache:test"
+envoy_data_plane_image="docker.io/envoyproxy/envoy:distroless-v1.39.1@sha256:eb2c01c13125d1629637cb4e4cce7207009fb7cc2c8027f9742758549d15b6f4"
+envoy_data_plane_cache_image="dsh-phase2-envoy-cache:test"
+envoy_shutdown_image="docker.io/envoyproxy/gateway-dev:latest"
 dex_issuer="https://dex.dsh-system.svc:15556/dex"
 # Dex encodes (userID, connectorID) as the standards-facing OIDC subject.
 dex_alice_sub="CglhbGljZS1zdWISBWxvY2Fs"
+extension_pids=()
 
 k() {
   kubectl --kubeconfig "$kubeconfig" "$@"
@@ -33,6 +40,7 @@ expect_failure() {
 dump_failure() {
   echo "Phase 2 kind verification failed; redacted cluster evidence follows" >&2
   k get gateway,httproute,backend,backendtlspolicy,securitypolicy -A >&2 || true
+  k get cellsnapshots,volumesnapshots -A >&2 || true
   k get cells -A -o wide >&2 || true
   k get deployment,statefulset,service,pod -A >&2 || true
   k get events -A --sort-by=.lastTimestamp | tail -100 >&2 || true
@@ -48,6 +56,9 @@ cleanup() {
     if [[ -n "$pid" ]]; then
       kill "$pid" >/dev/null 2>&1 || true
     fi
+  done
+  for pid in "${extension_pids[@]}"; do
+    kill "$pid" >/dev/null 2>&1 || true
   done
   kind delete cluster --name "$cluster_name" >/dev/null 2>&1 || true
   docker rm -f "$registry_name" >/dev/null 2>&1 || true
@@ -234,6 +245,35 @@ k apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.32.2/manife
 k -n kube-system rollout status daemonset/calico-node --timeout=180s
 k -n kube-system rollout status deployment/coredns --timeout=180s
 k wait node --all --for=condition=Ready --timeout=180s
+
+# Keep gateway installation deterministic when the public registry is slow.
+# The host cache is reused across the Phase 1-3 gates just like Calico.
+if ! docker image inspect "$envoy_gateway_image" >/dev/null 2>&1; then
+  docker pull --platform linux/amd64 "$envoy_gateway_image" >/dev/null
+fi
+docker save "$envoy_gateway_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
+  ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
+if ! docker image inspect "$dex_image" >/dev/null 2>&1; then
+  docker pull --platform linux/amd64 "$dex_image" >/dev/null
+fi
+docker tag "$dex_image" "$dex_cache_image"
+docker save "$dex_cache_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
+  ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
+docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag \
+  "docker.io/library/${dex_cache_image}" "$dex_image" >/dev/null
+if ! docker image inspect "$envoy_data_plane_image" >/dev/null 2>&1; then
+  docker pull --platform linux/amd64 "$envoy_data_plane_image" >/dev/null
+fi
+docker tag "$envoy_data_plane_image" "$envoy_data_plane_cache_image"
+docker save "$envoy_data_plane_cache_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
+  ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
+docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag \
+  "docker.io/library/${envoy_data_plane_cache_image}" "$envoy_data_plane_image" >/dev/null
+if ! docker image inspect "$envoy_shutdown_image" >/dev/null 2>&1; then
+  docker pull --platform linux/amd64 "$envoy_shutdown_image" >/dev/null
+fi
+docker save "$envoy_shutdown_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
+  ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
 
 revision="$(git -C "$repo_root" rev-parse HEAD)"
 local_cell="${CELL_IMAGE:-dsh-phase2-cell:test}"
@@ -585,6 +625,14 @@ docker save --output "$test_root/cell-image.tar" "$local_cell"
 if grep -aFq dsh-phase2-client-secret "$test_root/operator-image.tar" "$test_root/cell-image.tar"; then
   echo "OIDC client secret leaked into an image layer" >&2
   exit 1
+fi
+
+# Phase 3 reuses this exact browser/Gateway fixture and supplies only the CSI
+# lifecycle extension. Sourcing keeps one cluster, registry and browser state
+# without copying the Phase 2 stack into another test harness.
+if [[ -n "${DSH_E2E_EXTENSION:-}" ]]; then
+  # shellcheck source=/dev/null
+  source "$DSH_E2E_EXTENSION"
 fi
 
 echo "Phase 2 trusted browser access passed"

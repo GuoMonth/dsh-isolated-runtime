@@ -7,6 +7,7 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0
 	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
+	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.1-0.20260212115400-5aab051d1af1
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250826171959-ef028d996bc1
 	google.golang.org/grpc v1.75.1
 	google.golang.org/protobuf v1.36.10

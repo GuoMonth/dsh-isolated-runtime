@@ -22,6 +22,7 @@ const (
 	ProxyServicePort   = 80
 	ManagementPortName = "management"
 	ManagementPort     = 8081
+	QuiescePath        = "/quiesce"
 
 	DataRoot        = "/var/lib/dsh/data"
 	DSHHome         = DataRoot + "/home"
@@ -30,6 +31,7 @@ const (
 	PrivateRoot     = "/var/lib/dsh-private"
 	CredentialsPath = PrivateRoot + "/.credentials.yaml"
 	TemporaryRoot   = "/tmp"
+	QuiesceMarker   = TemporaryRoot + "/dsh-cell-quiesced"
 	PrivatePVCSize  = "1Gi"
 	TemporarySize   = "1Gi"
 
@@ -37,18 +39,22 @@ const (
 	PrivateVolumeName   = "private"
 	TemporaryVolumeName = "tmp"
 
-	ManagedByLabel          = "app.kubernetes.io/managed-by"
-	ApplicationLabel        = "app.kubernetes.io/name"
-	CellUIDLabel            = "dsh.isolated.io/cell-uid"
-	AccessLabel             = "dsh.isolated.io/access"
-	CellNameAnnotation      = "dsh.isolated.io/cell-name"
-	CellUIDAnnotation       = "dsh.isolated.io/cell-uid"
-	RouteCellNameAnnotation = "gateway.envoyproxy.io/dsh-cell-name"
-	RouteCellUIDAnnotation  = "gateway.envoyproxy.io/dsh-cell-uid"
-	OIDCTokenHeader         = "X-Dsh-Oidc-Token"
+	ManagedByLabel           = "app.kubernetes.io/managed-by"
+	ApplicationLabel         = "app.kubernetes.io/name"
+	CellUIDLabel             = "dsh.isolated.io/cell-uid"
+	AccessLabel              = "dsh.isolated.io/access"
+	CellNameAnnotation       = "dsh.isolated.io/cell-name"
+	CellUIDAnnotation        = "dsh.isolated.io/cell-uid"
+	SnapshotUIDAnnotation    = "dsh.isolated.io/cell-snapshot-uid"
+	RouteCellNameAnnotation  = "gateway.envoyproxy.io/dsh-cell-name"
+	RouteCellUIDAnnotation   = "gateway.envoyproxy.io/dsh-cell-uid"
+	ActiveSnapshotAnnotation = "dsh.isolated.io/active-snapshot-uid"
+	OIDCTokenHeader          = "X-Dsh-Oidc-Token"
+	SnapshotFinalizer        = "dsh.isolated.io/snapshot-protection"
 
 	ManagedByValue   = "dsh-isolated-runtime"
 	ApplicationValue = "dsh-cell"
+	OperatorValue    = "cell-operator"
 	AccessValue      = "true"
 )
 
@@ -58,6 +64,12 @@ type Names struct {
 	DataPVC    string
 	PrivatePVC string
 	Headless   string
+}
+
+// SnapshotName is the namespaced CSI VolumeSnapshot name derived from one
+// API-server-issued CellSnapshot UID.
+func SnapshotName(uid string) string {
+	return "cellsnapshot-" + uid
 }
 
 // ResourceNames returns DNS-label-safe names for an API-server-issued UUID UID.

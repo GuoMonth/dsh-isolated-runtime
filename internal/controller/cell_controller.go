@@ -46,6 +46,7 @@ const (
 	reasonOwnershipConflict               = "OwnershipConflict"
 	reasonReconcileFailed                 = "ReconcileFailed"
 	reasonSandboxRuntimeClassUnconfigured = "SandboxRuntimeClassUnconfigured"
+	reasonSnapshotInProgress              = "SnapshotInProgress"
 )
 
 // CellReconciler reconciles Cells across all namespaces.
@@ -57,6 +58,7 @@ type CellReconciler struct {
 	RouteConfig           RouteConfig
 	Recorder              record.EventRecorder
 	routeAPIAvailable     bool
+	SnapshotEnabled       bool
 }
 
 // The access verb is required by Kubernetes RBAC escalation prevention: the
@@ -97,7 +99,8 @@ func (r *CellReconciler) SetupWithManager(manager ctrl.Manager) error {
 		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(r.mapDerivedAccessObject)).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Watches(&corev1.PersistentVolumeClaim{}, handler.EnqueueRequestsFromMapFunc(r.mapManagedObject)).
-		Watches(&discoveryv1.EndpointSlice{}, handler.EnqueueRequestsFromMapFunc(r.mapEndpointSlice))
+		Watches(&discoveryv1.EndpointSlice{}, handler.EnqueueRequestsFromMapFunc(r.mapEndpointSlice)).
+		Watches(&dshv1alpha1.CellSnapshot{}, handler.EnqueueRequestsFromMapFunc(r.mapCellSnapshot))
 	if r.routeAPIAvailable {
 		builder = builder.Watches(&gatewayv1.HTTPRoute{}, handler.EnqueueRequestsFromMapFunc(r.mapDerivedAccessObject))
 	}
@@ -115,7 +118,16 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 	}
 
 	state := pendingState()
-	dataPVC, err := r.reconcileDataPVC(ctx, &cell)
+	restore, restoreState, err := r.resolveRestore(ctx, &cell)
+	if err != nil {
+		state.Storage = failedCondition(err, "restore source reconciliation failed")
+		return r.finish(ctx, &cell, state, err)
+	}
+	if restoreState != nil {
+		state.Storage = *restoreState
+		return r.finish(ctx, &cell, state, nil)
+	}
+	dataPVC, err := r.reconcileDataPVC(ctx, &cell, restore)
 	if err != nil {
 		state.Storage = failedCondition(err, "managed storage reconciliation failed")
 		return r.finish(ctx, &cell, state, err)
@@ -127,6 +139,11 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 	}
 	if dataPVC.Status.Phase == corev1.ClaimBound && privatePVC.Status.Phase == corev1.ClaimBound {
 		state.Storage = trueCondition(reasonPVCsBound, "data and private PVCs are bound")
+	}
+	snapshotActivity, err := r.snapshotActivity(ctx, &cell)
+	if err != nil {
+		state.Workload = failedCondition(err, "snapshot state observation failed")
+		return r.finish(ctx, &cell, state, err)
 	}
 
 	if err := r.reconcileServiceAccount(ctx, &cell); err != nil {
@@ -159,13 +176,22 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 		return r.finishPublic(ctx, &cell, state, routeErr)
 	}
 
-	workload, err := r.reconcileStatefulSet(ctx, &cell)
+	replicas := int32(1)
+	if snapshotActivity.Quiesced {
+		replicas = 0
+	}
+	workload, err := r.reconcileStatefulSet(ctx, &cell, replicas)
 	if err != nil {
 		state.Workload = failedCondition(err, "StatefulSet reconciliation failed")
 		return r.finish(ctx, &cell, state, err)
 	}
-	if statefulSetReady(workload) {
+	if statefulSetReady(workload) && !snapshotActivity.Active {
 		state.Workload = trueCondition(reasonStatefulSetReady, "current StatefulSet revision has one ready replica")
+	}
+	if snapshotActivity.Active {
+		state.Workload = falseCondition(reasonSnapshotInProgress, "CellSnapshot is quiescing the workload")
+		state.Access = falseCondition(reasonSnapshotInProgress, "CellSnapshot intentionally removed the access endpoint")
+		return r.finishPublic(ctx, &cell, state, routeErr)
 	}
 
 	accessReady, err := r.accessEndpointReady(ctx, &cell)
@@ -354,6 +380,51 @@ func (r *CellReconciler) mapEndpointSlice(ctx context.Context, object client.Obj
 		return nil
 	}
 	return r.mapManagedObject(ctx, &service)
+}
+
+func (r *CellReconciler) mapCellSnapshot(_ context.Context, object client.Object) []reconcile.Request {
+	snapshot, ok := object.(*dshv1alpha1.CellSnapshot)
+	if !ok || snapshot.Spec.CellRef.Name == "" {
+		return nil
+	}
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: snapshot.Namespace, Name: snapshot.Spec.CellRef.Name}}}
+}
+
+type cellSnapshotActivity struct {
+	Active   bool
+	Quiesced bool
+}
+
+func (r *CellReconciler) snapshotActivity(ctx context.Context, cell *dshv1alpha1.Cell) (cellSnapshotActivity, error) {
+	activeUID := cell.Annotations[cellcontract.ActiveSnapshotAnnotation]
+	if activeUID == "" {
+		return cellSnapshotActivity{}, nil
+	}
+	var snapshots dshv1alpha1.CellSnapshotList
+	if err := r.List(ctx, &snapshots, client.InNamespace(cell.Namespace)); err != nil {
+		return cellSnapshotActivity{}, err
+	}
+	for _, snapshot := range snapshots.Items {
+		if string(snapshot.UID) != activeUID || snapshot.Spec.CellRef.Name != cell.Name {
+			continue
+		}
+		quiesced := conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotQuiesced)
+		if conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotReady) {
+			return cellSnapshotActivity{}, nil
+		}
+		if conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotFailed) {
+			for _, finalizer := range snapshot.Finalizers {
+				if finalizer == cellcontract.SnapshotFinalizer && quiesced {
+					return cellSnapshotActivity{Active: true, Quiesced: true}, nil
+				}
+			}
+			return cellSnapshotActivity{}, nil
+		}
+		if conditionTrue(snapshot.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted) {
+			return cellSnapshotActivity{Active: true, Quiesced: quiesced}, nil
+		}
+	}
+	return cellSnapshotActivity{}, nil
 }
 
 func copyStatus(status dshv1alpha1.CellStatus) *dshv1alpha1.CellStatus {

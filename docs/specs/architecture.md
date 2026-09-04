@@ -33,6 +33,13 @@ Cell
       ├─ Role (one Cell `access` verb)
       └─ HTTPRoute (UID-derived hostname)
 
+CellSnapshot
+  → launcher POST /quiesce (operator-to-Pod only)
+  → StatefulSet replicas=0
+  → CSI VolumeSnapshot (tenant-data PVC only)
+  → source Cell replicas=1
+  → fresh Cell data PVC with VolumeSnapshot dataSource
+
 Browser
   → Envoy Gateway (HTTPS + OIDC)
   → cell-authorizer (route validation + SubjectAccessReview)
@@ -91,6 +98,21 @@ The persistence format is bound to the exact DSH version in
 foreign session formats. Before a snapshot the controller must quiesce DSH and
 must never attach one read-write data volume to concurrent Cell writers.
 
+`CellSnapshot` is an immutable, one-shot Kubernetes intent. The launcher first
+rejects new proxy requests, drains normal and upgraded connections, and accepts
+the operation only when DSH exits normally after SIGTERM. The Cell controller
+then scales the source StatefulSet to zero; only observed zero replicas permits
+creation of the CSI `VolumeSnapshot`. A Cell annotation acquired with
+resource-version compare-and-swap serializes data operations. Snapshot errors
+delete the incomplete CSI object before the source resumes; ambiguous cleanup
+keeps the source stopped.
+
+A restore always creates a new data PVC and Cell identity. It requires a Ready,
+same-namespace snapshot, its exact recorded image digest, the one supported DSH
+RC, compatible size, and the same StorageClass. The private PVC is always new.
+Rollout to another digest of the same RC is explicit after restore; rollback is
+another fresh Cell from an older snapshot, never an in-place PVC downgrade.
+
 ## Non-goals
 
 - Replacing kube-scheduler, Gateway API, CSI, or a cluster fleet manager.
@@ -98,3 +120,4 @@ must never attach one read-write data volume to concurrent Cell writers.
 - Interpreting DSH application protocols.
 - Promising host-compromise resistance for ordinary containers.
 - Supporting removed pre-Cell APIs or floating DSH versions.
+- Scheduling backups, copying snapshots across clusters, or replacing CSI.

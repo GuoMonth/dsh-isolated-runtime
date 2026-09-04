@@ -43,10 +43,25 @@ Roadmap 按垂直大里程碑推进。每个大里程碑结束时必须复盘并
 
 ## Phase 3 —— 数据生命周期
 
-围绕数据 PVC 定义 CSI snapshot/restore，明确排除 provider 凭据与 DSH 浏览器签名状态；
-证明 quiesce 语义并拒绝并发写入。
+本里程碑交付：
+
+- 增加完全不可变的 `CellSnapshot` 意图，以及只能在创建时指定的
+  `storage.restoreFrom`，不生成项目私有备份控制面；
+- launcher 排空流量、确认 DSH 正常退出、StatefulSet 降到零副本后，才通过稳定 CSI API
+  快照 data PVC；
+- 每个 Cell 串行执行数据操作；清理结果不明确时 fail closed，只有成功或确认清理后才恢复源
+  Cell；
+- 只允许使用快照记录的精确 image digest 与 DSH RC 创建 fresh Cell，再实证同 RC digest
+  rollout 与 fresh-Cell rollback；
+- private/provider/browser-signing 状态不进 snapshot；恢复 Cell 拥有新的 UID、hostname、
+  private PVC 与 DSH cookie。
+
+参考 kind 夹具只为验证安装 external-snapshotter 与 CSI hostpath test driver；生产 CSI
+lifecycle 仍由集群管理员负责。证据与 `GO` 结论记录在
+[Phase 3 复盘](https://github.com/GuoMonth/dsh-isolated-runtime/issues/33)。
 
 ## Phase 4 —— Fleet 运维
 
-补充 policy、升级、可观测性、quota 与多 namespace 运维。Kubernetes 始终是 fleet 的调度器
+补充 fleet policy、topology-free observability、quota/backpressure 与多 namespace scale
+运维。Kubernetes 始终是 fleet 的调度器
 和状态协调器；本项目不生长出第二套集群编排器。

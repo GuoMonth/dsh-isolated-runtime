@@ -26,6 +26,14 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - apps
   resources:
   - statefulsets
@@ -53,15 +61,28 @@ rules:
   - access
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - dsh.isolated.io
   resources:
   - cells/status
+  - cellsnapshots/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - dsh.isolated.io
+  resources:
+  - cellsnapshots
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
@@ -97,4 +118,30 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - snapshot.storage.k8s.io
+  resources:
+  - volumesnapshotclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - snapshot.storage.k8s.io
+  resources:
+  - volumesnapshots
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
   - watch

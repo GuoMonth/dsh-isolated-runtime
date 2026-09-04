@@ -4,11 +4,10 @@ Kubernetes-native isolation for [DeepSeek Harness (DSH)](https://github.com/deep
 The project defines one durable boundary—`Cell`—and lets Kubernetes, Gateway
 API, and CSI keep ownership of the infrastructure they already model.
 
-**Current state: Phase 2 trusted browser access is complete (`GO`).** The operator
-translates a Cell into native Kubernetes workload resources plus an exact
-HTTPRoute and per-Cell access Role. Envoy Gateway performs HTTPS/OIDC and the
-included authorizer maps OIDC subjects and groups to ordinary Kubernetes
-RoleBindings through SubjectAccessReview.
+**Current state: Phase 3 application-consistent data lifecycle is complete (`GO`).** In addition to
+the trusted browser path, the operator can quiesce one Cell, snapshot only its
+tenant-data PVC through CSI, and restore that snapshot into a fresh Cell. There
+is no project backup scheduler, snapshot store, or in-place rollback mechanism.
 
 [中文](./README.zh-CN.md)
 
@@ -27,7 +26,8 @@ spec:
 ```
 
 The namespace is the tenant boundary. Images are digest-pinned, storage may
-grow but not shrink, and `storageClassName` and `retentionPolicy` are immutable. The API does not
+grow but not shrink, and `storageClassName`, `retentionPolicy`, and
+`restoreFrom` are immutable. The API does not
 expose sessions, Pod or Node addresses, `RuntimeClass`, revisions, scheduling,
 checkpoints, profiles, or hostnames. See the complete
 [sample](./config/samples/dsh_v1alpha1_cell.yaml) and
@@ -42,6 +42,7 @@ make verify-cell        # CRD behavior in a disposable kind cluster
 make verify-images      # production images and real DSH persistence smoke test
 make verify-kind        # complete Phase 1 vertical slice in kind
 make verify-kind-phase2 # HTTPS/OIDC/RBAC browser proof with Envoy, Dex, Chromium
+make verify-kind-phase3 # quiesce/CSI restore/rollout/fresh rollback browser proof
 make verify-dsh         # exact upstream DSH compatibility suite
 golangci-lint run
 ```
@@ -58,6 +59,11 @@ authorizer, and routing mode. Administrators grant access with ordinary
 RoleBindings; the operator intentionally never manages them. The Envoy Gateway
 installation must use the adjacent `envoy-gateway.yaml` configuration so its
 data plane runs in the Gateway namespace and the Backend extension is enabled.
+
+After a CSI snapshot controller and compatible driver are installed,
+`kubectl apply -k config/phase3` enables `CellSnapshot`. The project does not
+install production CSI components. See the executable
+[snapshot/restore sample](./config/samples/dsh_v1alpha1_cellsnapshot.yaml).
 
 ## Design
 

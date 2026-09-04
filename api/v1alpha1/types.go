@@ -32,12 +32,26 @@ const (
 	ConditionAccessReady   = "AccessReady"
 )
 
+const (
+	ConditionSnapshotAccepted = "Accepted"
+	ConditionSnapshotQuiesced = "Quiesced"
+	ConditionSnapshotReady    = ConditionReady
+	ConditionSnapshotFailed   = "Failed"
+)
+
+// LocalCellSnapshotReference names a CellSnapshot in the Cell namespace.
+type LocalCellSnapshotReference struct {
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+}
+
 // CellStorageSpec describes the single tenant-data volume. DSH home state and
 // the workspace live on this volume; credentials use a separate owner.
 // +kubebuilder:validation:XValidation:rule="quantity(self.size).isGreaterThan(quantity('0'))",message="storage size must be positive"
 // +kubebuilder:validation:XValidation:rule="quantity(self.size).compareTo(quantity(oldSelf.size)) >= 0",message="storage size cannot decrease"
 // +kubebuilder:validation:XValidation:rule="has(self.storageClassName) == has(oldSelf.storageClassName) && (!has(self.storageClassName) || self.storageClassName == oldSelf.storageClassName)",message="storageClassName is immutable"
 // +kubebuilder:validation:XValidation:rule="self.retentionPolicy == oldSelf.retentionPolicy",message="retentionPolicy is immutable"
+// +kubebuilder:validation:XValidation:rule="has(self.restoreFrom) == has(oldSelf.restoreFrom) && (!has(self.restoreFrom) || self.restoreFrom == oldSelf.restoreFrom)",message="restoreFrom is immutable"
 type CellStorageSpec struct {
 	// Size is the requested data-volume capacity and may only grow.
 	Size resource.Quantity `json:"size"`
@@ -49,6 +63,10 @@ type CellStorageSpec struct {
 	// is decided once without a finalizer or deletion-time race.
 	// +kubebuilder:default=Retain
 	RetentionPolicy RetentionPolicy `json:"retentionPolicy,omitempty"`
+	// RestoreFrom creates the initial data PVC from a Ready CellSnapshot in
+	// this namespace. It is creation-only because PVC dataSource is immutable.
+	// +optional
+	RestoreFrom *LocalCellSnapshotReference `json:"restoreFrom,omitempty"`
 }
 
 // CellResources exposes only ordinary compute requests and limits. Dynamic
@@ -124,4 +142,65 @@ type CellList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Cell `json:"items"`
+}
+
+// LocalCellReference names a Cell in the same namespace.
+type LocalCellReference struct {
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+}
+
+// CellSnapshotSpec requests one application-consistent snapshot of a Cell's
+// tenant-data PVC. The complete request is immutable.
+// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="CellSnapshot spec is immutable"
+type CellSnapshotSpec struct {
+	CellRef LocalCellReference `json:"cellRef"`
+	// VolumeSnapshotClassName is cluster-owned and must use the same CSI driver
+	// as the source data PVC's StorageClass.
+	// +kubebuilder:validation:MinLength=1
+	VolumeSnapshotClassName string `json:"volumeSnapshotClassName"`
+}
+
+// CellSnapshotStatus is durable, topology-free evidence of one snapshot
+// operation. It never exposes Pod identity, IP addresses, Nodes, or secrets.
+type CellSnapshotStatus struct {
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:XValidation:rule="self.all(c, c.type in ['Accepted', 'Quiesced', 'Ready', 'Failed'])",message="unsupported CellSnapshot condition type"
+	Conditions       []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+	SourceCellUID    string             `json:"sourceCellUID,omitempty"`
+	SourceGeneration int64              `json:"sourceGeneration,omitempty"`
+	DSHVersion       string             `json:"dshVersion,omitempty"`
+	// +kubebuilder:validation:Pattern=`^sha256:[a-f0-9]{64}$`
+	ImageDigest      string `json:"imageDigest,omitempty"`
+	StorageClassName string `json:"storageClassName,omitempty"`
+	// +optional
+	RestoreSize *resource.Quantity `json:"restoreSize,omitempty"`
+}
+
+// CellSnapshot is the single public trigger for quiescing a Cell and creating
+// a CSI snapshot of its tenant-data PVC.
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Namespaced,shortName=dshsnap
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
+// +kubebuilder:printcolumn:name="Source",type="string",JSONPath=".spec.cellRef.name"
+// +kubebuilder:printcolumn:name="DSH",type="string",JSONPath=".status.dshVersion"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+type CellSnapshot struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   CellSnapshotSpec   `json:"spec"`
+	Status CellSnapshotStatus `json:"status,omitempty"`
+}
+
+// CellSnapshotList contains CellSnapshots in one or more tenant namespaces.
+// +kubebuilder:object:root=true
+type CellSnapshotList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []CellSnapshot `json:"items"`
 }

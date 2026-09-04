@@ -4,10 +4,9 @@
 的 Kubernetes 原生隔离层。本项目只定义一个持久边界——`Cell`；基础设施能力继续由
 Kubernetes、Gateway API 与 CSI 管理。
 
-**当前状态：Phase 2 可信浏览器访问已完成（`GO`）。** Operator 将 Cell 翻译为 Kubernetes 原生
-workload 资源、精确 HTTPRoute 与逐 Cell access Role；Envoy Gateway 负责 HTTPS/OIDC，
-内置 authorizer 通过 SubjectAccessReview 将 OIDC User/Group 映射到普通 Kubernetes
-RoleBinding。
+**当前状态：Phase 3 应用一致数据生命周期已完成（`GO`）。** 在可信浏览器访问之外，Operator 可以先
+quiesce 单个 Cell，再由 CSI 只快照 tenant-data PVC，并将快照恢复为全新的 Cell。本项目不
+引入备份调度器、私有快照仓库或原地回滚机制。
 
 [English](./README.md)
 
@@ -25,8 +24,8 @@ spec:
     size: 20Gi
 ```
 
-namespace 就是租户边界。镜像必须固定 digest；存储只能扩容，`storageClassName` 与
-`retentionPolicy` 创建后不可变。
+namespace 就是租户边界。镜像必须固定 digest；存储只能扩容，`storageClassName`、
+`retentionPolicy` 与 `restoreFrom` 创建后不可变。
 API 不暴露 session、Pod/Node 地址、`RuntimeClass`、revision、scheduler、checkpoint、
 profile 或 hostname。完整内容见[示例](./config/samples/dsh_v1alpha1_cell.yaml)与
 [生成的 CRD](./config/crd/bases/dsh.isolated.io_cells.yaml)。
@@ -40,6 +39,7 @@ make verify-cell        # 在临时 kind 集群验证 CRD 行为
 make verify-images      # 生产镜像与真实 DSH 持久化 smoke test
 make verify-kind        # 在 kind 完成 Phase 1 垂直实证
 make verify-kind-phase2 # 用 Envoy、Dex、Chromium 实证 HTTPS/OIDC/RBAC
+make verify-kind-phase3 # 实证 quiesce、CSI restore、rollout 与 fresh rollback
 make verify-dsh         # 运行精确版本的上游 DSH 兼容套件
 golangci-lint run
 ```
@@ -54,6 +54,10 @@ Gateway，并提供 wildcard DNS/TLS 与 OIDC provider 配置后，`config/phase
 Gateway、authorizer 和路由模式。管理员使用普通 RoleBinding 授权；Operator 有意不管理它。
 Envoy Gateway 安装必须采用同目录 `envoy-gateway.yaml` 配置，使数据面运行在 Gateway
 namespace 并启用 Backend extension。
+
+集群安装 CSI snapshot controller 与兼容 driver 后，`kubectl apply -k config/phase3` 启用
+`CellSnapshot`；本项目不安装生产 CSI 组件。可执行示例见
+[snapshot/restore sample](./config/samples/dsh_v1alpha1_cellsnapshot.yaml)。
 
 ## 设计
 

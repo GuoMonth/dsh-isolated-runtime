@@ -1,0 +1,23 @@
+apiVersion: dsh.isolated.io/v1alpha1
+kind: CellSnapshot
+metadata:
+  name: assistant-backup
+  namespace: tenant-alice
+spec:
+  cellRef:
+    name: assistant
+  volumeSnapshotClassName: csi-hostpath-snapclass
+---
+apiVersion: dsh.isolated.io/v1alpha1
+kind: Cell
+metadata:
+  name: assistant-restored
+  namespace: tenant-alice
+spec:
+  image: ghcr.io/guomonth/dsh-isolated-runtime-cell@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  securityClass: standard
+  storage:
+    size: 20Gi
+    retentionPolicy: Retain
+    restoreFrom:
+      name: assistant-backup

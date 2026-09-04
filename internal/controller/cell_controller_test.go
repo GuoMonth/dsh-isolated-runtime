@@ -5,11 +5,13 @@ import (
 	"reflect"
 	"testing"
 
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,8 +60,13 @@ func TestReconcileBuildsNativeResourcesAndReadyStatus(t *testing.T) {
 		t.Fatalf("unexpected Services: headless=%q access=%#v", headless.Spec.ClusterIP, access.Spec.Ports)
 	}
 	policy := get[*networkingv1.NetworkPolicy](t, kube, cell.Namespace, names.Base)
-	if len(policy.Spec.PolicyTypes) != 1 || policy.Spec.PolicyTypes[0] != networkingv1.PolicyTypeIngress || len(policy.Spec.Egress) != 0 {
+	if len(policy.Spec.PolicyTypes) != 1 || policy.Spec.PolicyTypes[0] != networkingv1.PolicyTypeIngress || len(policy.Spec.Egress) != 0 || len(policy.Spec.Ingress) != 2 {
 		t.Fatalf("NetworkPolicy is not ingress-only: %#v", policy.Spec)
+	}
+	if policy.Spec.Ingress[0].Ports[0].Port.IntVal != cellcontract.ProxyContainerPort ||
+		policy.Spec.Ingress[1].Ports[0].Port.IntVal != cellcontract.ManagementPort ||
+		policy.Spec.Ingress[1].From[0].PodSelector.MatchLabels[cellcontract.ApplicationLabel] != cellcontract.OperatorValue {
+		t.Fatalf("NetworkPolicy management isolation drifted: %#v", policy.Spec.Ingress)
 	}
 
 	workload := get[*appsv1.StatefulSet](t, kube, cell.Namespace, names.Base)
@@ -263,6 +270,8 @@ func testReconciler(t *testing.T, objects ...client.Object) (*CellReconciler, cl
 		networkingv1.AddToScheme,
 		rbacv1.AddToScheme,
 		discoveryv1.AddToScheme,
+		storagev1.AddToScheme,
+		volumesnapshotv1.AddToScheme,
 		dshv1alpha1.AddToScheme,
 		gatewayv1.Install,
 	} {
@@ -272,7 +281,7 @@ func testReconciler(t *testing.T, objects ...client.Object) (*CellReconciler, cl
 	}
 	kube := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithStatusSubresource(&dshv1alpha1.Cell{}, &corev1.PersistentVolumeClaim{}, &appsv1.StatefulSet{}).
+		WithStatusSubresource(&dshv1alpha1.Cell{}, &dshv1alpha1.CellSnapshot{}, &corev1.PersistentVolumeClaim{}, &appsv1.StatefulSet{}, &volumesnapshotv1.VolumeSnapshot{}).
 		WithObjects(objects...).
 		Build()
 	return &CellReconciler{Client: kube, Scheme: scheme, SystemNamespace: "dsh-system"}, kube
