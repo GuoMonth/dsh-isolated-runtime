@@ -32,6 +32,7 @@ func (e *ownershipConflictError) Error() string {
 func (r *CellReconciler) reconcileDataPVC(
 	ctx context.Context,
 	cell *dshv1alpha1.Cell,
+	restore *restoreSource,
 ) (*corev1.PersistentVolumeClaim, error) {
 	names := cellcontract.ResourceNames(string(cell.UID))
 	claim := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: names.DataPVC, Namespace: cell.Namespace}}
@@ -41,6 +42,14 @@ func (r *CellReconciler) reconcileDataPVC(
 			claim.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 			claim.Spec.Resources.Requests = corev1.ResourceList{corev1.ResourceStorage: cell.Spec.Storage.Size.DeepCopy()}
 			claim.Spec.StorageClassName = copyString(cell.Spec.Storage.StorageClassName)
+			if restore != nil {
+				claim.Spec.StorageClassName = ptr.To(restore.StorageClassName)
+				claim.Spec.DataSource = &corev1.TypedLocalObjectReference{
+					APIGroup: ptr.To("snapshot.storage.k8s.io"),
+					Kind:     "VolumeSnapshot",
+					Name:     restore.VolumeSnapshotName,
+				}
+			}
 			return nil
 		}
 		if !singleRWO(claim.Spec.AccessModes) {
@@ -48,6 +57,17 @@ func (r *CellReconciler) reconcileDataPVC(
 		}
 		if cell.Spec.Storage.StorageClassName != nil && !equalString(claim.Spec.StorageClassName, cell.Spec.Storage.StorageClassName) {
 			return errors.New("managed data PVC StorageClass drifted")
+		}
+		if restore == nil && claim.Spec.DataSource != nil {
+			return errors.New("managed data PVC unexpectedly has a restore source")
+		}
+		if restore != nil {
+			if claim.Spec.DataSource == nil || claim.Spec.DataSource.APIGroup == nil ||
+				*claim.Spec.DataSource.APIGroup != "snapshot.storage.k8s.io" ||
+				claim.Spec.DataSource.Kind != "VolumeSnapshot" || claim.Spec.DataSource.Name != restore.VolumeSnapshotName ||
+				claim.Spec.StorageClassName == nil || *claim.Spec.StorageClassName != restore.StorageClassName {
+				return errors.New("managed restored data PVC source drifted")
+			}
 		}
 		current := claim.Spec.Resources.Requests[corev1.ResourceStorage]
 		if current.Cmp(cell.Spec.Storage.Size) < 0 {
@@ -144,6 +164,7 @@ func (r *CellReconciler) reconcileAccessService(ctx context.Context, cell *dshv1
 func (r *CellReconciler) reconcileStatefulSet(
 	ctx context.Context,
 	cell *dshv1alpha1.Cell,
+	replicas int32,
 ) (*appsv1.StatefulSet, error) {
 	names := cellcontract.ResourceNames(string(cell.UID))
 	workload := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: names.Base, Namespace: cell.Namespace}}
@@ -152,7 +173,7 @@ func (r *CellReconciler) reconcileStatefulSet(
 		if !created && !reflect.DeepEqual(workload.Spec.Selector.MatchLabels, selector) {
 			return errors.New("managed StatefulSet selector drifted")
 		}
-		workload.Spec.Replicas = ptr.To[int32](1)
+		workload.Spec.Replicas = ptr.To(replicas)
 		workload.Spec.ServiceName = names.Headless
 		workload.Spec.PodManagementPolicy = appsv1.OrderedReadyPodManagement
 		workload.Spec.UpdateStrategy = appsv1.StatefulSetUpdateStrategy{Type: appsv1.RollingUpdateStatefulSetStrategyType}
@@ -199,6 +220,19 @@ func (r *CellReconciler) reconcileNetworkPolicy(ctx context.Context, cell *dshv1
 				Ports: []networkingv1.NetworkPolicyPort{{
 					Protocol: &protocol,
 					Port:     ptr.To(intstr.FromInt32(cellcontract.ProxyContainerPort)),
+				}},
+			}, {
+				From: []networkingv1.NetworkPolicyPeer{{
+					NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+						corev1.LabelMetadataName: r.SystemNamespace,
+					}},
+					PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+						cellcontract.ApplicationLabel: cellcontract.OperatorValue,
+					}},
+				}},
+				Ports: []networkingv1.NetworkPolicyPort{{
+					Protocol: &protocol,
+					Port:     ptr.To(intstr.FromInt32(cellcontract.ManagementPort)),
 				}},
 			}},
 		}

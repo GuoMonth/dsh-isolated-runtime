@@ -29,8 +29,8 @@
     { "class": "storage-domains", "location": "$DSH_HOME/storages", "snapshot": true },
     { "class": "workspace", "location": "process.cwd()", "snapshot": true },
     { "class": "configuration", "location": "$DSH_HOME excluding .credentials.yaml and .env", "snapshot": true },
-    { "class": "provider-credentials", "location": "same-namespace Secret and $DSH_HOME/.credentials.yaml", "snapshot": false },
-    { "class": "browser-signing-records", "location": "$DSH_HOME/.credentials.yaml records", "snapshot": false }
+    { "class": "provider-credentials", "location": "same-namespace Secret and /var/lib/dsh-private/.credentials.yaml", "snapshot": false },
+    { "class": "browser-signing-records", "location": "/var/lib/dsh-private/.credentials.yaml records", "snapshot": false }
   ],
   "constraints": [
     "ApiProxy is absent",

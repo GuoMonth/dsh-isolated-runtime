@@ -233,6 +233,57 @@ func TestLauncherReadinessTimeoutStopsDSH(t *testing.T) {
 	}
 }
 
+func TestCloseBoundsHijackedConnectionsBeforeStoppingDSH(t *testing.T) {
+	t.Parallel()
+	instance, err := Start(Config{
+		DSHCommand:      []string{os.Args[0], "-test.run=TestDSHHelperProcess", "--"},
+		Environment:     append(os.Environ(), "GO_WANT_DSH_HELPER=1"),
+		PublicAuthority: "cell.example.test",
+		ReadyTimeout:    5 * time.Second,
+		ShutdownTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	exchange := request(t, client, http.MethodGet, instance.URL+"/", "", nil)
+	cookie := strings.SplitN(exchange.Header.Get("Set-Cookie"), ";", 2)[0]
+	_ = exchange.Body.Close()
+	parsed, err := url.Parse(instance.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := net.DialTimeout("tcp", parsed.Host, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = connection.Close() }()
+	if _, err := fmt.Fprintf(connection, "GET /api/remote.mux HTTP/1.1\r\nHost: cell.example.test\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nCookie: %s\r\n\r\n", cookie); err != nil {
+		t.Fatal(err)
+	}
+	reader := bufio.NewReader(connection)
+	response, err := http.ReadResponse(reader, &http.Request{Method: http.MethodGet})
+	if err != nil || response.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("upgrade: response=%v err=%v", response, err)
+	}
+
+	started := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	err = instance.Close(ctx)
+	cancel()
+	if err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if time.Since(started) > 2*time.Second {
+		t.Fatal("hijacked connection was not bounded by the drain deadline")
+	}
+	_ = connection.SetReadDeadline(time.Now().Add(time.Second))
+	if _, err := reader.ReadByte(); err == nil {
+		t.Fatal("hijacked connection remained open after bounded drain")
+	}
+}
+
 func request(t *testing.T, client *http.Client, method, target, body string, headers http.Header) *http.Response {
 	t.Helper()
 	req, err := http.NewRequest(method, target, strings.NewReader(body))

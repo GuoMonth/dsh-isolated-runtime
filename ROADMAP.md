@@ -50,12 +50,27 @@ Evidence and the milestone decision are recorded in
 
 ## Phase 3 — Data lifecycle
 
-Define CSI snapshot/restore around the data PVC while explicitly excluding
-provider credentials and DSH browser-signing state. Prove quiescing and reject
-concurrent writers.
+Delivered by this milestone:
+
+- introduce immutable `CellSnapshot` intent and creation-only
+  `storage.restoreFrom` without creating a backup control plane;
+- drain launcher traffic, require normal DSH exit, scale the StatefulSet to
+  zero, then snapshot only the data PVC through the stable CSI API;
+- serialize operations per Cell, fail closed on cleanup ambiguity, and resume
+  the source automatically only after snapshot success or proven cleanup;
+- restore only into a fresh Cell with the exact recorded image digest and DSH
+  RC, then prove same-RC digest rollout and fresh-Cell rollback;
+- keep private/provider/browser-signing state outside the snapshot and give
+  every restored Cell a new UID, hostname, private PVC and DSH cookie.
+
+The reference kind fixture installs external-snapshotter and the CSI hostpath
+test driver only for verification. Production CSI lifecycle remains owned by
+the cluster administrator. Evidence and the `GO` decision are recorded in the
+[Phase 3 retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/33).
 
 ## Phase 4 — Fleet operations
 
-Add policy, upgrades, observability, quotas, and multi-namespace operations.
+Add fleet policy, topology-free observability, quota/backpressure, and
+multi-namespace scale operations.
 Kubernetes remains the fleet scheduler and state reconciler; this project does
 not grow a second cluster orchestrator.

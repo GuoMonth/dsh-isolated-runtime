@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -16,6 +18,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -59,6 +62,7 @@ func TestEnvtestReconcileAndAdmission(t *testing.T) {
 		rbacv1.AddToScheme,
 		discoveryv1.AddToScheme,
 		storagev1.AddToScheme,
+		volumesnapshotv1.AddToScheme,
 		dshv1alpha1.AddToScheme,
 		gatewayv1.Install,
 	} {
@@ -88,9 +92,65 @@ func TestEnvtestReconcileAndAdmission(t *testing.T) {
 	if err := disabled.SetupWithManager(manager); err != nil {
 		t.Fatalf("Phase 1 mode depended on Gateway API CRD: %v", err)
 	}
+	enabledSnapshots := &CellSnapshotReconciler{
+		Client: manager.GetClient(), Scheme: scheme,
+		Config: SnapshotConfig{Enabled: true, QuiesceTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
+	}
+	if err := enabledSnapshots.SetupWithManager(manager); err == nil || !strings.Contains(err.Error(), "VolumeSnapshot") {
+		t.Fatalf("enabled snapshots without CSI snapshot CRDs error = %v", err)
+	}
+	disabledSnapshots := &CellSnapshotReconciler{Client: manager.GetClient(), Scheme: scheme, Config: SnapshotConfig{Enabled: false}}
+	if err := disabledSnapshots.SetupWithManager(manager); err != nil {
+		t.Fatalf("snapshot-disabled mode depended on CSI snapshot CRDs: %v", err)
+	}
 	ctx := context.Background()
 	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "envtest-tenant"}}
 	if err := kube.Create(ctx, namespace); err != nil {
+		t.Fatal(err)
+	}
+	lockProbe := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": dshv1alpha1.GroupVersion.String(),
+		"kind":       "Cell",
+		"metadata": map[string]any{
+			"name": "lock-patch-probe", "namespace": namespace.Name,
+		},
+		"spec": map[string]any{
+			"image": "example.test/cell@" + testDigest,
+			"storage": map[string]any{
+				"size": "1Gi", "retentionPolicy": string(dshv1alpha1.RetentionRetain),
+			},
+		},
+	}}
+	lockProbe.SetGroupVersionKind(dshv1alpha1.GroupVersion.WithKind("Cell"))
+	if err := kube.Create(ctx, lockProbe); err != nil {
+		t.Fatal(err)
+	}
+	initialGeneration := lockProbe.GetGeneration()
+	var typedProbe dshv1alpha1.Cell
+	probeKey := client.ObjectKeyFromObject(lockProbe)
+	if err := kube.Get(ctx, probeKey, &typedProbe); err != nil {
+		t.Fatal(err)
+	}
+	lockReconciler := &CellSnapshotReconciler{Client: kube}
+	if err := lockReconciler.patchCellOperation(ctx, &typedProbe, "snapshot-operation"); err != nil {
+		t.Fatal(err)
+	}
+	if err := kube.Get(ctx, probeKey, lockProbe); err != nil {
+		t.Fatal(err)
+	}
+	if lockProbe.GetGeneration() != initialGeneration {
+		t.Fatalf("metadata lock changed Cell generation from %d to %d", initialGeneration, lockProbe.GetGeneration())
+	}
+	if _, found, err := unstructured.NestedFieldNoCopy(lockProbe.Object, "spec", "resources"); err != nil || found {
+		t.Fatalf("metadata lock materialized spec.resources: found=%v err=%v", found, err)
+	}
+	if err := kube.Get(ctx, probeKey, &typedProbe); err != nil {
+		t.Fatal(err)
+	}
+	if err := lockReconciler.patchCellOperation(ctx, &typedProbe, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := kube.Delete(ctx, lockProbe); err != nil {
 		t.Fatal(err)
 	}
 	allowExpansion := true
@@ -179,5 +239,28 @@ func TestEnvtestReconcileAndAdmission(t *testing.T) {
 	cell.Spec.Storage.Size = resource.MustParse("1Gi")
 	if err := kube.Update(ctx, cell); !apierrors.IsInvalid(err) {
 		t.Fatalf("shrink error = %v, want Invalid", err)
+	}
+
+	if err := kube.Get(ctx, request.NamespacedName, cell); err != nil {
+		t.Fatal(err)
+	}
+	cell.Spec.Storage.RestoreFrom = &dshv1alpha1.LocalCellSnapshotReference{Name: "late-restore"}
+	if err := kube.Update(ctx, cell); !apierrors.IsInvalid(err) {
+		t.Fatalf("late restoreFrom error = %v, want Invalid", err)
+	}
+
+	snapshot := &dshv1alpha1.CellSnapshot{
+		TypeMeta:   metav1.TypeMeta{APIVersion: dshv1alpha1.GroupVersion.String(), Kind: "CellSnapshot"},
+		ObjectMeta: metav1.ObjectMeta{Name: "immutable", Namespace: namespace.Name},
+		Spec: dshv1alpha1.CellSnapshotSpec{
+			CellRef: dshv1alpha1.LocalCellReference{Name: cell.Name}, VolumeSnapshotClassName: "snapshot-class",
+		},
+	}
+	if err := kube.Create(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	snapshot.Spec.VolumeSnapshotClassName = "other-class"
+	if err := kube.Update(ctx, snapshot); !apierrors.IsInvalid(err) {
+		t.Fatalf("CellSnapshot spec mutation error = %v, want Invalid", err)
 	}
 }

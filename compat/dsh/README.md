@@ -30,6 +30,13 @@ The 0.1.2 RC web profile enables live patch watching, so the launcher invokes
 its official CLI through `node --expose-internals`; this is required by DSH's
 own HMR loader and does not expose the launch token.
 
+Phase 3 uses the same exact-RC shutdown evidence as an application-consistency
+boundary. `POST /quiesce` is an internal, operation-UID-bound request: the
+launcher becomes unready, rejects new traffic, drains proxy connections, sends
+SIGTERM, and acknowledges only a normal DSH exit. Forced kill is a failed
+snapshot, never proof of flush. A marker in the Pod's `/tmp` makes retries
+idempotent until Kubernetes removes that Pod.
+
 ## State ownership
 
 | State | Owner | Data snapshot |

@@ -62,6 +62,46 @@ async function follow(page, sessionId) {
   }), sessionId);
 }
 
+async function holdFollowUntilClosed(page, sessionId) {
+  await page.evaluate((sessionId) => new Promise((resolve, reject) => {
+    const socket = new WebSocket(`wss://${location.host}/api/remote.mux`);
+    window.phase3Socket = socket;
+    const timeout = setTimeout(() => reject(new Error("held websocket open timeout")), 15000);
+    socket.onopen = () => {
+      socket.send(JSON.stringify({
+        type: "open",
+        streamId: "phase3-held-follow",
+        endpoint: "session/follow",
+        payload: { args: { request: { address: { kind: "session", sessionId } } } },
+      }));
+      clearTimeout(timeout);
+      resolve();
+    };
+    socket.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error("held websocket open failed"));
+    };
+  }), sessionId);
+  fs.writeFileSync("/work/hold-ready", "ready\n", { mode: 0o600 });
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    if (window.phase3Socket.readyState === WebSocket.CLOSED) {
+      resolve();
+      return;
+    }
+    const timeout = setTimeout(() => reject(new Error("held websocket was not drained")), 120000);
+    window.phase3Socket.addEventListener("close", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    window.phase3Socket.addEventListener("error", () => {
+      if (window.phase3Socket.readyState === WebSocket.CLOSED) {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+  }));
+}
+
 async function protocol(page, existingSession) {
   await rpc(page, "settings/describe", {});
   let sessionId = existingSession;
@@ -168,10 +208,10 @@ async function main() {
   try {
     const context = await browser.newContext({
       ignoreHTTPSErrors: true,
-      storageState: fs.existsSync(storageFile) && mode !== "initial" && mode !== "group" ? storageFile : undefined,
+      storageState: fs.existsSync(storageFile) && mode !== "initial" && mode !== "initial-hold" && mode !== "group" ? storageFile : undefined,
     });
     const page = await context.newPage();
-    if (mode === "initial") {
+    if (mode === "initial" || mode === "initial-hold") {
       await login(page, cellA, requireEnv("USERNAME"));
       const sessionId = await protocol(page);
       fs.writeFileSync(sessionFile, JSON.stringify({ sessionId }), { mode: 0o600 });
@@ -206,6 +246,9 @@ async function main() {
         await anonymous.close();
       }
       await context.storageState({ path: storageFile });
+      if (mode === "initial-hold") {
+        await holdFollowUntilClosed(page, sessionId);
+      }
     } else if (mode === "grant") {
       await login(page, cellB, requireEnv("USERNAME"));
       await rpc(page, "settings/describe", {});
@@ -221,6 +264,10 @@ async function main() {
       await rpc(page, "settings/describe", {});
     } else if (mode === "status") {
       await expectStatus(context, requireEnv("EXPECT_URL"), Number(requireEnv("EXPECT_STATUS")));
+    } else if (mode === "hold") {
+      await login(page, cellA, requireEnv("USERNAME"));
+      const state = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
+      await holdFollowUntilClosed(page, state.sessionId);
     } else {
       throw new Error(`unknown MODE ${mode}`);
     }

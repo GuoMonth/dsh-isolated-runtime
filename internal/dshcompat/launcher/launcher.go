@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -57,6 +58,8 @@ type Instance struct {
 	process         *os.Process
 	processState    *processState
 	shutdownTimeout time.Duration
+	draining        *atomic.Bool
+	connections     *connectionTracker
 	closeOnce       sync.Once
 	closeErr        error
 }
@@ -161,8 +164,17 @@ func Start(cfg Config) (*Instance, error) {
 		return nil, fmt.Errorf("launcher: listen: %w", err)
 	}
 	proxy := newProxy(observed.target, observed.token)
+	connections := newConnectionTracker()
+	draining := &atomic.Bool{}
 	server := &http.Server{
-		Handler:           proxy,
+		Handler: http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			if draining.Load() {
+				response.Header().Set("Connection", "close")
+				http.Error(response, "Cell is quiescing", http.StatusServiceUnavailable)
+				return
+			}
+			proxy.ServeHTTP(response, request)
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       90 * time.Second,
 	}
@@ -173,9 +185,12 @@ func Start(cfg Config) (*Instance, error) {
 		process:         cmd.Process,
 		processState:    state,
 		shutdownTimeout: cfg.ShutdownTimeout,
+		draining:        draining,
+		connections:     connections,
 	}
 	go func() {
-		if serveErr := server.Serve(listener); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		tracked := &trackingListener{Listener: listener, tracker: connections}
+		if serveErr := server.Serve(tracked); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			logMu.Lock()
 			_, _ = fmt.Fprintf(cfg.LogWriter, "launcher: proxy stopped: %v\n", serveErr)
 			logMu.Unlock()
@@ -192,15 +207,108 @@ func Start(cfg Config) (*Instance, error) {
 // after the configured shutdown timeout.
 func (i *Instance) Close(ctx context.Context) error {
 	i.closeOnce.Do(func() {
+		i.draining.Store(true)
 		serverErr := i.server.Shutdown(ctx)
+		if serverErr == nil {
+			serverErr = i.connections.wait(ctx)
+		}
 		if errors.Is(serverErr, context.DeadlineExceeded) || errors.Is(serverErr, context.Canceled) {
 			_ = i.server.Close()
+			i.connections.closeAll()
 			serverErr = nil
 		}
 		processErr := terminate(i.process, i.shutdownTimeout, i.processState)
 		i.closeErr = errors.Join(serverErr, processErr)
 	})
 	return i.closeErr
+}
+
+type trackingListener struct {
+	net.Listener
+	tracker *connectionTracker
+}
+
+func (l *trackingListener) Accept() (net.Conn, error) {
+	connection, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return l.tracker.track(connection), nil
+}
+
+type trackedConnection struct {
+	net.Conn
+	tracker *connectionTracker
+	once    sync.Once
+}
+
+func (c *trackedConnection) Close() error {
+	err := c.Conn.Close()
+	c.once.Do(func() { c.tracker.remove(c) })
+	return err
+}
+
+type connectionTracker struct {
+	mu          sync.Mutex
+	connections map[*trackedConnection]struct{}
+	changed     chan struct{}
+}
+
+func newConnectionTracker() *connectionTracker {
+	return &connectionTracker{
+		connections: map[*trackedConnection]struct{}{},
+		changed:     make(chan struct{}),
+	}
+}
+
+func (t *connectionTracker) track(connection net.Conn) net.Conn {
+	tracked := &trackedConnection{Conn: connection, tracker: t}
+	t.mu.Lock()
+	t.connections[tracked] = struct{}{}
+	t.notifyLocked()
+	t.mu.Unlock()
+	return tracked
+}
+
+func (t *connectionTracker) remove(connection *trackedConnection) {
+	t.mu.Lock()
+	delete(t.connections, connection)
+	t.notifyLocked()
+	t.mu.Unlock()
+}
+
+func (t *connectionTracker) wait(ctx context.Context) error {
+	for {
+		t.mu.Lock()
+		if len(t.connections) == 0 {
+			t.mu.Unlock()
+			return nil
+		}
+		changed := t.changed
+		t.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-changed:
+		}
+	}
+}
+
+func (t *connectionTracker) closeAll() {
+	t.mu.Lock()
+	connections := make([]*trackedConnection, 0, len(t.connections))
+	for connection := range t.connections {
+		connections = append(connections, connection)
+	}
+	t.mu.Unlock()
+	for _, connection := range connections {
+		_ = connection.Close()
+	}
+}
+
+func (t *connectionTracker) notifyLocked() {
+	close(t.changed)
+	t.changed = make(chan struct{})
 }
 
 // Done closes when the DSH child exits for any reason.

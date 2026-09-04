@@ -1,0 +1,4 @@
+ARG CELL_BASE=dsh-cell:test
+FROM ${CELL_BASE}
+COPY --chown=1000:1000 --chmod=0555 test/e2e/phase3/fault-entrypoint.sh /usr/local/bin/cell-launcher
+ENTRYPOINT ["/usr/local/bin/cell-launcher"]
