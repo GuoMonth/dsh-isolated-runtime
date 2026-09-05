@@ -113,4 +113,10 @@ orchestrator. Evidence and the gate decision are recorded in the
 In progress: [milestone 7](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7).
 Latest exact DSH baseline (#50), complete user journey (#51), local demo (#52),
 immutable release bundle (#53), live acceptance and final GO/publication (#54).
+
+Earlier retrospectives remain historical evidence. The MVP supersedes their npm/RC
+baseline with the pinned 0.1.3-alpha.1 source build and records the native settings
+patch, authorization burst limit and snapshot acceptance race correction in
+[the current delivery ledger](docs/mvp-release.md). Historical GO decisions do not
+constitute acceptance of the new MVP artifacts.
 No fleet-platform expansion or historical compatibility.

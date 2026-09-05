@@ -20,13 +20,14 @@ built DSH CLI for a real browser exchange.
 | --- | --- |
 | Direct DSH exposure | Rejected: the standard CLI intentionally binds loopback and the launch URL contains a bearer token. |
 | Gateway configuration only | Rejected: it cannot own the process-memory token exchange or harden the returned cookie. |
-| Independent sidecar | Rejected: 0.1.2 RC has no supported way to inject or retrieve the launch token across a process boundary. |
+| Independent sidecar | Rejected: 0.1.3-alpha.1 has no supported way to inject or retrieve the launch token across a process boundary. |
 | Cell-local launcher | Selected: the parent process observes readiness, keeps the token in memory, and proxies DSH opaquely. |
 
 The current GitHub release has not been published to npm. The Cell image builds
 `build:official` from the exact source archive/checksum in baseline.json, deploys
 the upstream runtime closure, and completes omitted transitive workspace peers
-from that same source. It does not substitute older npm packages or patch DSH.
+from that same source. It does not substitute older npm packages. The only source change is the hashed
+Cell settings integration patch described below.
 The launcher remains PID 1. The native runtime dependencies are built in the image.
 
 Snapshot guarantees remain writer-stopped crash consistency. Upstream owns its

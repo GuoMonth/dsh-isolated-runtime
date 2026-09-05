@@ -54,7 +54,7 @@ database.
 
 ## Access seam
 
-DSH 0.1.2 RC creates a launch token in process memory, prints it once in the
+DSH 0.1.3-alpha.1 creates a launch token in process memory, prints it once in the
 loopback readiness URL, and exchanges it for an authority-bound browser cookie.
 There is no supported token injection interface. Therefore the selected design
 is a launcher in the same container:
@@ -106,13 +106,15 @@ Cell writers.
 `CellSnapshot` is an immutable, one-shot Kubernetes intent. A UID-bound Cell
 annotation acquired with resource-version compare-and-swap serializes data
 operations. Acceptance records both the source Cell UID and data PVC UID before
-the lock becomes active. Once `Accepted=True`, the Cell controller sets the
-StatefulSet to zero. Only an observed-zero StatefulSet plus an uncached,
+the lock becomes active. Once that lock is active, the Cell controller sets the
+StatefulSet to zero, even if the snapshot has not yet recorded `Accepted=True`.
+Acceptance revalidates the persisted source binding when resuming under its own
+lock; it does not require the deliberately fenced source to remain Ready. Only an observed-zero StatefulSet plus an uncached,
 namespace-wide check proving that neither a Pod owned by the current StatefulSet
 nor any Pod carrying the exact Cell name and UID remains establishes
 `WriterStopped=True` and permits creation of the CSI `VolumeSnapshot`. The
 controller revalidates the PVC UID and both CSI
-class drivers immediately before creation. DSH 0.1.2 RC maps successful disposal, disposal
+class drivers immediately before creation. DSH 0.1.3-alpha.1 maps successful disposal, disposal
 rejection, and timeout to externally indistinguishable process termination, so
 the public contract deliberately claims crash consistency and never application
 flush. Snapshot errors delete the owned Kubernetes snapshot object before the
@@ -121,14 +123,14 @@ VolumeSnapshotClass policy.
 
 A restore always creates a new data PVC and Cell identity. It requires a Ready,
 same-namespace snapshot, its exact recorded image digest, the one supported DSH
-RC, compatible size, and the same StorageClass. The private PVC is always new.
+version, compatible size, and the same StorageClass. The private PVC is always new.
 The data PVC records the snapshot UID, image digest, and DSH version. UID-bound
 finalizers keep the snapshot alive until that recorded image becomes the first
 Ready reader; another digest cannot enter first and deleting inputs cannot create
 an immutable PVC. Once CSI has materialized a Bound data PVC, that PVC's recorded
 provenance and the same finalizers form the durable barrier: a later snapshot
 delete request waits while the exact-image first reader continues. Rollout to
-another digest of the same RC is explicit only after this first-reader barrier.
+another digest of the same DSH version is explicit only after this first-reader barrier.
 Rollback is another fresh Cell from an older
 snapshot, never an in-place PVC downgrade.
 

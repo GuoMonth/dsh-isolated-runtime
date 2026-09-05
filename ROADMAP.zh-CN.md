@@ -95,5 +95,9 @@ policy engine、自定义队列或第二套集群编排器。证据与结论记�
 
 In progress: [milestone 7](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7).
 Latest exact DSH baseline (#50), complete user journey (#51), local demo (#52),
-immutable release bundle (#53), live acceptance and final GO/publication (#54).
+不可变发布包（#53）、真实模型验收及最终 GO/发布（#54）。
+
+既有复盘保留为历史证据。MVP 以精确 0.1.3-alpha.1 源码构建替代此前 npm/RC 基线；
+原生设置补丁、授权并发请求额度和快照接受竞态修正见[当前交付记录](docs/mvp-release.md)。
+历史 GO 不代表新 MVP 产物已经通过发布验收。
 No fleet-platform expansion or historical compatibility.

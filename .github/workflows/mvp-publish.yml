@@ -70,3 +70,17 @@ jobs:
           cp live/live-model.json dist/live-model.json
           gh release create "$version" dist/* --repo "$GITHUB_REPOSITORY" --target "$source_sha" \
             --prerelease --title "$version — first local MVP" --notes-file docs/release-notes.md
+      - name: Verify anonymous release download
+        run: |
+          version="$(jq -r .version dist/release.json)"
+          archive="$(awk '{print $2}' dist/SHA256SUMS)"
+          public_dir="$(mktemp -d)"
+          trap 'rm -rf "$public_dir"' EXIT
+          for file in "$archive" SHA256SUMS release.json live-model.json; do
+            curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 --max-time 600 \
+              "https://github.com/$GITHUB_REPOSITORY/releases/download/$version/$file" \
+              --output "$public_dir/$file"
+          done
+          cmp dist/SHA256SUMS "$public_dir/SHA256SUMS"
+          cmp dist/release.json "$public_dir/release.json"
+          node hack/check-release.mjs "$public_dir" "$public_dir/live-model.json"
