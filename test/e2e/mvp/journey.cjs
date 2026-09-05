@@ -29,7 +29,7 @@ const cookieFile=path.join(root,'runtime/journey-cookies.json');
     // Reuse the shipped first-run flow, including the write-only provider key.
     const welcome=page.getByRole('dialog');
     const continuation=welcome.getByRole('button',{name:/^Continue$|^继续$/i});
-    const keyInput=page.getByLabel(/API key|API 密钥/i,{exact:true});
+    const keyInput=page.getByLabel(/^API key$|^API 密钥$/i,{exact:true});
     if(!resume) {
       await continuation.or(keyInput).first().waitFor({timeout:30000});
       if(await continuation.isVisible())await continuation.click();
@@ -50,7 +50,7 @@ const cookieFile=path.join(root,'runtime/journey-cookies.json');
       await page.goto(`https://${host}:18443${previous.sessionPath}`,{waitUntil:'domcontentloaded'});
       await page.getByText(marker,{exact:false}).first().waitFor({timeout:30000});
     }
-    if(!resume&&!restored) {
+    if(!resume&&!restored && !await page.getByRole('button',{name:/^Select model/}).isVisible()) {
       await page.getByRole('button',{name:'Choose workspace',exact:true}).click();
       await page.getByRole('button',{name:'Edit path',exact:true}).click();
       await page.getByRole('textbox',{name:'Edit path',exact:true}).fill('/var/lib/dsh/data/workspace');
@@ -75,6 +75,10 @@ const cookieFile=path.join(root,'runtime/journey-cookies.json');
     await page.locator('[data-tool="write"][data-state="ok"]').nth(writes).waitFor({timeout:180000});
     await page.locator('[data-tool="read"][data-state="ok"]').last().waitFor({timeout:180000});
     await page.getByText(`Verified ${turnMarker}`,{exact:false}).last().waitFor({timeout:180000});
+    if(mode==='deterministic') {
+      // The fixture emits separate SSE chunks; the UI must render before EOF.
+      await page.getByRole('button',{name:'Stop generating',exact:true}).waitFor({timeout:5000});
+    }
     // A completed answer must leave the composer ready for another turn.
     await page.getByRole('button',{name:/stop generating/i}).waitFor({state:'hidden',timeout:30000});
     await context.storageState({path:cookieFile});

@@ -23,7 +23,9 @@ Ports 18443 and 15556 must be free; listeners bind only to loopback. Test login:
 `alice@example.com` / `password`. These credentials and the test identity server
 are only for the local demonstration.
 
-In DSH's own first-run dialog, enter your DeepSeek API key, select a model and
+In DSH's own first-run dialog, acknowledge the notice and enter your DeepSeek
+API key. Choose **Choose workspace → Edit path**, enter
+`/var/lib/dsh/data/workspace`, press Enter and select **Open**. Select a model and
 send a request such as “create hello.txt and read it back.” Model calls use your
 account. The project supplies no model service or separate provider settings UI.
 Keys configured in DSH live on the private volume; provider keys may alternatively
@@ -35,7 +37,9 @@ Cell and reconnects browser forwarding. Closing Chromium retains data. Do not
 change the demo release in place: export needed files before deleting a demo.
 
 ```sh
-export KUBECONFIG="${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime/kubeconfig"
+export DSH_DEMO_HOME="${DSH_DEMO_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime}"
+export PATH="$DSH_DEMO_HOME/tools/bin:$PATH"
+export KUBECONFIG="$DSH_DEMO_HOME/kubeconfig"
 kubectl -n tenant-demo get cells
 kubectl -n tenant-demo describe cell assistant
 kubectl -n tenant-demo get httproutes
@@ -52,11 +56,42 @@ Choose `./demo up --snapshots` on the first start. This adds the reference CSI
 hostpath test driver and snapshot controller; the Cell uses that StorageClass.
 The basic local-path volume cannot be changed to the CSI class in place.
 
-Create a CellSnapshot using the sample, wait for `Ready`, then create a new Cell
-with that snapshot as `storage.restoreFrom`, the recorded exact image digest,
-the same StorageClass and sufficient capacity. Use `csi-hostpath-sc` and
-`csi-hostpath-snapclass` in this local demonstration. Read the namespace-scoped
-examples under `config/samples/` before applying them.
+After exporting the dedicated kubeconfig as above:
+
+```sh
+kubectl -n tenant-demo apply -f - <<'YAML'
+apiVersion: dsh.isolated.io/v1alpha1
+kind: CellSnapshot
+metadata: {name: assistant-backup}
+spec:
+  cellRef: {name: assistant}
+  volumeSnapshotClassName: csi-hostpath-snapclass
+YAML
+kubectl -n tenant-demo wait cellsnapshot assistant-backup --for=condition=Ready --timeout=720s
+
+cell_image="$(jq -r .images.cell release.json)"
+kubectl -n tenant-demo apply -f - <<YAML
+apiVersion: dsh.isolated.io/v1alpha1
+kind: Cell
+metadata: {name: restored}
+spec:
+  image: $cell_image
+  storage:
+    size: 1Gi
+    storageClassName: csi-hostpath-sc
+    retentionPolicy: Retain
+    restoreFrom: {name: assistant-backup}
+YAML
+kubectl -n tenant-demo wait cell restored --for=condition=Ready --timeout=300s
+restored_uid="$(kubectl -n tenant-demo get cell restored -o jsonpath='{.metadata.uid}')"
+kubectl -n tenant-demo create rolebinding restored-access --role="cell-$restored_uid-access" \
+  --user='https://dex.dsh-system.svc:15556/dex#CglhbGljZS1zdWISBWxvY2Fs'
+kubectl -n tenant-demo get httproute "cell-$restored_uid" -o jsonpath='{.spec.hostnames[0]}'
+```
+
+Open `https://<printed-hostname>:18443` in the Chromium window opened by
+`demo open`. Select the restored session and re-enter your model key through
+DSH's native onboarding. The original Cell is resumed after snapshot completion.
 
 Snapshots stop the writer and provide crash consistency, not an acknowledged
 application flush. The fresh Cell has new identity and private storage: authorize

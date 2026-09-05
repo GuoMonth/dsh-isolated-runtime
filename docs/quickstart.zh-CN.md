@@ -18,7 +18,9 @@ Chromium 下载到演示私有目录，不需要 Go 编译器，不修改系统�
 或系统证书信任。18443 和 15556 端口必须空闲，入口仅绑定 loopback。
 
 测试登录使用 `alice@example.com` / `password`。该测试身份系统仅用于本地演示。
-进入 DSH 原生引导界面后填写自己的 DeepSeek API Key、选择模型，发送“创建 hello.txt 并读回”
+进入 DSH 原生引导界面后确认提示并填写自己的 DeepSeek API Key。点击 **Choose workspace →
+Edit path**，填写 `/var/lib/dsh/data/workspace`，按 Enter 后点击 **Open**。
+选择模型，发送“创建 hello.txt 并读回”
 之类的请求。模型费用由该账户承担；本项目不提供模型服务或另一套模型配置界面。
 界面保存的 key 位于 private 卷；也可以用同 namespace 的 Secret 与 `credentialsRef` 注入环境变量。
 
@@ -27,7 +29,9 @@ Chromium 下载到演示私有目录，不需要 Go 编译器，不修改系统�
 本地演示不做跨版本原地迁移；需要保留的文件应在显式清理前导出。
 
 ```sh
-export KUBECONFIG="${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime/kubeconfig"
+export DSH_DEMO_HOME="${DSH_DEMO_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime}"
+export PATH="$DSH_DEMO_HOME/tools/bin:$PATH"
+export KUBECONFIG="$DSH_DEMO_HOME/kubeconfig"
 kubectl -n tenant-demo get cells
 kubectl -n tenant-demo describe cell assistant
 kubectl -n tenant-demo get httproutes
@@ -41,9 +45,42 @@ kubectl -n tenant-demo get httproutes
 首次启动使用 `./demo up --snapshots`，安装参考 CSI hostpath test driver 和 snapshot controller。
 普通 local-path 卷不能原地改为 CSI StorageClass，因此需要在创建 Cell 前选择。
 
-参考 `config/samples/`：先创建 CellSnapshot，等待 `Ready`，再创建一个新 Cell，将
-`storage.restoreFrom` 指向该快照，使用快照记录的精确镜像、同一个 StorageClass 和足够容量。
-本地演示使用 `csi-hostpath-sc` 和 `csi-hostpath-snapclass`；示例 namespace 需改为 `tenant-demo`。
+先按上文设置专用 kubeconfig，然后执行：
+
+```sh
+kubectl -n tenant-demo apply -f - <<'YAML'
+apiVersion: dsh.isolated.io/v1alpha1
+kind: CellSnapshot
+metadata: {name: assistant-backup}
+spec:
+  cellRef: {name: assistant}
+  volumeSnapshotClassName: csi-hostpath-snapclass
+YAML
+kubectl -n tenant-demo wait cellsnapshot assistant-backup --for=condition=Ready --timeout=720s
+
+cell_image="$(jq -r .images.cell release.json)"
+kubectl -n tenant-demo apply -f - <<YAML
+apiVersion: dsh.isolated.io/v1alpha1
+kind: Cell
+metadata: {name: restored}
+spec:
+  image: $cell_image
+  storage:
+    size: 1Gi
+    storageClassName: csi-hostpath-sc
+    retentionPolicy: Retain
+    restoreFrom: {name: assistant-backup}
+YAML
+kubectl -n tenant-demo wait cell restored --for=condition=Ready --timeout=300s
+restored_uid="$(kubectl -n tenant-demo get cell restored -o jsonpath='{.metadata.uid}')"
+kubectl -n tenant-demo create rolebinding restored-access --role="cell-$restored_uid-access" \
+  --user='https://dex.dsh-system.svc:15556/dex#CglhbGljZS1zdWISBWxvY2Fs'
+kubectl -n tenant-demo get httproute "cell-$restored_uid" -o jsonpath='{.spec.hostnames[0]}'
+```
+
+
+在 `demo open` 打开的 Chromium 中访问 `https://<输出的 hostname>:18443`，重新配置模型凭据，
+选择恢复出的会话继续使用。原 Cell 在快照完成后自动恢复运行。
 
 快照提供停止 writer 后的崩溃一致性，不承诺应用 flush。恢复 Cell 的身份和 private 卷全新创建，
 需要授权其新的 access Role 并重新配置模型凭据。生产 CSI 和备份生命周期由集群管理员负责。

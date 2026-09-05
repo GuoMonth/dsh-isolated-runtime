@@ -76,7 +76,7 @@ jobs:
       - name: Install kind
         run: go install sigs.k8s.io/kind@v0.32.0
       - name: Verify code and generated surfaces
-        run: make verify test-envtest verify-cell
+        run: make verify test-envtest verify-cell && node hack/verify-release-contract.mjs
 
   compatibility:
     name: Exact DSH compatibility
@@ -279,6 +279,7 @@ jobs:
       - name: Anonymous archive installation and deterministic DSH journey
         run: ./hack/verify-mvp.sh dist
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: mvp-acceptance
           path: dist/evidence/

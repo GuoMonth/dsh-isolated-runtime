@@ -31,7 +31,8 @@ http.createServer(async (req,res) => {
       if(part.type==='image_url') {if(!part.image_url.url.startsWith('data:image/'))throw Error('missing image content');evidence.images++;}
     }
     const textOf=m=>typeof m.content==='string'?m.content:(m.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n');
-    const user=messages.findLastIndex(m=>m.role==='user');
+    // DSH appends runtime-context user frames after the actual prompt.
+    const user=messages.findLastIndex(m=>m.role==='user'&&/MVP_[a-f0-9]{12}/.test(textOf(m)));
     const results=messages.slice(user+1).filter(m=>m.role==='tool');
     const tools=body.tools||[];
     const marker=/MVP_[a-f0-9]{12}/.exec(textOf(messages[user]||{content:''}))?.[0];

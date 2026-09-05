@@ -8,15 +8,36 @@ node "$repo_root/hack/check-release.mjs" "$candidate"
 proof_root="$(mktemp -d)"
 export DSH_DEMO_HOME="$proof_root/state"
 export MVP_MODE="${MVP_MODE:-deterministic}"
+export MVP_MODEL="${MVP_MODEL:-$([[ "$MVP_MODE" == deterministic ]] && echo deepseek-v4-flash-vision-exp || echo deepseek-v4-flash)}"
+export DOCKER_CONFIG="$proof_root/docker"
+mkdir -p "$DOCKER_CONFIG"
 mkdir -p "$proof_root/bundle"
 tar -xzf "$candidate"/*.tar.gz -C "$proof_root/bundle" --strip-components=1
 bundle="$proof_root/bundle"
 cleanup() {
   local status=$?
-  if ((status != 0)); then echo "MVP proof failed; private diagnostics retained: $proof_root" >&2
+  if [[ -n "${port_pid:-}" ]]; then kill "$port_pid" 2>/dev/null || true; fi
+  if [[ -n "${saved_owner:-}" ]]; then printf '%s\n' "$saved_owner" > "$DSH_DEMO_HOME/owner"; fi
+  if ((status != 0)); then
+    echo "MVP proof failed; private diagnostics retained: $proof_root" >&2
+    mkdir -p "$candidate/evidence"
+    kubectl --kubeconfig "$DSH_DEMO_HOME/kubeconfig" get pods,cells,httproutes -A > "$candidate/evidence/objects.txt" 2>&1 || true
+    node "$repo_root/hack/check-release.mjs" "$candidate" | jq --arg kind "$MVP_MODE" '. + {kind:$kind,success:false}' > "$candidate/evidence/failure.json"
   elif [[ "${MVP_KEEP_DEMO:-0}" != 1 ]]; then "$bundle/demo" down; rm -rf "$proof_root"; fi
 }
 trap cleanup EXIT
+# A real occupied listener must fail before creating a cluster.
+node -e 'const fs=require("node:fs");require("node:net").createServer().listen(18443,"127.0.0.1",()=>fs.writeFileSync(process.argv[1],"ready"))' "$proof_root/port-ready" > "$proof_root/port.log" 2>&1 &
+port_pid=$!
+for _ in $(seq 1 50); do [[ -f "$proof_root/port-ready" ]] && break; sleep 0.1; done
+if [[ ! -f "$proof_root/port-ready" ]]; then echo 'Free demo ports 18443 and 15556 before acceptance' >&2; exit 1; fi
+if "$bundle/demo" up --snapshots > "$proof_root/port-conflict.log" 2>&1; then
+  kill "$port_pid"; echo 'Demo accepted an occupied port' >&2; exit 1
+fi
+kill "$port_pid"; wait "$port_pid" 2>/dev/null || true
+unset port_pid
+grep -Fq 'Local port 18443 is occupied' "$proof_root/port-conflict.log"
+test ! -f "$DSH_DEMO_HOME/owner"
 "$bundle/demo" up --snapshots
 export PATH="$DSH_DEMO_HOME/tools/bin:$PATH"
 k() { kubectl --kubeconfig "$DSH_DEMO_HOME/kubeconfig" "$@"; }
@@ -77,7 +98,7 @@ browser_run() {
     fi
     docker run --rm --network host --shm-size=1g --user "$(id -u):$(id -g)" \
       --volume "$proof_root:$proof_root" --env "DSH_DEMO_HOME=$DSH_DEMO_HOME" \
-      --env "MVP_MODE=$MVP_MODE" --env "MVP_RESUME=${MVP_RESUME:-0}" \
+      --env "MVP_MODEL=$MVP_MODEL" --env "MVP_MODE=$MVP_MODE" --env "MVP_RESUME=${MVP_RESUME:-0}" \
       --env "MVP_RESTORED=${MVP_RESTORED:-0}" \
       --env PLAYWRIGHT_BROWSERS_PATH=/ms-playwright "${mounts[@]}" \
       "$playwright_image" node "$bundle/test/e2e/mvp/journey.cjs"
@@ -85,12 +106,16 @@ browser_run() {
 }
 browser_run
 marker="$(jq -r .marker "$DSH_DEMO_HOME/runtime/journey.json")"
-test "$(k -n tenant-demo exec "cell-$uid-0" -- cat "/var/lib/dsh/data/workspace/$marker.txt")" = "$marker"
+storage_check() {
+  k -n tenant-demo exec -i "cell-$1-0" -- node - "$marker" "$MVP_MODE" "$2" < "$bundle/test/e2e/mvp/storage.cjs"
+}
+storage_check "$uid" initial
 k -n tenant-demo delete pod "cell-$uid-0" --wait=true
 k -n tenant-demo rollout status "statefulset/cell-$uid" --timeout=300s
 MVP_RESUME=1 browser_run
+storage_check "$uid" restarted
 if [[ "$MVP_MODE" == deterministic ]]; then
-  k -n dsh-system exec mvp-provider -- node -e 'fetch("http://127.0.0.1:18080/evidence").then(r=>r.json()).then(e=>{if(e.readResults<2||e.writeResults<2)process.exit(1)})'
+  k -n dsh-system exec mvp-provider -- node -e 'fetch("http://127.0.0.1:18080/evidence").then(r=>r.json()).then(e=>{if(e.readResults<2||e.writeResults<2||e.attachmentReads<2||e.images<1)process.exit(1)})'
 fi
 # Fresh restore from actual completed model/tool state, using the same image.
 k -n tenant-demo apply -f - <<EOF
@@ -117,7 +142,7 @@ k -n tenant-demo wait cell restored --for=condition=Ready --timeout=300s
 restored_uid="$(k -n tenant-demo get cell restored -o jsonpath='{.metadata.uid}')"
 test "$restored_uid" != "$uid"
 test "$(k -n tenant-demo exec "cell-$restored_uid-0" -- cat "/var/lib/dsh/data/workspace/$marker.txt")" = "$marker"
-k -n tenant-demo exec "cell-$restored_uid-0" -- sh -c '! grep -q DEEPSEEK_API_KEY /var/lib/dsh-private/.credentials.yaml'
+storage_check "$restored_uid" fresh-restore
 if [[ "$MVP_MODE" == deterministic ]]; then
   k -n tenant-demo patch cell restored --type=merge -p '{"spec":{"credentialsRef":{"name":"mvp-provider-endpoint"}}}'
   wait_cell restored
@@ -126,11 +151,30 @@ k -n tenant-demo create rolebinding restored-access --role="cell-$restored_uid-a
   --user='https://dex.dsh-system.svc:15556/dex#CglhbGljZS1zdWISBWxvY2Fs'
 k -n tenant-demo get httproute "cell-$restored_uid" -o jsonpath='{.spec.hostnames[0]}' > "$DSH_DEMO_HOME/runtime/hostname"
 MVP_RESTORED=1 browser_run
+storage_check "$restored_uid" restored-configured
 # Repeating up preserves the source UID and data, and does not replace TLS state.
 "$bundle/demo" up --snapshots
 test "$(k -n tenant-demo get cell assistant -o jsonpath='{.metadata.uid}')" = "$uid"
+# Refuse deletion when ownership evidence disagrees, preserving all Cells.
+saved_owner="$(cat "$DSH_DEMO_HOME/owner")"
+printf 'unowned\n' > "$DSH_DEMO_HOME/owner"
+if "$bundle/demo" down > "$proof_root/ownership.log" 2>&1; then
+  echo 'Demo deleted resources without matching ownership' >&2; exit 1
+fi
+printf '%s\n' "$saved_owner" > "$DSH_DEMO_HOME/owner"
+unset saved_owner
+test "$(k -n tenant-demo get cell assistant -o jsonpath='{.metadata.uid}')" = "$uid"
+# Explicit teardown is destructive only to the owned demo, and idempotent.
+"$bundle/demo" down
+"$bundle/demo" down
+test ! -f "$DSH_DEMO_HOME/kubeconfig"
+# Also prove the default installation works without opting into CSI/metrics.
+"$bundle/demo" up
+k -n tenant-demo get cell assistant -o json | jq -e '.spec.storage.storageClassName=="standard"' >/dev/null
+if k get crd volumesnapshots.snapshot.storage.k8s.io >/dev/null 2>&1; then echo 'Default demo installed snapshots unexpectedly' >&2; exit 1; fi
+k -n dsh-system get deployment cell-operator -o json | jq -e 'all(.spec.template.spec.containers[0].args[]; (startswith("--metrics-bind-address=")|not) or .=="--metrics-bind-address=0")' >/dev/null
 mkdir -p "$candidate/evidence"
 node "$repo_root/hack/check-release.mjs" "$candidate" | \
-  jq --arg kind "$MVP_MODE" --arg model "${MVP_MODEL:-deepseek-v4-flash}" \
+  jq --arg kind "$MVP_MODE" --arg model "$MVP_MODEL" \
     '. + {kind:$kind,model:$model,success:true}' > "$candidate/evidence/$MVP_MODE.json"
 echo "MVP $MVP_MODE exact-archive acceptance passed"

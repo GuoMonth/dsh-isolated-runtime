@@ -99,3 +99,14 @@ jobs:
         with:
           version: v2.13.2
           args: --timeout=3m
+
+  release-contract:
+    name: MVP release contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - run: node hack/verify-release-contract.mjs
+      - run: shellcheck -x demo demo-files/tools.sh hack/verify-mvp.sh hack/fetch-candidate.sh
