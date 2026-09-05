@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"net"
 	"net/http"
@@ -38,11 +39,18 @@ type rpcResponse[T any] struct {
 }
 
 func main() {
+	policyUID := flag.String("envoy-cookie-suffix-for-uid", "", "print the pinned Gateway's unpadded FNV-1a cookie suffix for a fixture policy UID")
 	connect := flag.String("connect", "", "TCP address reached by the probe, for example 127.0.0.1:18080")
 	authority := flag.String("authority", "", "external Host authority preserved by the launcher")
 	stateFile := flag.String("state-file", "", "mode-0600 file used to persist cookie and session id across a restart")
 	resume := flag.Bool("resume", false, "reuse existing state without performing a launch-token exchange")
 	flag.Parse()
+	if *policyUID != "" {
+		hash := fnv.New32a()
+		_, _ = hash.Write([]byte(*policyUID))
+		fmt.Printf("%x\n", hash.Sum32())
+		return
+	}
 	if err := run(*connect, *authority, *stateFile, *resume); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "dshprobe: %v\n", err)
 		os.Exit(1)

@@ -58,12 +58,15 @@ func TestEnvoyOAuthCookieContract(t *testing.T) {
 		if !IsEnvoyOAuthCookie(name) || !IsEnvoyOAuthCookie(strings.ToLower(name)) {
 			t.Fatalf("reserved cookie %q was not recognized", name)
 		}
-		if !IsEnvoyOAuthCookie(name+"-5f93C2e4") || !IsEnvoyOAuthCookie(strings.ToLower(name)+"-ABCDEF12") {
-			t.Fatalf("suffixed reserved cookie %q was not recognized", name)
+		// Gateway v1.9.1 formats FNV-1a Sum32 with %x, without zero padding.
+		for _, suffix := range []string{"0", "f", "aB", "abc", "1234", "abcde", "ABCDEF", "5f93c2e", "5f93C2e4"} {
+			if !IsEnvoyOAuthCookie(name+"-"+suffix) || !IsEnvoyOAuthCookie(strings.ToLower(name)+"-"+suffix) {
+				t.Fatalf("suffixed reserved cookie %q was not recognized", name+"-"+suffix)
+			}
 		}
 	}
 	for _, name := range []string{
-		"dsh-auth-example", "theme", "session", "AccessToken-5f93c2e", "AccessToken-5f93c2e45",
+		"dsh-auth-example", "theme", "session", "AccessToken-", "AccessToken-5f93c2e45",
 		"AccessToken-nothex12", "myAccessToken-5f93c2e4", "AccessToken-preference",
 	} {
 		if IsEnvoyOAuthCookie(name) {
