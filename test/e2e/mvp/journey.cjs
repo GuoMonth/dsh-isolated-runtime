@@ -6,7 +6,8 @@ const {chromium}=require(path.join(root,'browser/node_modules/playwright'));
 const mode=process.env.MVP_MODE||'deterministic';
 const stateFile=path.join(root,'runtime/journey.json');
 const resume=process.env.MVP_RESUME==='1';
-const marker=resume?JSON.parse(fs.readFileSync(stateFile)).marker:`MVP_${crypto.randomBytes(6).toString('hex')}`;
+const restored=process.env.MVP_RESTORED==='1';
+const marker=(resume||restored)?JSON.parse(fs.readFileSync(stateFile)).marker:`MVP_${crypto.randomBytes(6).toString('hex')}`;
 const cookieFile=path.join(root,'runtime/journey-cookies.json');
 (async()=>{
   const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_EXECUTABLE||undefined,args:['--host-resolver-rules=MAP *.cells.test 127.0.0.1,MAP dex.dsh-system.svc 127.0.0.1']});
@@ -38,7 +39,7 @@ const cookieFile=path.join(root,'runtime/journey-cookies.json');
       await page.getByRole('button',{name:/save.*continue|保存并继续/i}).click();
     }
     await page.locator('[data-composer-input]').first().waitFor({timeout:30000});
-    if(resume) {
+    if(resume||restored) {
       await page.getByText(marker,{exact:false}).first().waitFor({timeout:30000});
     }
     const input=page.locator('[data-composer-input]').first();

@@ -58,7 +58,11 @@ wait_absent() {
 checkout_exact() {
   local url="$1" commit="$2" destination="$3" attempt
   git init -q "$destination"
-  git -C "$destination" remote add origin "$url"
+  if git -C "$destination" remote get-url origin >/dev/null 2>&1; then
+    git -C "$destination" remote set-url origin "$url"
+  else
+    git -C "$destination" remote add origin "$url"
+  fi
   for attempt in $(seq 1 5); do
     if git -C "$destination" -c http.version=HTTP/1.1 fetch -q --depth=1 origin "$commit"; then
       break
@@ -118,4 +122,3 @@ k apply -f "$hostpath_root/examples/csi-storageclass.yaml"
 k get volumesnapshotclass csi-hostpath-snapclass -o json | jq -e '
   .driver == "hostpath.csi.k8s.io" and .deletionPolicy == "Delete"
 ' >/dev/null
-

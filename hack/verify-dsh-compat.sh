@@ -40,7 +40,7 @@ export DSH_E2E_MAX_WORKERS="${DSH_E2E_MAX_WORKERS:-8}"
 export DSH_TELEMETRY_DISABLED=1
 test "$(pnpm --version)" = "${package_manager#pnpm@}"
 pnpm install --frozen-lockfile --ignore-scripts
-pnpm rebuild esbuild fs-ext node-pty koffi
+pnpm --recursive rebuild esbuild fs-ext node-pty koffi
 pnpm run build:official
 
 vitest="$checkout/node_modules/.bin/vitest"

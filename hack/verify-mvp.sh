@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Test the exact downloadable archive. Only the external model is replaced.
+# shellcheck disable=SC1091,SC2154
 set -Eeuo pipefail
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 candidate="$(cd "${1:?candidate directory required}" && pwd)"
@@ -19,6 +20,13 @@ trap cleanup EXIT
 "$bundle/demo" up --snapshots
 export PATH="$DSH_DEMO_HOME/tools/bin:$PATH"
 k() { kubectl --kubeconfig "$DSH_DEMO_HOME/kubeconfig" "$@"; }
+wait_cell() {
+  for _ in $(seq 1 300); do
+    if k -n tenant-demo get cell "$1" -o json | jq -e '.status.observedGeneration==.metadata.generation and any(.status.conditions[]?; .type=="Ready" and .status=="True")' >/dev/null; then return; fi
+    sleep 1
+  done
+  echo "Cell $1 did not converge" >&2; return 1
+}
 cell_image="$(jq -r .images.cell "$candidate/release.json")"
 if [[ "$MVP_MODE" == deterministic ]]; then
   k -n dsh-system create configmap mvp-provider --from-file=provider.cjs="$bundle/test/e2e/mvp/provider.cjs"
@@ -52,6 +60,7 @@ EOF
   k -n tenant-demo patch cell assistant --type=merge -p '{"spec":{"credentialsRef":{"name":"mvp-provider-endpoint"}}}'
 fi
 uid="$(k -n tenant-demo get cell assistant -o jsonpath='{.metadata.uid}')"
+wait_cell assistant
 k -n tenant-demo rollout status "statefulset/cell-$uid" --timeout=300s
 mkdir -p "$DSH_DEMO_HOME/browser"
 cp "$bundle/test/e2e/phase2/package"*.json "$DSH_DEMO_HOME/browser/"
@@ -69,6 +78,7 @@ browser_run() {
     docker run --rm --network host --shm-size=1g --user "$(id -u):$(id -g)" \
       --volume "$proof_root:$proof_root" --env "DSH_DEMO_HOME=$DSH_DEMO_HOME" \
       --env "MVP_MODE=$MVP_MODE" --env "MVP_RESUME=${MVP_RESUME:-0}" \
+      --env "MVP_RESTORED=${MVP_RESTORED:-0}" \
       --env PLAYWRIGHT_BROWSERS_PATH=/ms-playwright "${mounts[@]}" \
       "$playwright_image" node "$bundle/test/e2e/mvp/journey.cjs"
   fi
@@ -108,6 +118,14 @@ restored_uid="$(k -n tenant-demo get cell restored -o jsonpath='{.metadata.uid}'
 test "$restored_uid" != "$uid"
 test "$(k -n tenant-demo exec "cell-$restored_uid-0" -- cat "/var/lib/dsh/data/workspace/$marker.txt")" = "$marker"
 k -n tenant-demo exec "cell-$restored_uid-0" -- sh -c '! grep -q DEEPSEEK_API_KEY /var/lib/dsh-private/.credentials.yaml'
+if [[ "$MVP_MODE" == deterministic ]]; then
+  k -n tenant-demo patch cell restored --type=merge -p '{"spec":{"credentialsRef":{"name":"mvp-provider-endpoint"}}}'
+  wait_cell restored
+fi
+k -n tenant-demo create rolebinding restored-access --role="cell-$restored_uid-access" \
+  --user='https://dex.dsh-system.svc:15556/dex#CglhbGljZS1zdWISBWxvY2Fs'
+k -n tenant-demo get httproute "cell-$restored_uid" -o jsonpath='{.spec.hostnames[0]}' > "$DSH_DEMO_HOME/runtime/hostname"
+MVP_RESTORED=1 browser_run
 # Repeating up preserves the source UID and data, and does not replace TLS state.
 "$bundle/demo" up --snapshots
 test "$(k -n tenant-demo get cell assistant -o jsonpath='{.metadata.uid}')" = "$uid"

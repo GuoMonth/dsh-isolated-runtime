@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Local disposable demonstration. Production ownership stays in Kubernetes.
+# shellcheck disable=SC1091
 set -Eeuo pipefail
 umask 077
 repo_root="$(cd "$(dirname "$0")" && pwd)"
@@ -39,6 +40,10 @@ stop_forwards() {
     if [[ "$pid" =~ ^[0-9]+$ ]] && [[ -r "/proc/$pid/cmdline" ]] &&
       tr '\0' ' ' < "/proc/$pid/cmdline" | grep -Fq -- "--kubeconfig $kubeconfig"; then
       kill "$pid" 2>/dev/null || true
+      for _ in $(seq 1 50); do
+        [[ -e "/proc/$pid" ]] || break
+        sleep 0.1
+      done
     fi
     rm -f "$file"
   done
@@ -150,6 +155,7 @@ YAML
     if [[ -z "${CHROME_EXECUTABLE:-}" ]]; then
       node "$demo_root/browser/node_modules/playwright/cli.js" install chromium
     fi
+    flock -u 9
     DSH_DEMO_HOME="$demo_root" node "$repo_root/demo-files/open.cjs"
     ;;
   down)

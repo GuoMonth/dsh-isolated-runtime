@@ -24,7 +24,7 @@ RUN node -e 'const b=require("/baseline.json"); process.stdout.write(b.distribut
     && node -e 'const fs=require("fs"),c=require("crypto"),b=require("/baseline.json"); if(require("./package.json").version!==b.source.version || c.createHash("sha256").update(fs.readFileSync("pnpm-lock.yaml")).digest("hex")!==b.toolchain.lockfileSHA256)process.exit(1)'
 ENV CI=1 DSH_TELEMETRY_DISABLED=1 npm_config_nodedir=/usr/local
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile --ignore-scripts \
-    && pnpm rebuild esbuild fs-ext node-pty koffi
+    && pnpm --recursive rebuild esbuild fs-ext node-pty koffi
 RUN DSH_CLIENT_COMMIT_HASH="$(node -p 'require("/baseline.json").source.commit')" pnpm run build:official
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm --filter dsh-python-runtime-closure deploy --legacy --prod \
        --config.node-linker=hoisted --config.auto-install-peers=false --config.link-workspace-packages=true /opt/dsh

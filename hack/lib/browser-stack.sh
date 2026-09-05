@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2154
 install_reference_network() {
 for calico_image in \
   quay.io/calico/cni:v3.32.2 \
