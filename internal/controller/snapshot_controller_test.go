@@ -70,7 +70,20 @@ func TestSnapshotLifecycleAndFreshCellRestore(t *testing.T) {
 		Client: kube, Scheme: cellReconciler.Scheme,
 		Config: SnapshotConfig{Enabled: true, WriterStopTimeout: 2 * time.Minute, SnapshotTimeout: 30 * time.Minute},
 	}
-	reconcileSnapshot(t, snapshotReconciler, snapshot, 4)
+	reconcileSnapshot(t, snapshotReconciler, snapshot, 3)
+	locked := get[*dshv1alpha1.Cell](t, kube, cell.Namespace, cell.Name)
+	if locked.Annotations[cellcontract.ActiveSnapshotAnnotation] != string(snapshot.UID) {
+		t.Fatal("snapshot did not acquire the operation lock")
+	}
+	// The Cell worker may observe the lock before the snapshot worker records
+	// Accepted. Its writer fence makes Ready false; that must not deadlock the
+	// very operation which owns the fence, including after a controller restart.
+	reconcileCell(t, cellReconciler, cell)
+	locked = get[*dshv1alpha1.Cell](t, kube, cell.Namespace, cell.Name)
+	if conditionTrue(locked.Status.Conditions, dshv1alpha1.ConditionReady) {
+		t.Fatal("writer fence did not withdraw Cell readiness")
+	}
+	reconcileSnapshot(t, snapshotReconciler, snapshot, 1)
 	accepted := get[*dshv1alpha1.CellSnapshot](t, kube, snapshot.Namespace, snapshot.Name)
 	if !conditionTrue(accepted.Status.Conditions, dshv1alpha1.ConditionSnapshotAccepted) || conditionTrue(accepted.Status.Conditions, dshv1alpha1.ConditionSnapshotWriterStopped) {
 		t.Fatalf("snapshot lock did not precede writer stop: status=%#v", accepted.Status)

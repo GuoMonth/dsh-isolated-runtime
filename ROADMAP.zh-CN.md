@@ -7,7 +7,7 @@ Roadmap 按垂直大里程碑推进。每个大里程碑结束时必须复盘并
 本次交付完成：
 
 - 唯一的 namespaced `Cell` API 与可重复生成的 CRD；
-- DSH 源码、状态、协议及关闭行为精确基线，当前已推进至 `dsh-v0.1.2-rc.1`；
+- DSH 源码、状态、协议及关闭行为精确基线，当前已推进至 `dsh-v0.1.3-alpha.1`；
 - 可执行的 Cell-local launcher 实验；
 - kind 契约测试、轻量 CI 与按路径触发的完整 DSH CI；
 - 删除旧 Runtime/control-plane 架构。
@@ -90,3 +90,14 @@ lifecycle 仍由集群管理员负责。证据与 `GO` 结论记录在
 Kubernetes 始终是 fleet 的调度器和状态协调器。Phase 4 不增加 Fleet API、inventory database、
 policy engine、自定义队列或第二套集群编排器。证据与结论记录在
 [Phase 4 复盘](https://github.com/GuoMonth/dsh-isolated-runtime/issues/39)。
+
+## MVP v0.1.0 — Core closure and release
+
+In progress: [milestone 7](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7).
+Latest exact DSH baseline (#50), complete user journey (#51), local demo (#52),
+不可变发布包（#53）、真实模型验收及最终 GO/发布（#54）。
+
+既有复盘保留为历史证据。MVP 以精确 0.1.3-alpha.1 源码构建替代此前 npm/RC 基线；
+原生设置补丁、授权并发请求额度和快照接受竞态修正见[当前交付记录](docs/mvp-release.md)。
+历史 GO 不代表新 MVP 产物已经通过发布验收。
+No fleet-platform expansion or historical compatibility.

@@ -40,7 +40,9 @@ export DSH_E2E_MAX_WORKERS="${DSH_E2E_MAX_WORKERS:-8}"
 export DSH_TELEMETRY_DISABLED=1
 test "$(pnpm --version)" = "${package_manager#pnpm@}"
 pnpm install --frozen-lockfile --ignore-scripts
-pnpm run build
+pnpm --recursive rebuild esbuild fs-ext node-pty koffi
+node "$repo_root/compat/dsh/apply-patches.mjs" "$checkout"
+pnpm run build:official
 
 vitest="$checkout/node_modules/.bin/vitest"
 "$vitest" run --maxWorkers="$DSH_E2E_MAX_WORKERS" \

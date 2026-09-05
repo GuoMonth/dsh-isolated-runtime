@@ -1,9 +1,11 @@
 package dsh
 
 import (
+	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
@@ -24,10 +26,15 @@ type baseline struct {
 		LockfileSHA256 string `json:"lockfileSHA256"`
 	} `json:"toolchain"`
 	Distribution struct {
-		Package   string `json:"package"`
-		Version   string `json:"version"`
-		Tarball   string `json:"tarball"`
-		Integrity string `json:"integrity"`
+		Mode    string `json:"mode"`
+		Package string `json:"package"`
+		Version string `json:"version"`
+		Archive string `json:"archive"`
+		SHA256  string `json:"sha256"`
+		Patches []struct {
+			File   string `json:"file"`
+			SHA256 string `json:"sha256"`
+		} `json:"patches"`
 	} `json:"distribution"`
 	Shutdown struct {
 		Signal               string `json:"signal"`
@@ -51,7 +58,7 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	if value.SchemaVersion != 1 || value.Source.Repository != "https://github.com/deepseek-ai/deepseek-harness.git" {
 		t.Fatalf("unexpected source contract: %+v", value.Source)
 	}
-	if value.Source.Tag != "dsh-v0.1.2-rc.1" || value.Source.Version != "0.1.2-rc.1" {
+	if value.Source.Tag != "dsh-v0.1.3-alpha.1" || value.Source.Version != "0.1.3-alpha.1" {
 		t.Fatalf("unexpected DSH release: %+v", value.Source)
 	}
 	if len(value.Source.Commit) != 40 {
@@ -63,13 +70,26 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	if value.Toolchain.PackageManager != "pnpm@11.7.0" || len(value.Toolchain.LockfileSHA256) != 64 {
 		t.Fatalf("toolchain is not exact: %+v", value.Toolchain)
 	}
-	if value.Distribution.Package != "@deepseek-ai/dsh" || value.Distribution.Version != value.Source.Version ||
-		value.Distribution.Tarball != "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.1.2-rc.1.tgz" ||
-		value.Distribution.Integrity != "sha512-RPq48TzxvwpdT9/7W1tbhZDBMmeK+bxDrX9cqQC27Wx/LqtgJF8PSa3b3xriU8oxtvhwYmk21w2cej3uMQrnVA==" {
+	if value.Distribution.Mode != "source-deploy" || value.Distribution.Package != "@deepseek-ai/dsh" || value.Distribution.Version != value.Source.Version ||
+		value.Distribution.Archive != "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/"+value.Source.Commit ||
+		len(value.Distribution.SHA256) != 64 {
 		t.Fatalf("runtime distribution is not exact: %+v", value.Distribution)
 	}
 	if strings.Contains(strings.ToLower(string(baselineJSON)), "latest") {
 		t.Fatal("compatibility baseline contains a floating latest reference")
+	}
+	if len(value.Distribution.Patches) != 1 || value.Distribution.Patches[0].File != "patches/cell-settings.patch" {
+		t.Fatal("expected the single reviewed Cell settings integration patch")
+	}
+	for _, patch := range value.Distribution.Patches {
+		contents, err := os.ReadFile(patch.File)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256(contents)
+		if hex.EncodeToString(digest[:]) != patch.SHA256 {
+			t.Fatal("integration patch differs from the recorded baseline")
+		}
 	}
 	if value.Shutdown.Signal != "SIGTERM" || value.Shutdown.ExitCode != 0 || value.Shutdown.FlushAcknowledgement ||
 		!strings.Contains(value.Shutdown.Reason, "indistinguishable") {

@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# Local disposable demonstration. Production ownership stays in Kubernetes.
+# shellcheck disable=SC1091
+set -Eeuo pipefail
+umask 077
+repo_root="$(cd "$(dirname "$0")" && pwd)"
+demo_root="${DSH_DEMO_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime}"
+mkdir -p "$demo_root"
+demo_root="$(cd "$demo_root" && pwd)"
+exec 9>"$demo_root/lock"
+flock -n 9 || { echo 'Another demo command is running' >&2; exit 1; }
+source "$repo_root/demo-files/tools.sh"
+source "$repo_root/hack/lib/reference-versions.sh"
+source "$repo_root/hack/lib/browser-stack.sh"
+export PATH="$demo_root/tools/bin:$PATH"
+kubeconfig="$demo_root/kubeconfig"
+test_root="$demo_root/runtime"
+mkdir -p "$test_root"
+cluster_name="dsh-demo-$(printf '%s' "$demo_root" | sha256sum | cut -c1-10)"
+dex_issuer="https://dex.dsh-system.svc:15556/dex"
+dex_alice_sub="CglhbGljZS1zdWISBWxvY2Fs"
+k() { kubectl --kubeconfig "$kubeconfig" "$@"; }
+pull_image() {
+  for attempt in $(seq 1 5); do
+    if docker pull --platform linux/amd64 "$1" >/dev/null; then return; fi
+    sleep "$attempt"
+  done
+  echo "Could not pull required image: $1" >&2; return 1
+}
+diagnostics() {
+  echo "Demo failed. State and redacted diagnostics: $test_root" >&2
+  k get pods,cells,httproutes -A > "$test_root/objects.txt" 2>&1 || true
+}
+trap diagnostics ERR
+owned_cluster() {
+  [[ -f "$demo_root/owner" && -f "$kubeconfig" ]] || return 1
+  [[ "$(docker inspect "${cluster_name}-control-plane" --format '{{ index .Config.Labels "io.x-k8s.kind.cluster" }}' 2>/dev/null)" == "$cluster_name" ]] || return 1
+  [[ "$(cat "$demo_root/owner")" == "$cluster_name" ]]
+}
+stop_forwards() {
+  local file pid
+  for file in "$test_root/18443.pid" "$test_root/15556.pid"; do
+    [[ -f "$file" ]] || continue
+    pid="$(cat "$file")"
+    # A reused PID must never let demo down kill an unrelated process.
+    if [[ "$pid" =~ ^[0-9]+$ ]] && [[ -r "/proc/$pid/cmdline" ]] &&
+      tr '\0' ' ' < "/proc/$pid/cmdline" | grep -Fq -- "--kubeconfig $kubeconfig"; then
+      kill "$pid" 2>/dev/null || true
+      for _ in $(seq 1 50); do
+        [[ -e "/proc/$pid" ]] || break
+        sleep 0.1
+      done
+    fi
+    rm -f "$file"
+  done
+}
+stop_browser() {
+  local pid
+  [[ -f "$test_root/browser.pid" ]] || return 0
+  pid="$(cat "$test_root/browser.pid")"
+  if [[ "$pid" =~ ^[0-9]+$ && -r "/proc/$pid/cmdline" ]] &&
+    tr '\0' '\n' < "/proc/$pid/cmdline" | grep -Fxq "$demo_root" &&
+    tr '\0' '\n' < "/proc/$pid/cmdline" | grep -Fq '/demo-files/open.cjs'; then
+    kill "$pid" 2>/dev/null || true
+    for _ in $(seq 1 50); do [[ -e "/proc/$pid" ]] || break; sleep 0.1; done
+  fi
+  rm -f "$test_root/browser.pid"
+}
+start_forward() {
+  local service="$1" port="$2" remote="$3"
+  if (echo >"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+    echo "Local port $port is occupied; stop its owner and retry" >&2; return 1
+  fi
+  nohup kubectl --kubeconfig "$kubeconfig" -n dsh-system port-forward --address 127.0.0.1 "service/$service" "$port:$remote" \
+    >"$test_root/$port.log" 2>&1 < /dev/null 9>&- &
+  echo "$!" > "$test_root/$port.pid"
+  for _ in $(seq 1 60); do
+    (echo >"/dev/tcp/127.0.0.1/$port") 2>/dev/null && return
+    sleep 1
+  done
+  echo "Port-forward $port did not become ready" >&2; return 1
+}
+forward_browser() {
+  stop_forwards
+  local service
+  service="$(k -n dsh-system get service -l gateway.envoyproxy.io/owning-gateway-name=dsh -o jsonpath='{.items[0].metadata.name}')"
+  start_forward "$service" 18443 443
+  start_forward dex 15556 15556
+}
+case "${1:-help}" in
+  up)
+    [[ $# == 1 || ($# == 2 && "$2" == --snapshots) ]] || { echo 'usage: demo up [--snapshots]' >&2; exit 2; }
+    prepare_demo_tools
+    [[ -f "$repo_root/release.json" ]] || { echo 'Use the release bundle, which includes release.json with tested image digests' >&2; exit 1; }
+    cell_image="$(jq -er .images.cell "$repo_root/release.json")"
+    operator_image="$(jq -er .images.operator "$repo_root/release.json")"
+    [[ "$cell_image" =~ @sha256:[a-f0-9]{64}$ && "$operator_image" =~ @sha256:[a-f0-9]{64}$ ]]
+    if kind get clusters 2>/dev/null | grep -Fxq "$cluster_name"; then
+      owned_cluster || { echo 'Existing cluster has no matching demo ownership record' >&2; exit 1; }
+      [[ "$(cat "$demo_root/release-sha")" == "$(jq -r .sourceSHA "$repo_root/release.json")" ]] || { echo 'Existing demo uses a different release; preserve/export data before explicit demo down' >&2; exit 1; }
+      if [[ "${2:-}" == --snapshots && ! -f "$test_root/snapshots-ready" ]] && k -n tenant-demo get cell assistant >/dev/null 2>&1; then
+        echo 'Choose --snapshots before creating the Cell; its StorageClass cannot change in place' >&2; exit 1
+      fi
+    else
+      for port in 18443 15556; do
+        if (echo >"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then echo "Local port $port is occupied" >&2; exit 1; fi
+      done
+      cat > "$test_root/kind.yaml" <<'YAML'
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  disableDefaultCNI: true
+  podSubnet: 192.168.0.0/16
+nodes:
+  - role: control-plane
+YAML
+      printf '%s\n' "$cluster_name" > "$demo_root/owner"
+      jq -r .sourceSHA "$repo_root/release.json" > "$demo_root/release-sha"
+      kind create cluster --name "$cluster_name" --kubeconfig "$kubeconfig" --config "$test_root/kind.yaml" \
+        --image kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
+    fi
+    # Completion markers make an interrupted up resumable without reissuing TLS
+    # keys or replacing a user's populated Cell.
+    if [[ ! -f "$test_root/network-ready" ]]; then
+      install_reference_network
+      touch "$test_root/network-ready"
+    fi
+    if [[ ! -f "$test_root/identity-ready" ]]; then
+      install_reference_identity
+      touch "$test_root/identity-ready"
+    fi
+    if [[ ! -f "$test_root/access-ready" ]]; then
+      kubectl kustomize "$repo_root/config/browser" > "$test_root/browser.yaml"
+      k apply -f "$test_root/browser.yaml"
+      node "$repo_root/demo-files/configure.mjs" "$operator_image" "$dex_issuer" "$test_root"
+      k -n dsh-system patch deployment cell-operator --type=strategic --patch-file "$test_root/operator.json"
+      k -n dsh-system patch deployment cell-authorizer --type=strategic --patch-file "$test_root/authorizer.json"
+      configure_reference_access
+      touch "$test_root/access-ready"
+    fi
+    if [[ "${2:-}" == --snapshots || -f "$test_root/snapshots-ready" ]]; then
+      if [[ ! -f "$test_root/snapshots-ready" ]]; then
+        source "$repo_root/hack/lib/snapshot-stack.sh"
+        k -n dsh-system patch deployment cell-operator --type=json \
+          -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--enable-snapshots=true"}]'
+        touch "$test_root/snapshots-ready"
+      fi
+      storage_class=csi-hostpath-sc
+    else
+      storage_class=standard
+    fi
+    k create namespace tenant-demo --dry-run=client -o yaml | k apply -f -
+    k label namespace tenant-demo dsh.isolated.io/routes=enabled --overwrite
+    if ! k -n tenant-demo get cell assistant >/dev/null 2>&1; then
+      jq -n --arg image "$cell_image" --arg sc "$storage_class" \
+        '{apiVersion:"dsh.isolated.io/v1alpha1",kind:"Cell",metadata:{name:"assistant",namespace:"tenant-demo"},spec:{image:$image,storage:{size:"1Gi",storageClassName:$sc,retentionPolicy:"Retain"}}}' | k apply -f -
+    fi
+    k -n tenant-demo wait cell assistant --for=condition=Ready --timeout=300s
+    uid="$(k -n tenant-demo get cell assistant -o jsonpath='{.metadata.uid}')"
+    k -n tenant-demo create rolebinding demo-access --role="cell-$uid-access" --user="$dex_issuer#$dex_alice_sub" --dry-run=client -o yaml | k apply -f -
+    k -n tenant-demo get httproute "cell-$uid" -o jsonpath='{.spec.hostnames[0]}' > "$test_root/hostname"
+    forward_browser
+    printf 'Ready: https://%s:18443\nLogin: alice@example.com / password\nOpen: ./demo open\nKubeconfig: %s\n' "$(cat "$test_root/hostname")" "$kubeconfig"
+    ;;
+  open)
+    owned_cluster || { echo 'Run demo up first' >&2; exit 1; }
+    [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || { echo 'A Linux graphical session is required for demo open; use the headless acceptance runner in CI.' >&2; exit 1; }
+    prepare_demo_tools
+    forward_browser
+    mkdir -p "$demo_root/browser"
+    cp "$repo_root/test/e2e/phase2/package"*.json "$demo_root/browser/"
+    npm --prefix "$demo_root/browser" ci --ignore-scripts --no-audit --no-fund
+    export PLAYWRIGHT_BROWSERS_PATH="$demo_root/browser/browsers"
+    if [[ -z "${CHROME_EXECUTABLE:-}" ]]; then
+      node "$demo_root/browser/node_modules/playwright/cli.js" install chromium
+    fi
+    flock -u 9
+    DSH_DEMO_HOME="$demo_root" node "$repo_root/demo-files/open.cjs" "$demo_root"
+    ;;
+  down)
+    [[ -f "$demo_root/owner" ]] || { echo 'No demo ownership record; nothing removed'; exit 0; }
+    owned_cluster || { echo 'Cannot verify demo ownership; no resources removed' >&2; exit 1; }
+    stop_browser
+    stop_forwards
+    kind delete cluster --name "$cluster_name"
+    rm -rf "$test_root" "$demo_root/browser/profile"
+    rm -f "$demo_root/owner" "$demo_root/kubeconfig" "$demo_root/release-sha"
+    echo 'Demo cluster and its data deleted; downloaded tools retained.'
+    ;;
+  *) printf 'demo up [--snapshots]  Start/resume a local demo\ndemo open              Open its isolated browser\ndemo down              Delete the demo cluster AND its data\n';;
+esac

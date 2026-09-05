@@ -35,7 +35,7 @@ kernel、存储驱动、集群管理员或云控制面。
 | 快照部分失败 | 源 Cell 恢复前必须删除 owned Kubernetes VolumeSnapshot；`CleanupBlocked` 只描述 API 可见对象，后端处理遵循 CSI 策略。 |
 | Restore 混淆 | Restore 只允许同 namespace、精确 image、精确 DSH、同 StorageClass 与 fresh Cell；PVC provenance 与 UID finalizer 将首个 Ready reader 固定为记录镜像并保护并发删除。 |
 | 过期或外来格式 | 持久数据绑定精确 DSH 版本；不兼容 session format fail closed。 |
-| 关闭丢数据 | 普通 Pod 终止有界，但精确 DSH RC 不提供可区分的 flush acknowledgement；snapshot 只明确承诺 Kubernetes writer fencing 后的 crash consistency。 |
+| 关闭丢数据 | 普通 Pod 终止有界，但精确 DSH 版本 不提供可区分的 flush acknowledgement；snapshot 只明确承诺 Kubernetes writer fencing 后的 crash consistency。 |
 | 绕过 Namespace 策略 | Operator 不持有或镜像 ResourceQuota、LimitRange、route eligibility label、StorageClass、RuntimeClass、PriorityClass 或 APF policy；原生 admission 拒绝保持权威且可恢复。 |
 | Reconcile 放大 | worker pool 显式有界；正常进展由 watch 驱动，错误使用指数退避，deadline/fallback 唤醒保持窄范围；参考 scale gate 验证稳定态无 reconcile churn。 |
 | Metric 基数或身份泄漏 | Metrics 默认关闭且不通过 Service 暴露；项目 label 只有封闭 decision 枚举，资源身份、拓扑、authority、user 与 secret 数据留在 Kubernetes 或完全省略。 |
@@ -43,7 +43,7 @@ kernel、存储驱动、集群管理员或云控制面。
 ## 剩余风险与验证
 
 kind 浏览器实证覆盖 HTTPS/OIDC、route 绑定、跨 Cell 拒绝、授权与即时撤权、故障关闭、
-NetworkPolicy、writer-stop fencing、CSI data-only restore、精确 RC rollout 与 fresh-Cell
+NetworkPolicy、writer-stop fencing、CSI data-only restore、精确版本 rollout 与 fresh-Cell
 rollback。本项目不负责 DNS、证书、IdP 或备份 lifecycle，不提供 WAF，也不承诺抵御已失陷
 的集群管理员、Gateway、Node、runtime、kernel、CSI driver 或云控制面。10 namespace / 50 Cell
 参考实证是有界回归门，不构成生产容量、延迟或可用性 SLO。

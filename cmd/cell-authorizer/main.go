@@ -72,6 +72,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// One native DSH page issues a burst of requests, each requiring fresh
+	// Cell/Route reads and a SAR inside the Gateway's two-second deadline.
+	// client-go's controller defaults (5 QPS / 10 burst) otherwise turn an
+	// ordinary page load into fail-closed 503s even on a healthy API server.
+	clusterConfig.QPS = 100
+	clusterConfig.Burst = 200
 	scheme := runtime.NewScheme()
 	for _, add := range []func(*runtime.Scheme) error{clientgoscheme.AddToScheme, dshv1alpha1.AddToScheme, gatewayv1.Install} {
 		if err := add(scheme); err != nil {

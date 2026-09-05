@@ -171,6 +171,12 @@ func (r *CellSnapshotReconciler) accept(ctx context.Context, snapshot *dshv1alph
 	if active := cell.Annotations[cellcontract.ActiveSnapshotAnnotation]; active != "" && active != string(snapshot.UID) {
 		return r.setPending(ctx, snapshot, reasonSnapshotOperationQueued, "another CellSnapshot is active")
 	}
+	if cell.Annotations[cellcontract.ActiveSnapshotAnnotation] == string(snapshot.UID) {
+		// The Cell worker withdraws Ready as soon as the lock is persisted,
+		// before this worker records Accepted and permits writer shutdown.
+		// Resume from the bound identities instead of waiting on our own lock.
+		return r.acceptLocked(ctx, snapshot)
+	}
 	ready := meta.FindStatusCondition(cell.Status.Conditions, dshv1alpha1.ConditionReady)
 	if ready == nil || ready.Status != metav1.ConditionTrue || cell.Status.ObservedGeneration != cell.Generation ||
 		cell.Status.DSHVersion != cellcontract.DSHVersion || cell.Status.ImageDigest == "" {
@@ -236,7 +242,17 @@ func (r *CellSnapshotReconciler) accept(ctx context.Context, snapshot *dshv1alph
 		return r.setPending(ctx, snapshot, reasonSnapshotOperationQueued, "another CellSnapshot is active")
 	}
 
-	err = r.patchStatus(ctx, snapshot, func(status *dshv1alpha1.CellSnapshotStatus) {
+	return r.acceptLocked(ctx, snapshot)
+}
+
+func (r *CellSnapshotReconciler) acceptLocked(ctx context.Context, snapshot *dshv1alpha1.CellSnapshot) (ctrl.Result, error) {
+	if _, err := r.acceptedSource(ctx, snapshot); err != nil {
+		if errors.Is(err, errSnapshotSourceChanged) {
+			return r.fail(ctx, snapshot, reasonSnapshotSourceChanged, "locked source identity or storage changed before acceptance")
+		}
+		return ctrl.Result{}, err
+	}
+	err := r.patchStatus(ctx, snapshot, func(status *dshv1alpha1.CellSnapshotStatus) {
 		setSnapshotCondition(status, snapshot.Generation, dshv1alpha1.ConditionSnapshotAccepted, metav1.ConditionTrue, reasonSnapshotPrerequisites, "snapshot prerequisites are satisfied and the source operation is locked")
 	})
 	return immediateRequeueResult(), err

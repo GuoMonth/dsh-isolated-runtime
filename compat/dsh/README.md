@@ -1,7 +1,7 @@
 # DSH compatibility baseline
 
-The project supports exactly `dsh-v0.1.2-rc.1` at
-`a66e4702047846cdaa10c66c9d3df3951f5ea70d`, installed with `pnpm@11.7.0` and
+The project supports exactly `dsh-v0.1.3-alpha.1` at
+`d347e703908d0406b7a7ef80e3a0e594d86b2215`, installed with `pnpm@11.7.0` and
 the frozen lockfile digest recorded in [`baseline.json`](./baseline.json).
 Persistence is version-bound; passing a newer or older session format is not a
 compatibility promise.
@@ -20,31 +20,20 @@ built DSH CLI for a real browser exchange.
 | --- | --- |
 | Direct DSH exposure | Rejected: the standard CLI intentionally binds loopback and the launch URL contains a bearer token. |
 | Gateway configuration only | Rejected: it cannot own the process-memory token exchange or harden the returned cookie. |
-| Independent sidecar | Rejected: 0.1.2 RC has no supported way to inject or retrieve the launch token across a process boundary. |
+| Independent sidecar | Rejected: 0.1.3-alpha.1 has no supported way to inject or retrieve the launch token across a process boundary. |
 | Cell-local launcher | Selected: the parent process observes readiness, keeps the token in memory, and proxies DSH opaquely. |
 
-The source checkout remains the behavioral baseline. The production Cell image
-installs the official `@deepseek-ai/dsh@0.1.2-rc.1` npm artifact with the
-tarball integrity recorded in `baseline.json`; the launcher is its PID 1.
-The 0.1.2 RC web profile enables live patch watching, so the launcher invokes
-its official CLI through `node --expose-internals`; this is required by DSH's
-own HMR loader and does not expose the launch token.
+The current GitHub release has not been published to npm. The Cell image builds
+`build:official` from the exact source archive/checksum in baseline.json, deploys
+the upstream runtime closure, and completes omitted transitive workspace peers
+from that same source. It does not substitute older npm packages. The only source change is the hashed
+Cell settings integration patch described below.
+The launcher remains PID 1. The native runtime dependencies are built in the image.
 
-The exact RC does not expose an application-flush acknowledgement. Its SIGTERM
-path uses exit code zero after successful disposal, disposal rejection, and
-timeout, so those outcomes are externally indistinguishable. Phase 3.1 therefore
-removed `POST /quiesce`: snapshot consistency is established only by setting the
-StatefulSet to zero, observing zero replicas, and proving that no Pod owned by
-that StatefulSet UID remains. The resulting guarantee is writer-stopped and
-crash-consistent, not application-consistent. Ordinary Pod termination still
-uses the launcher's bounded HTTP/WebSocket drain and SIGTERM forwarding.
-
-At the access boundary, the launcher removes identity headers and every default
-credential cookie of pinned Envoy Gateway v1.9.1 before DSH. Current names are
-`AccessToken`, `OauthHMAC`, `OauthExpires`, `IdToken`, `RefreshToken`,
-`OauthNonce`, and `CodeVerifier`, each followed by the policy's eight-digit hex
-suffix. Exact legacy names are reserved too. DSH and unrelated application
-cookies remain intact.
+Snapshot guarantees remain writer-stopped crash consistency. Upstream owns its
+session format v2 and migrations; this project maintains no historical restore
+or migration layer. Credential filtering retains the pinned Envoy cookie family
+and forged/stale unsuffixed names as part of the access boundary.
 
 ## State ownership
 
@@ -58,3 +47,14 @@ cookies remain intact.
 
 This mapping is evidence for the exact release only. A DSH upgrade requires a
 new baseline, compatibility run, and explicit persistence decision.
+
+## Cell settings integration patch
+
+The pinned upstream UI only loads persistent settings on loopback hostnames.
+`patches/cell-settings.patch` enables its existing settings mirror in the Cell
+image, whose remote access is protected by Gateway OIDC and Cell authorization.
+It adds no UI or API and changes no server-side authorization or proxy behavior.
+The source archive and patch are separately hashed in `baseline.json`; both the
+image build and compatibility gate verify and apply the same exact patch.
+The MVP browser gate must configure a key through the native editor at a Cell
+hostname and verify that credentials remain outside the data snapshot.
