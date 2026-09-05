@@ -2,7 +2,7 @@ GO ?= go
 SETUP_ENVTEST_VERSION ?= v0.0.0-20260125163108-a19ec76a3c5d
 ENVTEST_K8S_VERSION ?= 1.34.x
 
-.PHONY: build fmt fmt-check generate images lint test test-envtest vet verify verify-phase1 verify-phase2 verify-phase3 verify-cell verify-dsh verify-generated verify-images verify-kind verify-kind-phase2 verify-kind-phase3
+.PHONY: build fmt fmt-check generate images lint test test-envtest vet verify verify-phase1 verify-phase2 verify-phase3 verify-phase4 verify-cell verify-dsh verify-generated verify-images verify-kind verify-kind-phase2 verify-kind-phase3 verify-kind-phase4
 
 build:
 	$(GO) build ./...
@@ -44,6 +44,8 @@ verify-phase2: verify test-envtest
 
 verify-phase3: verify test-envtest
 
+verify-phase4: verify test-envtest
+
 verify-cell:
 	./hack/verify-cell-contract.sh
 
@@ -61,3 +63,6 @@ verify-kind-phase2:
 
 verify-kind-phase3:
 	./hack/verify-phase3-kind.sh
+
+verify-kind-phase4:
+	./hack/verify-phase4-kind.sh

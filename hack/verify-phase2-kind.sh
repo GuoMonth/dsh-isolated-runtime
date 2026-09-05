@@ -42,6 +42,23 @@ registry_digest() {
   printf '%s\n' "$digest"
 }
 
+pull_image() {
+  local image="$1" attempt
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    return
+  fi
+  for attempt in $(seq 1 5); do
+    if docker pull --platform linux/amd64 "$image" >/dev/null; then
+      return
+    fi
+    if (( attempt == 5 )); then
+      echo "failed to pull $image after $attempt attempts" >&2
+      return 1
+    fi
+    sleep $((attempt * 2))
+  done
+}
+
 expect_failure() {
   if "$@"; then
     echo "command unexpectedly succeeded: $*" >&2
@@ -260,30 +277,22 @@ k wait node --all --for=condition=Ready --timeout=180s
 
 # Keep gateway installation deterministic when the public registry is slow.
 # The host cache is reused across the Phase 1-3 gates just like Calico.
-if ! docker image inspect "$envoy_gateway_image" >/dev/null 2>&1; then
-  docker pull --platform linux/amd64 "$envoy_gateway_image" >/dev/null
-fi
+pull_image "$envoy_gateway_image"
 docker save "$envoy_gateway_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
   ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
-if ! docker image inspect "$dex_image" >/dev/null 2>&1; then
-  docker pull --platform linux/amd64 "$dex_image" >/dev/null
-fi
+pull_image "$dex_image"
 docker tag "$dex_image" "$dex_cache_image"
 docker save "$dex_cache_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
   ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
 docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag \
   "docker.io/library/${dex_cache_image}" "$dex_image" >/dev/null
-if ! docker image inspect "$envoy_data_plane_image" >/dev/null 2>&1; then
-  docker pull --platform linux/amd64 "$envoy_data_plane_image" >/dev/null
-fi
+pull_image "$envoy_data_plane_image"
 docker tag "$envoy_data_plane_image" "$envoy_data_plane_cache_image"
 docker save "$envoy_data_plane_cache_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
   ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
 docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag \
   "docker.io/library/${envoy_data_plane_cache_image}" "$envoy_data_plane_image" >/dev/null
-if ! docker image inspect "$envoy_shutdown_image" >/dev/null 2>&1; then
-  docker pull --platform linux/amd64 "$envoy_shutdown_image" >/dev/null
-fi
+pull_image "$envoy_shutdown_image"
 docker tag "$envoy_shutdown_image" "$envoy_shutdown_cache_image"
 docker save "$envoy_shutdown_cache_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
   ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
@@ -317,7 +326,7 @@ test "$(docker image inspect "$local_cell" --format '{{.Id}}')" = \
 test "$(docker image inspect "$local_operator" --format '{{.Id}}')" = \
   "$(docker image inspect "$operator_repo:e2e" --format '{{.Id}}')"
 
-curl -fsSL \
+curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
   "https://github.com/envoyproxy/gateway/releases/download/${envoy_gateway_version}/install.yaml" \
   -o "$test_root/envoy-gateway-install.yaml"
 echo "${envoy_gateway_sha256}  ${test_root}/envoy-gateway-install.yaml" | sha256sum --check

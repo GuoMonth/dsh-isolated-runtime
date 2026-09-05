@@ -127,7 +127,7 @@ func TestPublicAccessForeignRoleFailsClosedWithoutChangingStatusContract(t *test
 	reconciler.RouteConfig = accesscontract.Config{GatewayName: "dsh", GatewayNamespace: "dsh-system", GatewaySection: "https", BaseDomain: "cells.test"}
 	reconciler.routeAPIAvailable = true
 	result, err := reconciler.Reconcile(context.Background(), requestFor(cell))
-	if err != nil || result.RequeueAfter != pendingRequeue {
+	if err != nil || result != (ctrl.Result{}) {
 		t.Fatalf("foreign access Role result = %#v, %v", result, err)
 	}
 	stored := get[*rbacv1.Role](t, kube, cell.Namespace, names.Base+"-access")
@@ -151,14 +151,14 @@ func TestPublicAccessRecoversOneResourceWhileAnotherStillConflicts(t *testing.T)
 	reconciler.routeAPIAvailable = true
 
 	result, err := reconciler.Reconcile(context.Background(), requestFor(cell))
-	if err != nil || result.RequeueAfter != pendingRequeue {
+	if err != nil || result != (ctrl.Result{}) {
 		t.Fatalf("initial foreign resources result = %#v, %v", result, err)
 	}
 	if err := kube.Delete(context.Background(), foreignRole); err != nil {
 		t.Fatalf("delete foreign Role: %v", err)
 	}
 	result, err = reconciler.Reconcile(context.Background(), requestFor(cell))
-	if err != nil || result.RequeueAfter != pendingRequeue {
+	if err != nil || result != (ctrl.Result{}) {
 		t.Fatalf("partial recovery result = %#v, %v", result, err)
 	}
 	role := get[*rbacv1.Role](t, kube, cell.Namespace, names.Base+"-access")

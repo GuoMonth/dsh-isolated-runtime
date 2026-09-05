@@ -2,6 +2,8 @@
 
 - [架构](./specs/architecture.zh-CN.md) —— 资源归属、边界、数据流与非目标。
 - [威胁模型](./specs/threat-model.zh-CN.md) —— 保证、假设与攻击面。
+- [Namespace 契约](./specs/namespace-contract.zh-CN.md) —— 原生能力与策略边界。
+- [指标契约](./specs/metrics.zh-CN.md) —— 有界聚合观测面。
 - [DSH 兼容性](../compat/dsh/README.zh-CN.md) —— 精确上游实证与 launcher 决策。
 - [Roadmap](../ROADMAP.zh-CN.md) —— 里程碑顺序与复盘门禁。
 

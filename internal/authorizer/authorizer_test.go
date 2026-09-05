@@ -6,6 +6,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"errors"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -72,6 +75,14 @@ func (f failingReader) Get(context.Context, client.ObjectKey, client.Object, ...
 	return apierrors.NewInternalError(errors.New("api unavailable"))
 }
 
+type decisionRecorder struct {
+	values []Decision
+}
+
+func (r *decisionRecorder) RecordDecision(decision Decision) {
+	r.values = append(r.values, decision)
+}
+
 func TestCheckAllowsExactRouteAndBuildsSubjectAccessReview(t *testing.T) {
 	t.Parallel()
 	server, reviewer, request := testServer(t)
@@ -88,6 +99,60 @@ func TestCheckAllowsExactRouteAndBuildsSubjectAccessReview(t *testing.T) {
 	}
 	if len(response.GetOkResponse().GetHeaders()) != 0 {
 		t.Fatalf("authorizer injected headers: %#v", response.GetOkResponse().GetHeaders())
+	}
+}
+
+func TestCheckRecordsClosedDecisionClasses(t *testing.T) {
+	t.Parallel()
+	server, reviewer, request := testServer(t)
+	recorder := &decisionRecorder{}
+	server.Decisions = recorder
+	if _, err := server.Check(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	reviewer.allowed = false
+	if _, err := server.Check(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	delete(request.Attributes.Request.Http.Headers, "x-dsh-oidc-token")
+	if _, err := server.Check(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	want := []Decision{DecisionAllow, DecisionDenied, DecisionUnauthenticated}
+	if len(recorder.values) != len(want) {
+		t.Fatalf("decisions = %v, want %v", recorder.values, want)
+	}
+	for index := range want {
+		if recorder.values[index] != want[index] {
+			t.Fatalf("decisions = %v, want %v", recorder.values, want)
+		}
+	}
+}
+
+func TestMetricsUseOnlyClosedTopologyFreeLabels(t *testing.T) {
+	t.Parallel()
+	registry, metrics := NewMetricsRegistry()
+	for _, decision := range allDecisions {
+		metrics.RecordDecision(decision)
+	}
+	metrics.RecordDecision(Decision("tenant-a/token-value/cell-uid"))
+
+	request := httptest.NewRequest("GET", "http://metrics/metrics", nil)
+	response := httptest.NewRecorder()
+	promhttp.HandlerFor(registry, promhttp.HandlerOpts{}).ServeHTTP(response, request)
+	body := response.Body.String()
+	if response.Code != 200 {
+		t.Fatalf("metrics status = %d: %s", response.Code, body)
+	}
+	for _, forbidden := range []string{"tenant-a", "token-value", "cell-uid", "namespace=", "subject=", "route=", "image="} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("metrics exposed forbidden value %q:\n%s", forbidden, body)
+		}
+	}
+	for _, decision := range allDecisions {
+		if !strings.Contains(body, `decision="`+string(decision)+`"`) {
+			t.Fatalf("metrics omitted decision %q:\n%s", decision, body)
+		}
 	}
 }
 

@@ -57,10 +57,19 @@ wait_absent() {
 }
 
 checkout_exact() {
-  local url="$1" commit="$2" destination="$3"
+  local url="$1" commit="$2" destination="$3" attempt
   git init -q "$destination"
   git -C "$destination" remote add origin "$url"
-  git -C "$destination" fetch -q --depth=1 origin "$commit"
+  for attempt in $(seq 1 5); do
+    if git -C "$destination" -c http.version=HTTP/1.1 fetch -q --depth=1 origin "$commit"; then
+      break
+    fi
+    if (( attempt == 5 )); then
+      echo "failed to fetch exact commit $commit after $attempt attempts" >&2
+      return 1
+    fi
+    sleep $((attempt * 2))
+  done
   git -C "$destination" checkout -q --detach FETCH_HEAD
   test "$(git -C "$destination" rev-parse HEAD)" = "$commit"
 }
@@ -83,8 +92,8 @@ csi_images=(
   registry.k8s.io/sig-storage/csi-resizer:v2.2.1
   registry.k8s.io/sig-storage/csi-snapshotter:v8.5.0
 )
-printf '%s\0' "${csi_images[@]}" | xargs -0 -n1 -P4 docker pull --platform linux/amd64 >/dev/null
 for image in "${csi_images[@]}"; do
+  pull_image "$image"
   docker save "$image" | docker exec --privileged -i "${cluster_name}-control-plane" \
     ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
 done
@@ -713,6 +722,14 @@ if { k get cells,cellsnapshots -A -o json; k get events -A -o json; \
   grep -Eq "$phase3_provider_value|[?&]token=[A-Za-z0-9_-]{43}|eyJ[A-Za-z0-9_-]+\.eyJ"; then
   echo "secret or token leaked into Phase 3 status, events or logs" >&2
   exit 1
+fi
+
+# Phase 4 reuses this exact browser, CSI and snapshot stack and adds only the
+# fleet-scale extension. Keeping one nested fixture prevents the scale proof
+# from silently drifting away from the lifecycle contract it must preserve.
+if [[ -n "${DSH_PHASE3_EXTENSION:-}" ]]; then
+  # shellcheck source=/dev/null
+  source "$DSH_PHASE3_EXTENSION"
 fi
 
 echo "Phase 3 writer-stopped crash-consistent lifecycle passed"

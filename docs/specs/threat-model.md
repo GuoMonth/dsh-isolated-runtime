@@ -41,12 +41,17 @@ kernel, storage driver, cluster administrator, or cloud control plane.
 | Restore confusion | Restore is same-namespace, exact-image, exact-DSH, same-StorageClass and fresh-Cell only. PVC provenance and UID finalizers enforce the recorded image through its first Ready reader and protect concurrent deletion. |
 | Stale or foreign format | Persisted data is tied to an exact DSH version; incompatible session formats fail closed. |
 | Shutdown loss | Ordinary Pod termination is bounded, but exact DSH 0.1.2 RC exposes no distinguishable flush acknowledgement. Snapshots are explicitly crash-consistent after Kubernetes writer fencing. |
+| Namespace policy bypass | The operator never owns or mirrors ResourceQuota, LimitRange, route-eligibility labels, StorageClass, RuntimeClass, PriorityClass, or APF policy. Native admission denial remains authoritative and recoverable. |
+| Reconcile amplification | Worker pools are explicitly bounded; normal progress is watch-driven, errors use exponential rate limiting, and deadline/fallback wakeups are narrow. The reference scale gate verifies no steady-state reconcile churn. |
+| Metric cardinality or identity leak | Metrics are disabled by default and not exposed through a Service. Project labels use only a closed decision enum; resource identity, topology, authority, user and secret data remain in Kubernetes or are omitted. |
 
 ## Residual risk and verification
 
 The kind browser proofs cover HTTPS/OIDC, route binding, cross-Cell denial,
 grant and immediate revocation, failure closure, NetworkPolicy, writer-stop
 fencing, CSI data-only restore, exact-RC rollout and fresh-Cell rollback. They do
-not claim to operate DNS, certificate, IdP or backup lifecycles, provide a WAF,
+not claim production capacity, latency or availability SLOs from the bounded
+10-namespace/50-Cell reference proof. They also do not claim to operate DNS,
+certificate, IdP or backup lifecycles, provide a WAF,
 or resist a compromised cluster administrator, Gateway, node, runtime, kernel,
 CSI driver, or cloud control plane.

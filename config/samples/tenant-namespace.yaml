@@ -1,0 +1,9 @@
+# Namespace lifecycle and policy remain cluster-admin owned. This example only
+# opts one existing tenant namespace into the reference Gateway allowedRoutes
+# selector; it is not a universal quota or security profile.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-example
+  labels:
+    dsh.isolated.io/routes: enabled
