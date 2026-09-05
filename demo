@@ -39,7 +39,7 @@ owned_cluster() {
 }
 stop_forwards() {
   local file pid
-  for file in "$test_root"/*.pid; do
+  for file in "$test_root/18443.pid" "$test_root/15556.pid"; do
     [[ -f "$file" ]] || continue
     pid="$(cat "$file")"
     # A reused PID must never let demo down kill an unrelated process.
@@ -53,6 +53,18 @@ stop_forwards() {
     fi
     rm -f "$file"
   done
+}
+stop_browser() {
+  local pid
+  [[ -f "$test_root/browser.pid" ]] || return 0
+  pid="$(cat "$test_root/browser.pid")"
+  if [[ "$pid" =~ ^[0-9]+$ && -r "/proc/$pid/cmdline" ]] &&
+    tr '\0' '\n' < "/proc/$pid/cmdline" | grep -Fxq "$demo_root" &&
+    tr '\0' '\n' < "/proc/$pid/cmdline" | grep -Fq '/demo-files/open.cjs'; then
+    kill "$pid" 2>/dev/null || true
+    for _ in $(seq 1 50); do [[ -e "/proc/$pid" ]] || break; sleep 0.1; done
+  fi
+  rm -f "$test_root/browser.pid"
 }
 start_forward() {
   local service="$1" port="$2" remote="$3"
@@ -152,6 +164,7 @@ YAML
     ;;
   open)
     owned_cluster || { echo 'Run demo up first' >&2; exit 1; }
+    [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || { echo 'A Linux graphical session is required for demo open; use the headless acceptance runner in CI.' >&2; exit 1; }
     prepare_demo_tools
     forward_browser
     mkdir -p "$demo_root/browser"
@@ -162,11 +175,12 @@ YAML
       node "$demo_root/browser/node_modules/playwright/cli.js" install chromium
     fi
     flock -u 9
-    DSH_DEMO_HOME="$demo_root" node "$repo_root/demo-files/open.cjs"
+    DSH_DEMO_HOME="$demo_root" node "$repo_root/demo-files/open.cjs" "$demo_root"
     ;;
   down)
     [[ -f "$demo_root/owner" ]] || { echo 'No demo ownership record; nothing removed'; exit 0; }
     owned_cluster || { echo 'Cannot verify demo ownership; no resources removed' >&2; exit 1; }
+    stop_browser
     stop_forwards
     kind delete cluster --name "$cluster_name"
     rm -rf "$test_root" "$demo_root/browser/profile"
