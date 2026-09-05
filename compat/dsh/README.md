@@ -46,3 +46,14 @@ and forged/stale unsuffixed names as part of the access boundary.
 
 This mapping is evidence for the exact release only. A DSH upgrade requires a
 new baseline, compatibility run, and explicit persistence decision.
+
+## Cell settings integration patch
+
+The pinned upstream UI only loads persistent settings on loopback hostnames.
+`patches/cell-settings.patch` enables its existing settings mirror in the Cell
+image, whose remote access is protected by Gateway OIDC and Cell authorization.
+It adds no UI or API and changes no server-side authorization or proxy behavior.
+The source archive and patch are separately hashed in `baseline.json`; both the
+image build and compatibility gate verify and apply the same exact patch.
+The MVP browser gate must configure a key through the native editor at a Cell
+hostname and verify that credentials remain outside the data snapshot.

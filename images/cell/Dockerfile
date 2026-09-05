@@ -25,6 +25,8 @@ RUN node -e 'const b=require("/baseline.json"); process.stdout.write(b.distribut
 ENV CI=1 DSH_TELEMETRY_DISABLED=1 npm_config_nodedir=/usr/local
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile --ignore-scripts \
     && pnpm --recursive rebuild esbuild fs-ext node-pty koffi
+COPY compat/dsh /compat/dsh
+RUN node /compat/dsh/apply-patches.mjs /src
 RUN DSH_CLIENT_COMMIT_HASH="$(node -p 'require("/baseline.json").source.commit')" pnpm run build:official
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm --filter dsh-python-runtime-closure deploy --legacy --prod \
        --config.node-linker=hoisted --config.auto-install-peers=false --config.link-workspace-packages=true /opt/dsh

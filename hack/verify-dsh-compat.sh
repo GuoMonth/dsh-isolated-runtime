@@ -41,6 +41,7 @@ export DSH_TELEMETRY_DISABLED=1
 test "$(pnpm --version)" = "${package_manager#pnpm@}"
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm --recursive rebuild esbuild fs-ext node-pty koffi
+node "$repo_root/compat/dsh/apply-patches.mjs" "$checkout"
 pnpm run build:official
 
 vitest="$checkout/node_modules/.bin/vitest"

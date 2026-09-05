@@ -17,7 +17,14 @@
     "archive": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/d347e703908d0406b7a7ef80e3a0e594d86b2215",
     "sha256": "0f5eda71ba80543f70c679a67e54f48bd1be9c704df6bc1c767ee598d04d666f",
     "build": "build:official",
-    "deployRoot": "dsh-python-runtime-closure"
+    "deployRoot": "dsh-python-runtime-closure",
+    "patches": [
+      {
+        "file": "patches/cell-settings.patch",
+        "sha256": "574d6b24960968c5d8474a9b0499cd3fc253e9e2be29efc9111bac702446ab4b",
+        "reason": "Native settings persistence at authenticated Cell authorities; HTTP proxy and server authorization unchanged"
+      }
+    ]
   },
   "transport": {
     "unaryPrefix": "/api/",

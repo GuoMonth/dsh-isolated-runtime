@@ -20,7 +20,13 @@ cluster_name="dsh-demo-$(printf '%s' "$demo_root" | sha256sum | cut -c1-10)"
 dex_issuer="https://dex.dsh-system.svc:15556/dex"
 dex_alice_sub="CglhbGljZS1zdWISBWxvY2Fs"
 k() { kubectl --kubeconfig "$kubeconfig" "$@"; }
-pull_image() { docker pull --platform linux/amd64 "$1" >/dev/null; }
+pull_image() {
+  for attempt in $(seq 1 5); do
+    if docker pull --platform linux/amd64 "$1" >/dev/null; then return; fi
+    sleep "$attempt"
+  done
+  echo "Could not pull required image: $1" >&2; return 1
+}
 diagnostics() {
   echo "Demo failed. State and redacted diagnostics: $test_root" >&2
   k get pods,cells,httproutes -A > "$test_root/objects.txt" 2>&1 || true
@@ -99,7 +105,7 @@ YAML
       printf '%s\n' "$cluster_name" > "$demo_root/owner"
       jq -r .sourceSHA "$repo_root/release.json" > "$demo_root/release-sha"
       kind create cluster --name "$cluster_name" --kubeconfig "$kubeconfig" --config "$test_root/kind.yaml" \
-        --image kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a --wait 60s
+        --image kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
     fi
     # Completion markers make an interrupted up resumable without reissuing TLS
     # keys or replacing a user's populated Cell.

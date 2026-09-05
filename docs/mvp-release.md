@@ -27,9 +27,11 @@ or any failed gate keeps the retrospective open.
 - The official npm registry does not yet publish 0.1.3-alpha.1 (verified directly,
   including the tarball URL). Build the pinned official source and its runtime
   closure instead; do not silently substitute 0.1.2 or claim npm integrity.
-- The current browser proof does not assert completed model answers/tools.
-- Main protection names the previous DSH version explicitly; change it together
-  with the workflow check name while preserving required checks.
+- The new MVP proof adds completed model/tool/attachment checks to the retained browser proof.
+- Main protection now requires `Exact DSH compatibility`; the other required checks remain.
+- Upstream native settings are disabled at non-loopback hostnames. A hashed,
+  one-site Cell integration patch enables its existing settings mirror behind
+  the existing Gateway/Cell authorization. No new UI, API, or proxy rewrite.
 
 ## Accepted defaults
 

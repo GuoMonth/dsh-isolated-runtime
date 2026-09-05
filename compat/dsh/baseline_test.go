@@ -1,9 +1,11 @@
 package dsh
 
 import (
+	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
@@ -29,6 +31,10 @@ type baseline struct {
 		Version string `json:"version"`
 		Archive string `json:"archive"`
 		SHA256  string `json:"sha256"`
+		Patches []struct {
+			File   string `json:"file"`
+			SHA256 string `json:"sha256"`
+		} `json:"patches"`
 	} `json:"distribution"`
 	Shutdown struct {
 		Signal               string `json:"signal"`
@@ -71,6 +77,19 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(string(baselineJSON)), "latest") {
 		t.Fatal("compatibility baseline contains a floating latest reference")
+	}
+	if len(value.Distribution.Patches) != 1 || value.Distribution.Patches[0].File != "patches/cell-settings.patch" {
+		t.Fatal("expected the single reviewed Cell settings integration patch")
+	}
+	for _, patch := range value.Distribution.Patches {
+		contents, err := os.ReadFile(patch.File)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256(contents)
+		if hex.EncodeToString(digest[:]) != patch.SHA256 {
+			t.Fatal("integration patch differs from the recorded baseline")
+		}
 	}
 	if value.Shutdown.Signal != "SIGTERM" || value.Shutdown.ExitCode != 0 || value.Shutdown.FlushAcknowledgement ||
 		!strings.Contains(value.Shutdown.Reason, "indistinguishable") {

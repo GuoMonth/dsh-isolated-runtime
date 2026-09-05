@@ -23,19 +23,19 @@ pull_image "$dex_image"
 docker tag "$dex_image" "$dex_cache_image"
 docker save "$dex_cache_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
   ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
-docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag \
+docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag --force \
   "docker.io/library/${dex_cache_image}" "$dex_image" >/dev/null
 pull_image "$envoy_data_plane_image"
 docker tag "$envoy_data_plane_image" "$envoy_data_plane_cache_image"
 docker save "$envoy_data_plane_cache_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
   ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
-docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag \
+docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag --force \
   "docker.io/library/${envoy_data_plane_cache_image}" "$envoy_data_plane_image" >/dev/null
 pull_image "$envoy_shutdown_image"
 docker tag "$envoy_shutdown_image" "$envoy_shutdown_cache_image"
 docker save "$envoy_shutdown_cache_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
   ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
-docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag \
+docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag --force \
   "docker.io/library/${envoy_shutdown_cache_image}" "docker.io/envoyproxy/gateway-dev:latest" >/dev/null
 
 }

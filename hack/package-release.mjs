@@ -21,7 +21,7 @@ try {
   // Only tracked public inputs, never workstation credentials or caches.
   const files = run('git',['ls-files','-z'],{cwd:root}).toString().split('\0').filter(Boolean);
   for (const file of files) {
-    if (!/^(demo$|demo-files\/|hack\/lib\/|config\/|test\/e2e\/|compat\/dsh\/baseline.json$|docs\/|README|LICENSE)/.test(file)) continue;
+    if (!/^(demo$|demo-files\/|hack\/lib\/|config\/|test\/e2e\/|compat\/dsh\/(?:baseline.json$|patches\/)|docs\/|README|LICENSE)/.test(file)) continue;
     const to = path.join(stage,file);fs.mkdirSync(path.dirname(to),{recursive:true});fs.copyFileSync(path.join(root,file),to);fs.chmodSync(to,fs.statSync(path.join(root,file)).mode);
     if (/\.ya?ml$/.test(file)) {
       let text = fs.readFileSync(to,'utf8');

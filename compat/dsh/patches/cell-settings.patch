@@ -1,0 +1,14 @@
+diff --git a/packages/client/ui-settings/src/client/index.ts b/packages/client/ui-settings/src/client/index.ts
+--- a/packages/client/ui-settings/src/client/index.ts
++++ b/packages/client/ui-settings/src/client/index.ts
+@@ -55,7 +55,9 @@ export function apply(ctx: Context): void {
+   const schema = new SettingsSchemaService(ctx)
+   // Resolved once here, where `remote` is declared in this plugin's own
+   // `inject`; the binder hands the same answer to every scope it binds.
+-  const persistence = ctx.remote.$host.isLoopback ? 'host' : 'memory'
++  // Cell image only: Gateway OIDC and per-Cell authorization own remote access.
++  // Keep the native write-only model editor usable at the Cell authority.
++  const persistence = 'host'
+   const mirror = new SettingsDescribeMirror(ctx, persistence)
+   ctx.effect(() => {
+     const disposers = [
