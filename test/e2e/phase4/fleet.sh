@@ -15,6 +15,7 @@ runner_memory_bytes="$(awk '/^MemTotal:/ { printf "%.0f", $2 * 1024; exit }' /pr
 runner_disk_bytes="$(df -B1 --output=avail "$repo_root" | awk 'NR == 2 { print $1 }')"
 
 phase4_dump_failure() {
+  local status=$?
   trap - ERR
   set +e
   echo "Phase 4 bounded fleet proof failed; aggregate evidence follows" >&2
@@ -28,6 +29,7 @@ phase4_dump_failure() {
     map({condition: .[0], count: length})' >&2
   k get events -A -o json | jq '[.items[] | {type, reason}] |
     group_by([.type, .reason]) | map({event: .[0], count: length})' >&2
+  exit "$status"
 }
 trap phase4_dump_failure ERR
 
