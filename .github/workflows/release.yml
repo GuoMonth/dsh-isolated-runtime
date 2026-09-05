@@ -96,7 +96,7 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/dsh-compat
-          key: dsh-rc1-${{ hashFiles('compat/dsh/baseline.json') }}
+          key: dsh-baseline-${{ hashFiles('compat/dsh/baseline.json') }}
       - name: Verify exact DSH behavior
         env:
           DSH_COMPAT_CACHE: ${{ runner.temp }}/dsh-compat
@@ -242,10 +242,52 @@ jobs:
           SKIP_IMAGE_BUILD: "1"
         run: docker pull "$CELL_IMAGE" && docker pull "$OPERATOR_IMAGE" && make verify-kind-phase4
 
+  bundle:
+    name: Package immutable MVP candidate
+    needs: candidate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Package tested identities
+        env:
+          CELL_REF: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}
+          OPERATOR_REF: ${{ env.OPERATOR_REPOSITORY }}@${{ needs.candidate.outputs.operator-digest }}
+        run: node hack/package-release.mjs v0.1.0 "$CELL_REF" "$OPERATOR_REF" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mvp-candidate
+          path: dist/
+          retention-days: 30
+
+  mvp:
+    name: MVP exact archive journey
+    needs: [candidate, bundle]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@v4
+        with:
+          name: mvp-candidate
+          path: dist
+      - name: Anonymous archive installation and deterministic DSH journey
+        run: ./hack/verify-mvp.sh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mvp-acceptance
+          path: dist/evidence/
+          retention-days: 30
+
   promote:
     name: Promote tested digests
     if: github.ref == 'refs/heads/main'
-    needs: [candidate, core, compatibility, image-smoke, phase1, phase2, phase3, phase4]
+    needs: [candidate, core, compatibility, image-smoke, phase1, phase2, phase3, phase4, mvp]
     runs-on: ubuntu-latest
     permissions:
       contents: read

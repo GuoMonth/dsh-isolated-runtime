@@ -24,10 +24,11 @@ type baseline struct {
 		LockfileSHA256 string `json:"lockfileSHA256"`
 	} `json:"toolchain"`
 	Distribution struct {
-		Package   string `json:"package"`
-		Version   string `json:"version"`
-		Tarball   string `json:"tarball"`
-		Integrity string `json:"integrity"`
+		Mode    string `json:"mode"`
+		Package string `json:"package"`
+		Version string `json:"version"`
+		Archive string `json:"archive"`
+		SHA256  string `json:"sha256"`
 	} `json:"distribution"`
 	Shutdown struct {
 		Signal               string `json:"signal"`
@@ -51,7 +52,7 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	if value.SchemaVersion != 1 || value.Source.Repository != "https://github.com/deepseek-ai/deepseek-harness.git" {
 		t.Fatalf("unexpected source contract: %+v", value.Source)
 	}
-	if value.Source.Tag != "dsh-v0.1.2-rc.1" || value.Source.Version != "0.1.2-rc.1" {
+	if value.Source.Tag != "dsh-v0.1.3-alpha.1" || value.Source.Version != "0.1.3-alpha.1" {
 		t.Fatalf("unexpected DSH release: %+v", value.Source)
 	}
 	if len(value.Source.Commit) != 40 {
@@ -63,9 +64,9 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	if value.Toolchain.PackageManager != "pnpm@11.7.0" || len(value.Toolchain.LockfileSHA256) != 64 {
 		t.Fatalf("toolchain is not exact: %+v", value.Toolchain)
 	}
-	if value.Distribution.Package != "@deepseek-ai/dsh" || value.Distribution.Version != value.Source.Version ||
-		value.Distribution.Tarball != "https://registry.npmjs.org/@deepseek-ai/dsh/-/dsh-0.1.2-rc.1.tgz" ||
-		value.Distribution.Integrity != "sha512-RPq48TzxvwpdT9/7W1tbhZDBMmeK+bxDrX9cqQC27Wx/LqtgJF8PSa3b3xriU8oxtvhwYmk21w2cej3uMQrnVA==" {
+	if value.Distribution.Mode != "source-deploy" || value.Distribution.Package != "@deepseek-ai/dsh" || value.Distribution.Version != value.Source.Version ||
+		value.Distribution.Archive != "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/"+value.Source.Commit ||
+		len(value.Distribution.SHA256) != 64 {
 		t.Fatalf("runtime distribution is not exact: %+v", value.Distribution)
 	}
 	if strings.Contains(strings.ToLower(string(baselineJSON)), "latest") {

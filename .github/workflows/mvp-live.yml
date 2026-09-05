@@ -1,0 +1,42 @@
+name: MVP live model acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Successful main candidate workflow run ID
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Fetch exact accepted candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
+        run: ./hack/fetch-candidate.sh "$CANDIDATE_RUN" dist
+      - name: Run live DeepSeek acceptance
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          MVP_MODE: live-model
+        run: |
+          test -n "$DEEPSEEK_API_KEY"
+          umask 077
+          key_file="$(mktemp)"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s' "$DEEPSEEK_API_KEY" > "$key_file"
+          unset DEEPSEEK_API_KEY
+          DEEPSEEK_KEY_FILE="$key_file" ./hack/verify-mvp.sh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mvp-live-evidence
+          path: dist/evidence/live-model.json
+          retention-days: 30

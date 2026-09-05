@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   verify:
-    name: dsh-v0.1.2-rc.1
+    name: Exact DSH compatibility
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -26,7 +26,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/dsh-compat
-          key: dsh-rc1-${{ hashFiles('compat/dsh/baseline.json') }}
+          key: dsh-baseline-${{ hashFiles('compat/dsh/baseline.json') }}
       - name: Verify exact DSH behavior
         env:
           DSH_COMPAT_CACHE: ${{ runner.temp }}/dsh-compat

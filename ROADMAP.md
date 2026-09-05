@@ -8,7 +8,7 @@ review gate before the next one starts.
 Complete in this delivery:
 
 - one namespaced `Cell` API and reproducibly generated CRD;
-- exact DSH source, state, protocol, and shutdown baseline, now advanced to `dsh-v0.1.2-rc.1`;
+- exact DSH source, state, protocol, and shutdown baseline, now advanced to `dsh-v0.1.3-alpha.1`;
 - executable Cell-local launcher experiment;
 - kind contract tests, lightweight CI, and path-gated full DSH CI;
 - removal of the old Runtime/control-plane architecture.
@@ -107,3 +107,10 @@ Kubernetes remains the fleet scheduler and state reconciler. Phase 4 adds no
 Fleet API, inventory database, policy engine, custom queue or second cluster
 orchestrator. Evidence and the gate decision are recorded in the
 [Phase 4 retrospective](https://github.com/GuoMonth/dsh-isolated-runtime/issues/39).
+
+## MVP v0.1.0 — Core closure and release
+
+In progress: [milestone 7](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7).
+Latest exact DSH baseline (#50), complete user journey (#51), local demo (#52),
+immutable release bundle (#53), live acceptance and final GO/publication (#54).
+No fleet-platform expansion or historical compatibility.

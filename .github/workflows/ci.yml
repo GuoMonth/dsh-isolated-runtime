@@ -59,9 +59,12 @@ jobs:
       - name: Render install surface
         run: |
           kubectl kustomize config/default > /tmp/dsh-install.yaml
-          kubectl kustomize config/phase2 > /tmp/dsh-phase2-install.yaml
-          kubectl kustomize config/phase3 > /tmp/dsh-phase3-install.yaml
-          kubectl kustomize config/phase4 > /tmp/dsh-phase4-install.yaml
+          kubectl kustomize config/browser > /tmp/dsh-phase2-install.yaml
+          kubectl kustomize config/snapshots > /tmp/dsh-phase3-install.yaml
+          mkdir -p config/.metrics-check
+          printf 'resources: [../snapshots]\ncomponents: [../metrics]\n' > config/.metrics-check/kustomization.yaml
+          kubectl kustomize config/.metrics-check > /tmp/dsh-phase4-install.yaml
+          rm -r config/.metrics-check
       - name: Assert one controller and both public CRDs
         run: |
           test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-install.yaml)" = 2

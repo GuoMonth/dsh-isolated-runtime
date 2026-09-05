@@ -33,7 +33,7 @@ fi
 docker run --rm "$operator_image" --help >/dev/null
 docker run --rm --entrypoint /cell-authorizer "$operator_image" --help >/dev/null
 docker run --rm --entrypoint node "$cell_image" -e \
-  "if (require('/opt/dsh/node_modules/@deepseek-ai/dsh/package.json').version !== '0.1.2-rc.1') process.exit(1)"
+  "if (require('/opt/dsh/node_modules/@deepseek-ai/dsh/package.json').version !== '0.1.3-alpha.1') process.exit(1)"
 
 mkdir -p "$smoke_root/data" "$smoke_root/private" "$smoke_root/tmp"
 chmod 0777 "$smoke_root/data" "$smoke_root/private" "$smoke_root/tmp"
@@ -56,7 +56,7 @@ wait_ready() {
   for _ in $(seq 1 90); do
     if curl --silent --show-error --fail "http://127.0.0.1:$management_port/readyz" >/dev/null 2>&1; then
       curl --silent --show-error --fail "http://127.0.0.1:$management_port/version" \
-        | jq -e '.contractVersion == "v1alpha1" and .dshVersion == "0.1.2-rc.1"' >/dev/null
+        | jq -e '.contractVersion == "v1alpha1" and .dshVersion == "0.1.3-alpha.1"' >/dev/null
       return
     fi
     sleep 1

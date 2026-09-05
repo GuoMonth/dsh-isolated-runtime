@@ -12,6 +12,8 @@ controller 和封闭枚举授权结果。本项目仍不维护 fleet inventory�
 
 [English](./README.md)
 
+MVP v0.1.0 正在收口，使用入口见[本地快速开始](docs/quickstart.zh-CN.md)，发布与验收状态见[里程碑 7](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7)。
+
 ## Cell 契约
 
 ```yaml
@@ -47,22 +49,22 @@ make verify-dsh         # 运行精确版本的上游 DSH 兼容套件
 golangci-lint run
 ```
 
-当前支持范围只有 `dsh-v0.1.2-rc.1`，commit
-`a66e4702047846cdaa10c66c9d3df3951f5ea70d`，不是 semver 范围。
+当前支持范围只有 `dsh-v0.1.3-alpha.1`，commit
+`d347e703908d0406b7a7ef80e3a0e594d86b2215`，不是 semver 范围。
 [兼容性记录](./compat/dsh/README.zh-CN.md)解释了为什么 access seam 最终选择由
 Cell-local launcher 持有 DSH 子进程。
 
 `kubectl apply -k config/default` 安装不依赖 Gateway API 的 Phase 1 surface。安装 Envoy
-Gateway，并提供 wildcard DNS/TLS 与 OIDC provider 配置后，`config/phase2` 增加参考
+Gateway，并提供 wildcard DNS/TLS 与 OIDC provider 配置后，`config/browser` 增加参考
 Gateway、authorizer 和路由模式。管理员使用普通 RoleBinding 授权；Operator 有意不管理它。
 Envoy Gateway 安装必须采用同目录 `envoy-gateway.yaml` 配置，使数据面运行在 Gateway
 namespace 并启用 Backend extension。
 
-集群安装 CSI snapshot controller 与兼容 driver 后，`kubectl apply -k config/phase3` 启用
+集群安装 CSI snapshot controller 与兼容 driver 后，`kubectl apply -k config/snapshots` 启用
 `CellSnapshot`；本项目不安装生产 CSI 组件。可执行示例见
 [snapshot/restore sample](./config/samples/dsh_v1alpha1_cellsnapshot.yaml)。
 
-`config/phase4` 是可选运维参考 overlay：它开启有界 controller 并发与私有 metrics listener，
+`config/metrics` 是浏览器/快照安装可选的 Kustomize component：它开启有界 controller 并发与私有 metrics listener，
 但不创建 metrics Service 或 scraper。Namespace label、ResourceQuota、LimitRange、
 StorageClass、RuntimeClass、Gateway 路由资格与 CSI 能力仍由集群管理员持有；详见
 [namespace 契约](./docs/specs/namespace-contract.zh-CN.md)与

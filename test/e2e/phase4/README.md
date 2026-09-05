@@ -11,7 +11,7 @@ development baseline:
 
 - one Kubernetes 1.34 kind control-plane node;
 - 10 tenant namespaces and 50 initial Cells;
-- two exact `dsh-v0.1.2-rc.1` Cell images and 48 lightweight workload
+- two exact `dsh-v0.1.3-alpha.1` Cell images and 48 lightweight workload
   fixtures;
 - eight overlapping snapshots plus one same-Cell queued operation;
 - operator Cell concurrency 4 and CellSnapshot concurrency 2;

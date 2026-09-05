@@ -9,12 +9,12 @@ import (
 
 const (
 	ContractVersion = "v1alpha1"
-	DSHVersion      = "0.1.2-rc.1"
+	DSHVersion      = "0.1.3-alpha.1"
 
 	ContainerName = "cell"
 	LauncherPath  = "/usr/local/bin/cell-launcher"
 	NodePath      = "/usr/local/bin/node"
-	DSHPath       = "/opt/dsh/node_modules/.bin/dsh"
+	DSHPath       = "/opt/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"
 	PatchPath     = "/etc/dsh/cell.patch.yml"
 
 	ProxyPortName      = "http"

@@ -13,6 +13,8 @@ project fleet inventory, scheduler, namespace policy engine, or backup service.
 
 [中文](./README.zh-CN.md)
 
+MVP v0.1.0 is being prepared. Start with the [local Quickstart](docs/quickstart.md); release status and acceptance are tracked in [milestone 7](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7).
+
 ## Cell contract
 
 ```yaml
@@ -50,25 +52,25 @@ make verify-dsh         # exact upstream DSH compatibility suite
 golangci-lint run
 ```
 
-The supported DSH baseline is exactly `dsh-v0.1.2-rc.1` at commit
-`a66e4702047846cdaa10c66c9d3df3951f5ea70d`; it is not a semver range. The
+The supported DSH baseline is exactly `dsh-v0.1.3-alpha.1` at commit
+`d347e703908d0406b7a7ef80e3a0e594d86b2215`; it is not a semver range. The
 [compatibility record](./compat/dsh/README.md) explains why the selected access
 seam is a Cell-local launcher that owns the DSH child process.
 
 `kubectl apply -k config/default` installs the Phase 1 surface without any
 Gateway API dependency. After installing Envoy Gateway and supplying wildcard
-DNS/TLS plus OIDC provider settings, `config/phase2` adds the reference Gateway,
+DNS/TLS plus OIDC provider settings, `config/browser` adds the reference Gateway,
 authorizer, and routing mode. Administrators grant access with ordinary
 RoleBindings; the operator intentionally never manages them. The Envoy Gateway
 installation must use the adjacent `envoy-gateway.yaml` configuration so its
 data plane runs in the Gateway namespace and the Backend extension is enabled.
 
 After a CSI snapshot controller and compatible driver are installed,
-`kubectl apply -k config/phase3` enables `CellSnapshot`. The project does not
+`kubectl apply -k config/snapshots` enables `CellSnapshot`. The project does not
 install production CSI components. See the executable
 [snapshot/restore sample](./config/samples/dsh_v1alpha1_cellsnapshot.yaml).
 
-`config/phase4` is an optional operational reference overlay. It enables
+`config/metrics` is an optional Kustomize component for browser/snapshot installs. It enables
 bounded controller concurrency and private metrics listeners without creating
 a metrics Service or scraper. Namespace labels, ResourceQuota, LimitRange,
 StorageClass, RuntimeClass, Gateway route eligibility and CSI capabilities stay

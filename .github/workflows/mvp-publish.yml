@@ -1,0 +1,72 @@
+name: Publish accepted MVP
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Successful main candidate run ID
+        type: string
+        required: true
+      live_run:
+        description: Successful live-model acceptance run ID
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - uses: docker/setup-buildx-action@v3
+      - name: Verify all candidate and live evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
+          LIVE_RUN: ${{ inputs.live_run }}
+        run: |
+          [[ "$LIVE_RUN" =~ ^[0-9]+$ ]]
+          ./hack/fetch-candidate.sh "$CANDIDATE_RUN" dist
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$LIVE_RUN" | jq -e '
+            .path == ".github/workflows/mvp-live.yml" and .head_branch == "main" and
+            .event == "workflow_dispatch" and .conclusion == "success" and
+            .head_repository.full_name == "GuoMonth/dsh-isolated-runtime"' > /dev/null
+          gh run download "$LIVE_RUN" --repo "$GITHUB_REPOSITORY" --name mvp-live-evidence --dir live
+          node hack/check-release.mjs dist live/live-model.json
+          source_sha="$(jq -r .sourceSHA dist/release.json)"
+          gh issue view 54 --repo "$GITHUB_REPOSITORY" --json body --jq .body > /tmp/mvp-review.txt
+          grep -Fq 'Decision: GO' /tmp/mvp-review.txt
+          grep -Fq "$source_sha" /tmp/mvp-review.txt
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Attach version tags and publish original archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(jq -r .version dist/release.json)"
+          source_sha="$(jq -r .sourceSHA dist/release.json)"
+          test "$version" = v0.1.0
+          if gh release view "$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Version already published; refusing to replace artifacts' >&2
+            exit 1
+          fi
+          for type in cell operator; do
+            ref="$(jq -r --arg type "$type" '.images[$type]' dist/release.json)"
+            docker buildx imagetools create -t "${ref%@*}:$version" "$ref"
+            actual="$(docker buildx imagetools inspect "${ref%@*}:$version" | awk '$1=="Digest:" {print $2;exit}')"
+            test "$actual" = "${ref#*@}"
+          done
+          cp live/live-model.json dist/live-model.json
+          gh release create "$version" dist/* --repo "$GITHUB_REPOSITORY" --target "$source_sha" \
+            --prerelease --title "$version — first local MVP" --notes-file docs/release-notes.md
