@@ -134,6 +134,10 @@ async function protocol(page, existingSession) {
   await rpc(page, "settings/describe", {});
   let sessionId = existingSession;
   if (!sessionId) {
+    // A single native page opens many RPCs at once. Keep this bounded burst
+    // inside the same real Gateway/authorizer path so a 5 QPS client budget
+    // cannot regress into intermittent 503s while serial probes still pass.
+    await Promise.all(Array.from({ length: 24 }, () => rpc(page, "settings/describe", {})));
     const created = await rpc(page, "session/create", { request: {} });
     sessionId = created.sessionId;
     if (!sessionId) throw new Error("session/create returned no id");
