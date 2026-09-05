@@ -32,6 +32,17 @@ or any failed gate keeps the retrospective open.
 - Upstream native settings are disabled at non-loopback hostnames. A hashed,
   one-site Cell integration patch enables its existing settings mirror behind
   the existing Gateway/Cell authorization. No new UI, API, or proxy rewrite.
+- The native UI's request burst exceeded client-go's default 5 QPS / 10 burst
+  budget in the synchronous authorizer. Its bounded client budget is now
+  100 QPS / 200 burst; authorization still reads current state and performs a
+  fresh SAR on every request, with the same fail-closed Gateway deadline.
+- The 50 Cell regression exposed a snapshot acceptance race after the snapshot
+  acquired its own writer fence. Acceptance now revalidates the persisted
+  source identity and storage binding without requiring the deliberately
+  fenced Cell to remain Ready. A controller interleaving test reproduces it.
+- Exact-archive deterministic acceptance passed locally and in candidate CI
+  for f767ce4. Subsequent fixes require a new complete candidate result; these
+  earlier successes are supporting evidence, not a final release GO.
 
 ## Accepted defaults
 

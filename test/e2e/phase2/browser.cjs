@@ -252,7 +252,7 @@ async function main() {
   try {
     const context = await browser.newContext({
       ignoreHTTPSErrors: true,
-      storageState: fs.existsSync(storageFile) && mode !== "initial" && mode !== "initial-hold" && mode !== "group" ? storageFile : undefined,
+      storageState: fs.existsSync(storageFile) && !["initial", "initial-hold", "group", "credential-capture"].includes(mode) ? storageFile : undefined,
     });
     const page = await context.newPage();
     if (mode === "initial" || mode === "initial-hold") {
@@ -313,6 +313,10 @@ async function main() {
       const state = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
       await holdFollowUntilClosed(page, state.sessionId);
     } else if (mode === "credential-capture") {
+      // Establish this proof in its own authenticated context: the preceding
+      // phase deliberately sends forged/cross-origin requests and replaces
+      // the backend. Inspect the live filter's cookies after a fresh login.
+      await login(page, cellA, requireEnv("USERNAME"));
       const response = await page.goto(`${cellA}/credential-capture`, { waitUntil: "domcontentloaded" });
       if (!response || response.status() !== 200) throw new Error(`credential capture status ${response?.status()}`);
       const observed = JSON.parse(await response.text());
