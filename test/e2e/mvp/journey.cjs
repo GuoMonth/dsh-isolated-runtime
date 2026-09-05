@@ -47,7 +47,11 @@ const cookieFile=path.join(root,'runtime/journey-cookies.json');
     }
     await page.locator('[data-composer-input]').first().waitFor({timeout:30000});
     if(resume||restored) {
-      await page.goto(`https://${host}:18443${previous.sessionPath}`,{waitUntil:'domcontentloaded'});
+      if(!await page.getByText(marker,{exact:false}).first().isVisible()) {
+        await page.getByRole('button',{name:'Search sessions',exact:true}).click();
+        await page.getByPlaceholder('Search sessions...').fill(previous.sessionTitle||'MVP file verification');
+        await page.getByRole('tree',{name:'Search results'}).getByRole('treeitem').first().click({timeout:30000});
+      }
       await page.getByText(marker,{exact:false}).first().waitFor({timeout:30000});
     }
     if(!resume&&!restored && !await page.getByRole('button',{name:/^Select model/}).isVisible()) {
@@ -83,7 +87,7 @@ const cookieFile=path.join(root,'runtime/journey-cookies.json');
     await page.getByRole('button',{name:/stop generating/i}).waitFor({state:'hidden',timeout:30000});
     await context.storageState({path:cookieFile});
     fs.chmodSync(cookieFile,0o600);
-    fs.writeFileSync(stateFile,JSON.stringify({marker,turnMarker,mode,model,sessionPath:page.url().replace(`https://${host}:18443`,'')}),{mode:0o600});
+    fs.writeFileSync(stateFile,JSON.stringify({marker,turnMarker,mode,model,sessionTitle:await page.locator('nav[aria-label="Session hierarchy"] button:disabled').innerText()}),{mode:0o600});
     if(errors.length)throw Error(`Browser errors: ${errors.join('; ')}`);
     await page.screenshot({path:path.join(root,'runtime/journey.png')});
     console.log(`MVP ${mode} browser journey passed (resume=${resume})`);
