@@ -172,9 +172,9 @@ func (r *CellSnapshotReconciler) accept(ctx context.Context, snapshot *dshv1alph
 		return r.setPending(ctx, snapshot, reasonSnapshotOperationQueued, "another CellSnapshot is active")
 	}
 	if cell.Annotations[cellcontract.ActiveSnapshotAnnotation] == string(snapshot.UID) {
-		// The Cell worker can fence its writer as soon as the lock is persisted,
-		// before this worker records Accepted. Resume from the bound identities;
-		// requiring Ready here would wait forever on our own writer fence.
+		// The Cell worker withdraws Ready as soon as the lock is persisted,
+		// before this worker records Accepted and permits writer shutdown.
+		// Resume from the bound identities instead of waiting on our own lock.
 		return r.acceptLocked(ctx, snapshot)
 	}
 	ready := meta.FindStatusCondition(cell.Status.Conditions, dshv1alpha1.ConditionReady)

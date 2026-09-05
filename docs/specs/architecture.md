@@ -106,10 +106,11 @@ Cell writers.
 `CellSnapshot` is an immutable, one-shot Kubernetes intent. A UID-bound Cell
 annotation acquired with resource-version compare-and-swap serializes data
 operations. Acceptance records both the source Cell UID and data PVC UID before
-the lock becomes active. Once that lock is active, the Cell controller sets the
-StatefulSet to zero, even if the snapshot has not yet recorded `Accepted=True`.
-Acceptance revalidates the persisted source binding when resuming under its own
-lock; it does not require the deliberately fenced source to remain Ready. Only an observed-zero StatefulSet plus an uncached,
+the lock becomes active. That lock marks the Cell as snapshot-in-progress and
+withdraws Ready. Acceptance revalidates the persisted source binding when
+resuming under its own lock, without requiring the source to remain Ready.
+Once `Accepted=True`, the Cell controller sets the StatefulSet to zero.
+Only an observed-zero StatefulSet plus an uncached,
 namespace-wide check proving that neither a Pod owned by the current StatefulSet
 nor any Pod carrying the exact Cell name and UID remains establishes
 `WriterStopped=True` and permits creation of the CSI `VolumeSnapshot`. The

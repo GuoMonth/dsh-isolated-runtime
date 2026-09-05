@@ -88,8 +88,9 @@ Cell writer 并发读写同一个 data volume。
 
 `CellSnapshot` 是不可变的一次性 Kubernetes 意图。Cell 上通过 resourceVersion CAS 获得的
 UID 注解负责串行化数据操作。接受操作时先记录源 Cell UID 与 data PVC UID，再激活锁。
-锁生效后，Cell controller 即可将源 StatefulSet 降到零副本，不必等待 `Accepted=True`。
-快照控制器持有自身锁时会重验已记录的源绑定，不再要求已主动隔离的源 Cell 保持 Ready。
+锁生效后，Cell controller 将 Cell 标为快照进行中并撤下 Ready 条件。
+快照控制器持有自身锁时会重验已记录的源绑定，不再要求源 Cell 保持 Ready。
+`Accepted=True` 后，Cell controller 才将源 StatefulSet 降到零副本。
 只有观测到零副本，
 并通过不经缓存的 namespace 全量检查确认当前 StatefulSet 所有的 Pod，以及任何携带精确
 Cell name/UID 的 Pod 均已消失，才写入 `WriterStopped=True`。创建 CSI `VolumeSnapshot` 前还会再次校验 PVC UID 及两侧 CSI
