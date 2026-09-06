@@ -1,12 +1,25 @@
 # 本地 MVP 快速开始
 
-首发支持 Linux x86_64；需要当前用户可访问的 Docker，打开浏览器还需要图形桌面。
-建议按参考环境准备 4 CPU、16 GiB 内存，实际消耗取决于工作负载。基础命令需要 Bash、curl、
-tar/xz、sha256sum、OpenSSL、flock 和 Git。演示会把缺少的固定版本 kind、kubectl、jq、Node、
-Chromium 下载到演示私有目录，不需要 Go 编译器，不修改系统配置。
+支持 Linux x86_64 和 Apple Silicon macOS，请使用原生 arm64 终端。
+Mac 需要安装并启动 Apple Silicon 版 Docker Desktop，容器在其 Linux arm64 虚拟机中运行。
+Docker 必须对当前用户可用，`demo open` 需要图形桌面。CI 参考环境为 4 CPU、16 GiB 内存，
+实际消耗取决于工作负载。需要 Bash、curl、tar、OpenSSL 和 Git；Linux 还需要 sha256sum/flock，
+macOS 使用系统自带 shasum/Perl。脚本会私有下载固定版本的原生 kind、kubectl、jq、Node 和
+Chromium，无须 Go 编译器、Homebrew 或 Rosetta，不修改系统 hosts 或全局证书信任。
 
-从项目 GitHub Release 下载 linux-amd64 压缩包及 SHA256SUMS，运行
-`sha256sum -c SHA256SUMS`，解压并进入目录。包中的 `release.json` 记录本次验收的精确镜像。
+从 [GitHub Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases) 下载对应平台的压缩包和 `SHA256SUMS`。
+Apple Silicon 使用：
+
+```sh
+archive=dsh-isolated-runtime-v0.1.1-darwin-arm64.tar.gz
+grep -F "  $archive" SHA256SUMS | shasum -a 256 -c -
+tar -xzf "$archive"
+cd "${archive%.tar.gz}"
+```
+
+Linux x86_64 选择 `dsh-isolated-runtime-v0.1.1-linux-amd64.tar.gz`，校验管道使用
+`sha256sum -c -`。公开校验和文件包含两个安装包，只选取已下载文件对应的一行。
+包内 `release.json` 记录运行架构及精确镜像 digest。
 
 ```sh
 ./demo up
@@ -24,12 +37,17 @@ Edit path**，填写 `/var/lib/dsh/data/workspace`，按 Enter 后点击 **Open*
 之类的请求。模型费用由该账户承担；本项目不提供模型服务或另一套模型配置界面。
 界面保存的 key 位于 private 卷；也可以用同 namespace 的 Secret 与 `credentialsRef` 注入环境变量。
 
-默认状态目录为 `${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime`，可用
-`DSH_DEMO_HOME` 指定另一个目录。重复 `up` 保留现有 Cell 并重新连接转发，关闭浏览器不会删数据。
+macOS 默认状态目录为 `~/Library/Application Support/DSH Isolated Runtime`，Linux 为
+`${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime`。显式 `XDG_STATE_HOME` 在两种系统上均优先，
+也可用 `DSH_DEMO_HOME` 指定另一个目录。重复 `up` 保留现有 Cell 并重新连接转发，关闭浏览器不会删数据。
 本地演示不做跨版本原地迁移；需要保留的文件应在显式清理前导出。
 
 ```sh
-export DSH_DEMO_HOME="${DSH_DEMO_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime}"
+if [ "$(uname -s)" = Darwin ] && [ -z "${XDG_STATE_HOME:-}" ]; then
+  export DSH_DEMO_HOME="${DSH_DEMO_HOME:-$HOME/Library/Application Support/DSH Isolated Runtime}"
+else
+  export DSH_DEMO_HOME="${DSH_DEMO_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime}"
+fi
 export PATH="$DSH_DEMO_HOME/tools/bin:$PATH"
 export KUBECONFIG="$DSH_DEMO_HOME/kubeconfig"
 kubectl -n tenant-demo get cells
@@ -95,4 +113,8 @@ kubectl -n tenant-demo get httproute "cell-$restored_uid" -o jsonpath='{.spec.ho
 先在自有 overlay 配置域名、TLS、OIDC 和路由资格，再应用配置；Kubernetes、Gateway 和 CSI
 是外部前置能力，Operator 不安装或管理它们。
 
-仅支持当前精确 DSH 基线和 linux/amd64；不承诺历史 API、跨版本恢复、HA、生产容量、多集群或企业策略。
+仅支持当前精确 DSH 基线；提供 Linux amd64/arm64 镜像及 Linux x86_64/Apple Silicon 主机安装包；不承诺历史 API、跨版本恢复、HA、生产容量、多集群或企业策略。
+
+CI 在原生 Linux amd64/arm64 上验证完整的确定性 DSH 链路，并在 macOS arm64 上验证实际工具、
+证书、进程归属和 Chromium 配置生命周期。完整 Docker Desktop 端到端测试及真实模型测试留给
+维护者在 pre-release 发布后完成，发布证据不会把这两项标记为已通过。

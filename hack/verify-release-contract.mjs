@@ -21,16 +21,39 @@ try {
   const deterministic={...proof,kind:'deterministic'};
   fs.writeFileSync(live,JSON.stringify(deterministic));assert.equal(verify(live,'deterministic').status,0);
   assert.notEqual(verify(live).status,0,'deterministic evidence was accepted as a live smoke');
-  for(const change of [{success:false},{sourceSHA:'b'.repeat(40)},{archiveSHA256:'b'.repeat(64)},{images:{cell:ref('operator'),operator:ref('cell')}},{kind:'live-model'},{model:''}]) {
+  for(const change of [{success:false},{sourceSHA:'b'.repeat(40)},{archiveSHA256:'b'.repeat(64)},{images:{cell:ref('operator'),operator:ref('cell')}},{kind:'live-model'},{model:''},{packagePlatform:'darwin/arm64'},{platform:'linux/arm64'}]) {
     fs.writeFileSync(live,JSON.stringify({...deterministic,...change}));assert.notEqual(verify(live,'deterministic').status,0,'forged deterministic evidence was accepted');
   }
+  const candidates=path.join(temp,'candidates');
+  for(const target of ['linux-amd64','darwin-arm64']) {
+    const dir=path.join(candidates,target);
+    execFileSync(process.execPath,[path.join(root,'hack/package-release.mjs'),'v0.1.1',ref('cell'),ref('operator'),dir,target.replace('-','/')]);
+    const identity=JSON.parse(execFileSync(process.execPath,[path.join(root,'hack/check-release.mjs'),dir],{encoding:'utf8'}));
+    fs.mkdirSync(path.join(dir,'evidence'));
+    fs.writeFileSync(path.join(dir,'evidence/deterministic.json'),JSON.stringify({...identity,kind:'deterministic',model:'fixture',success:true}));
+    if(target==='darwin-arm64') fs.writeFileSync(path.join(dir,'evidence/macos-host.json'),JSON.stringify({...identity,kind:'macos-host',success:true,hostPlatform:'darwin/arm64',dockerDesktopEndToEnd:'not-run'}));
+  }
+  const publicDir=path.join(temp,'public');
+  const publicTool=path.join(root,'hack/public-release.mjs');
+  execFileSync(process.execPath,[publicTool,'prepare',candidates,publicDir]);
+  execFileSync(process.execPath,[publicTool,'verify',publicDir]);
+  const macEvidence=path.join(publicDir,'deterministic-darwin-arm64.json');
+  const originalMacEvidence=fs.readFileSync(macEvidence);
+  fs.writeFileSync(macEvidence,fs.readFileSync(path.join(publicDir,'deterministic-linux-amd64.json')));
+  assert.notEqual(spawnSync(process.execPath,[publicTool,'verify',publicDir]).status,0,'x86 evidence was accepted for the Mac archive');
+  fs.writeFileSync(macEvidence,originalMacEvidence);
+  const acceptanceFile=path.join(publicDir,'release-acceptance.json');
+  const acceptance=JSON.parse(fs.readFileSync(acceptanceFile));
+  acceptance.dockerDesktopEndToEnd.status='passed';
+  fs.writeFileSync(acceptanceFile,JSON.stringify(acceptance));
+  assert.notEqual(spawnSync(process.execPath,[publicTool,'verify',publicDir]).status,0,'unperformed Docker Desktop acceptance was represented as passed');
   const manifestFile=path.join(temp,'release.json');const manifest=fs.readFileSync(manifestFile);
   fs.writeFileSync(manifestFile,JSON.stringify({...JSON.parse(manifest),sourceSHA:'b'.repeat(40)}));
   assert.notEqual(verify().status,0,'outer manifest mutation was accepted');fs.writeFileSync(manifestFile,manifest);
   const archive=path.join(temp,fs.readdirSync(temp).find(name=>name.endsWith('.tar.gz')));
   fs.appendFileSync(archive,'tamper');assert.notEqual(verify().status,0,'archive mutation was accepted');
   const tools=path.join(temp,'tools');fs.mkdirSync(tools);
-  for(const name of ['bash','dirname','mkdir','flock','sha256sum','cut']) {
+  for(const name of ['bash','dirname','mkdir','flock','sha256sum','cut','uname']) {
     const binary=execFileSync('which',[name],{encoding:'utf8'}).trim();fs.symlinkSync(binary,path.join(tools,name));
   }
   const missing=spawnSync(path.join(root,'demo'),['up'],{env:{...process.env,PATH:tools,DSH_DEMO_HOME:path.join(temp,'missing-docker')},encoding:'utf8'});

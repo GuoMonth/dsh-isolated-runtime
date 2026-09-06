@@ -1,7 +1,9 @@
-# MVP v0.1.0 delivery ledger
+# MVP delivery ledger
 
-Target: Linux x86_64 local kind experience, one current DSH baseline, existing
-Cell/CellSnapshot v1alpha1 APIs. No fleet platform or historical compatibility.
+Current target: Linux x86_64 and Apple Silicon macOS local kind experience, one
+current DSH baseline, existing Cell/CellSnapshot v1alpha1 APIs. No fleet platform
+or historical compatibility. v0.1.0 and milestone 7 are complete; v0.1.1 adds the
+Apple Silicon host package and native Linux arm64 images.
 
 Milestone: https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7
 
@@ -16,7 +18,7 @@ Milestone: https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7
 Build Cell and Operator once. Run all existing gates and the MVP journey using
 those digests. Generate and test the installation/demo archive once. Record source
 SHA, both image digests, archive checksum and deterministic CI evidence without
-credentials. Publish v0.1.0 as a GitHub pre-release with the original archive and
+credentials. Publish the version in `VERSION` as a GitHub pre-release with the original archive and
 the same GHCR images, verify anonymous downloads, then close the milestone.
 
 The maintainer's 2026-09-06 decision replaces the original pre-release live-model
@@ -63,3 +65,14 @@ Local demo uses an isolated kubeconfig and browser profile, loopback endpoints,
 test OIDC identity, and existing kind/Calico/Envoy/Dex fixtures. Snapshots opt in;
 metrics off. Users configure their own model in DSH. Closing the browser retains
 data; explicit demo teardown deletes only demo-owned resources and data.
+
+## Apple Silicon follow-up
+
+Native Linux amd64 and arm64 image builds are assembled into shared OCI indexes.
+Each host archive has a platform manifest and an exact-archive deterministic
+proof. A separate macOS arm64 job verifies native tools, stock TLS/checksums,
+exclusive locks, owned-process cleanup and actual Chromium profile lifecycle.
+Full Docker Desktop and real-model end-to-end testing remain post-release manual
+follow-ups and are explicitly recorded as not run. Manual publication dispatch
+is the maintainer's release action; the closed v0.1.0 review is not reused as an
+approval record for later patch releases.

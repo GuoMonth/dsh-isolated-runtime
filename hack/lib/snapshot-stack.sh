@@ -82,7 +82,7 @@ checkout_exact https://github.com/kubernetes-csi/external-snapshotter.git \
 checkout_exact https://github.com/kubernetes-csi/csi-driver-host-path.git \
   "$hostpath_commit" "$hostpath_root"
 
-# Pull once through the host daemon and import exact amd64 images into kind.
+# Pull once through the host daemon and import its native images into kind.
 # This avoids serial kubelet pulls and makes registry transients recoverable.
 csi_images=(
   registry.k8s.io/sig-storage/snapshot-controller:v8.5.0
@@ -114,10 +114,17 @@ sed 's#registry.k8s.io/sig-storage/snapshot-controller:v8.4.0#registry.k8s.io/si
   "$snapshotter_root/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml" | k apply -f -
 k -n kube-system rollout status deployment/snapshot-controller --timeout=300s
 
-KUBECONFIG="$kubeconfig" \
-CSI_SNAPSHOTTER_TAG=v8.5.0 \
-HOSTPATHPLUGIN_TAG=v1.18.0 \
-  "$hostpath_root/deploy/kubernetes-1.34/deploy.sh"
+# The upstream fixture assumes GNU utilities and paths without spaces. Run it
+# unchanged inside the owned Linux kind node, including on macOS hosts.
+docker exec "${cluster_name}-control-plane" mkdir -p /tmp/dsh-reference-csi
+# Extract in the node's mount namespace: systemd mounts /tmp after Docker starts,
+# so docker cp can write into a different /tmp than docker exec sees.
+tar -C "$hostpath_root" -cf - deploy | docker exec -i "${cluster_name}-control-plane" \
+  tar -C /tmp/dsh-reference-csi -xf -
+docker exec "${cluster_name}-control-plane" env \
+  KUBECONFIG=/etc/kubernetes/admin.conf \
+  CSI_SNAPSHOTTER_TAG=v8.5.0 HOSTPATHPLUGIN_TAG=v1.18.0 \
+  bash /tmp/dsh-reference-csi/deploy/kubernetes-1.34/deploy.sh
 k apply -f "$hostpath_root/examples/csi-storageclass.yaml"
 k get volumesnapshotclass csi-hostpath-snapclass -o json | jq -e '
   .driver == "hostpath.csi.k8s.io" and .deletionPolicy == "Delete"
