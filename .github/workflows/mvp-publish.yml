@@ -23,25 +23,20 @@ jobs:
         with:
           node-version: "24"
       - uses: docker/setup-buildx-action@v3
-      - name: Verify the accepted candidate and record post-release live testing
+      - name: Fetch both accepted archives and their matching evidence
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_RUN: ${{ inputs.candidate_run }}
         run: |
-          ./hack/fetch-candidate.sh "$CANDIDATE_RUN" dist
-          gh run download "$CANDIDATE_RUN" --repo "$GITHUB_REPOSITORY" --name mvp-acceptance --dir evidence
-          node hack/check-release.mjs dist evidence/deterministic.json deterministic
-          source_sha="$(jq -r .sourceSHA dist/release.json)"
-          gh issue view 54 --repo "$GITHUB_REPOSITORY" --json body --jq .body > /tmp/mvp-review.txt
-          grep -Fq 'Decision: GO' /tmp/mvp-review.txt
-          grep -Fq "$source_sha" /tmp/mvp-review.txt
-          cp evidence/deterministic.json dist/deterministic.json
-          jq '{sourceSHA, archiveSHA256, images, version,
-            automaticAcceptance: {kind, success, model},
-            liveModel: {status: "not-run", timing: "after-publication", owner: "maintainer"},
-            decision: "Publish MVP pre-release; maintainer performs live end-to-end testing after publication",
-            review: "https://github.com/GuoMonth/dsh-isolated-runtime/issues/54"}' \
-            evidence/deterministic.json > dist/release-acceptance.json
+          for target in linux-amd64 darwin-arm64; do
+            ./hack/fetch-candidate.sh "$CANDIDATE_RUN" "candidates/$target" "$target"
+            gh run download "$CANDIDATE_RUN" --repo "$GITHUB_REPOSITORY" \
+              --name "mvp-acceptance-$target" --dir "candidates/$target/evidence"
+          done
+          gh run download "$CANDIDATE_RUN" --repo "$GITHUB_REPOSITORY" \
+            --name mvp-macos-host --dir candidates/darwin-arm64/evidence
+          node hack/public-release.mjs prepare candidates dist
+          node hack/public-release.mjs verify dist
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -53,7 +48,7 @@ jobs:
         run: |
           version="$(jq -r .version dist/release.json)"
           source_sha="$(jq -r .sourceSHA dist/release.json)"
-          test "$version" = v0.1.0
+          test "$version" = "$(cat VERSION)"
           if gh release view "$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo 'Version already published; refusing to replace artifacts' >&2
             exit 1
@@ -65,19 +60,17 @@ jobs:
             test "$actual" = "${ref#*@}"
           done
           gh release create "$version" dist/* --repo "$GITHUB_REPOSITORY" --target "$source_sha" \
-            --prerelease --title "$version — first local MVP" --notes-file docs/release-notes.md
+            --prerelease --title "$version — local MVP with Apple Silicon" --notes-file docs/release-notes.md
       - name: Verify anonymous release download
         run: |
           version="$(jq -r .version dist/release.json)"
-          archive="$(awk '{print $2}' dist/SHA256SUMS)"
           public_dir="$(mktemp -d)"
           trap 'rm -rf "$public_dir"' EXIT
-          for file in "$archive" SHA256SUMS release.json deterministic.json release-acceptance.json; do
+          for original in dist/*; do
+            file="${original##*/}"
             curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 --max-time 600 \
               "https://github.com/$GITHUB_REPOSITORY/releases/download/$version/$file" \
               --output "$public_dir/$file"
+            cmp "$original" "$public_dir/$file"
           done
-          cmp dist/SHA256SUMS "$public_dir/SHA256SUMS"
-          cmp dist/release.json "$public_dir/release.json"
-          cmp dist/release-acceptance.json "$public_dir/release-acceptance.json"
-          node hack/check-release.mjs "$public_dir" "$public_dir/deterministic.json" deterministic
+          node hack/public-release.mjs verify "$public_dir"

@@ -39,6 +39,24 @@ docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag --
   "docker.io/library/${envoy_shutdown_cache_image}" "docker.io/envoyproxy/gateway-dev:latest" >/dev/null
 
 }
+create_reference_certificates() {
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+  -keyout "$test_root/ca.key" -out "$test_root/ca.crt" \
+  -subj /CN=dsh-phase2-test-ca >/dev/null 2>&1
+openssl req -new -newkey rsa:2048 -nodes \
+  -keyout "$test_root/gateway.key" -out "$test_root/gateway.csr" \
+  -subj '/CN=*.cells.test' >/dev/null 2>&1
+openssl x509 -req -days 365 -in "$test_root/gateway.csr" \
+  -CA "$test_root/ca.crt" -CAkey "$test_root/ca.key" -CAcreateserial \
+  -extfile <(printf 'subjectAltName=DNS:*.cells.test,DNS:auth.cells.test\n') -out "$test_root/gateway.crt" >/dev/null 2>&1
+openssl req -new -newkey rsa:2048 -nodes \
+  -keyout "$test_root/dex.key" -out "$test_root/dex.csr" \
+  -subj /CN=dex.dsh-system.svc >/dev/null 2>&1
+openssl x509 -req -days 365 -in "$test_root/dex.csr" \
+  -CA "$test_root/ca.crt" -CAkey "$test_root/ca.key" -CAserial "$test_root/ca.srl" \
+  -extfile <(printf 'subjectAltName=DNS:dex.dsh-system.svc\n') -out "$test_root/dex.crt" >/dev/null 2>&1
+}
+
 install_reference_identity() {
 curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
   "https://github.com/envoyproxy/gateway/releases/download/${envoy_gateway_version}/install.yaml" \
@@ -59,23 +77,7 @@ k wait --for=condition=Established crd/cells.dsh.isolated.io --timeout=60s
 k apply -f "$repo_root/config/default/namespace.yaml"
 k label namespace dsh-system dsh.isolated.io/routes=enabled --overwrite
 
-openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
-  -keyout "$test_root/ca.key" -out "$test_root/ca.crt" \
-  -subj /CN=dsh-phase2-test-ca >/dev/null 2>&1
-openssl req -new -newkey rsa:2048 -nodes \
-  -keyout "$test_root/gateway.key" -out "$test_root/gateway.csr" \
-  -subj '/CN=*.cells.test' \
-  -addext 'subjectAltName=DNS:*.cells.test,DNS:auth.cells.test' >/dev/null 2>&1
-openssl x509 -req -days 365 -in "$test_root/gateway.csr" \
-  -CA "$test_root/ca.crt" -CAkey "$test_root/ca.key" -CAcreateserial \
-  -copy_extensions copy -out "$test_root/gateway.crt" >/dev/null 2>&1
-openssl req -new -newkey rsa:2048 -nodes \
-  -keyout "$test_root/dex.key" -out "$test_root/dex.csr" \
-  -subj /CN=dex.dsh-system.svc \
-  -addext 'subjectAltName=DNS:dex.dsh-system.svc' >/dev/null 2>&1
-openssl x509 -req -days 365 -in "$test_root/dex.csr" \
-  -CA "$test_root/ca.crt" -CAkey "$test_root/ca.key" -CAserial "$test_root/ca.srl" \
-  -copy_extensions copy -out "$test_root/dex.crt" >/dev/null 2>&1
+create_reference_certificates
 k -n dsh-system create secret tls dsh-gateway-tls \
   --cert="$test_root/gateway.crt" --key="$test_root/gateway.key" --dry-run=client -o yaml | k apply -f -
 k -n dsh-system create secret tls dex-tls \

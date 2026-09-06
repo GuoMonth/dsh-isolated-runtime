@@ -12,7 +12,7 @@ controller 和封闭枚举授权结果。本项目仍不维护 fleet inventory�
 
 [English](./README.md)
 
-MVP v0.1.0 正在收口，使用入口见[本地快速开始](docs/quickstart.zh-CN.md)，发布与验收状态见[里程碑 7](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7)。
+本地 MVP 提供 Linux x86_64 和 Apple Silicon macOS 安装包，下载见 [GitHub Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases)，使用入口见[本地快速开始](docs/quickstart.zh-CN.md)。首个 MVP [里程碑](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7)已完成。
 
 ## Cell 契约
 

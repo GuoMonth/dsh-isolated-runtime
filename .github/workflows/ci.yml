@@ -109,4 +109,4 @@ jobs:
         with:
           node-version: "24"
       - run: node hack/verify-release-contract.mjs
-      - run: shellcheck -x demo demo-files/tools.sh hack/verify-mvp.sh hack/fetch-candidate.sh
+      - run: shellcheck -x demo demo-files/host.sh demo-files/tools.sh hack/verify-mvp.sh hack/verify-macos-host.sh hack/fetch-candidate.sh

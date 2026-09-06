@@ -1,14 +1,28 @@
 # Local MVP quickstart
 
-The first MVP targets Linux x86_64 with Docker and a graphical desktop for the
-browser. Reserve the reference envelope of 4 CPUs and 16 GiB memory; actual
-requirements depend on your workload. Bash, curl, tar/xz, sha256sum, OpenSSL,
-flock and Git are prerequisites. The demo privately downloads missing pinned
-kind, kubectl, jq, Node and Chromium tools. No Go compiler is needed.
+Use Linux x86_64 or Apple Silicon macOS (native arm64 terminal). On Mac, install
+and start Docker Desktop for Apple Silicon; its Linux VM runs the arm64 images.
+Docker must be available to the current user. A graphical desktop is needed for
+`demo open`. The reference CI envelope is 4 CPUs and 16 GiB memory; actual needs
+depend on workload. Bash, curl, tar, OpenSSL and Git are prerequisites. Linux also
+needs sha256sum/flock; macOS uses its stock shasum/Perl utilities. The demo privately
+downloads pinned native kind, kubectl, jq, Node and Chromium tools. No Go compiler,
+Homebrew installation, Rosetta or system configuration changes are required.
 
-Download the linux-amd64 archive and SHA256SUMS from the project's GitHub Release,
-run `sha256sum -c SHA256SUMS`, extract the archive and enter its directory. The
-archive includes `release.json` binding every project image to its tested digest.
+Download the archive for your host and `SHA256SUMS` from [GitHub Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases).
+For Apple Silicon:
+
+```sh
+archive=dsh-isolated-runtime-v0.1.1-darwin-arm64.tar.gz
+grep -F "  $archive" SHA256SUMS | shasum -a 256 -c -
+tar -xzf "$archive"
+cd "${archive%.tar.gz}"
+```
+
+On Linux x86_64 select `dsh-isolated-runtime-v0.1.1-linux-amd64.tar.gz` and use
+`sha256sum -c -` in the verification pipeline. The public checksum file covers
+both archives; select the line for the one you downloaded. Each archive includes
+its own `release.json` binding the runtime architecture and tested image digests.
 
 ```sh
 ./demo up
@@ -31,13 +45,19 @@ account. The project supplies no model service or separate provider settings UI.
 Keys configured in DSH live on the private volume; provider keys may alternatively
 be injected through a same-namespace Secret referenced by `credentialsRef`.
 
-State lives in `${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime`.
+On macOS the default state directory is `~/Library/Application Support/DSH Isolated Runtime`;
+on Linux it is `${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime`.
+An explicit `XDG_STATE_HOME` takes precedence on either host.
 Set `DSH_DEMO_HOME` to select another state directory. Repeating `up` retains the
 Cell and reconnects browser forwarding. Closing Chromium retains data. Do not
 change the demo release in place: export needed files before deleting a demo.
 
 ```sh
-export DSH_DEMO_HOME="${DSH_DEMO_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime}"
+if [ "$(uname -s)" = Darwin ] && [ -z "${XDG_STATE_HOME:-}" ]; then
+  export DSH_DEMO_HOME="${DSH_DEMO_HOME:-$HOME/Library/Application Support/DSH Isolated Runtime}"
+else
+  export DSH_DEMO_HOME="${DSH_DEMO_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime}"
+fi
 export PATH="$DSH_DEMO_HOME/tools/bin:$PATH"
 export KUBECONFIG="$DSH_DEMO_HOME/kubeconfig"
 kubectl -n tenant-demo get cells
@@ -111,6 +131,12 @@ for browser/snapshot installations. Configure domain, TLS, OIDC and route eligib
 in your own overlay before applying. Kubernetes, Gateway and CSI remain external
 prerequisites; the operator does not install or own those systems.
 
-Only the exact current DSH baseline and linux/amd64 are supported. There is no
+Only the exact current DSH baseline is supported. Images cover Linux amd64/arm64; host packages cover Linux x86_64 and Apple Silicon macOS. There is no
 historical API or cross-version restore commitment. HA, production capacity,
 multi-cluster operation and enterprise policy are outside this MVP.
+
+CI verifies the complete deterministic DSH journey on native Linux amd64 and arm64,
+and the actual macOS arm64 tools, certificate generation, process ownership and
+Chromium profile lifecycle. Full Docker Desktop end-to-end testing and live model
+testing remain maintainer follow-ups after this pre-release; neither is reported
+as passed by the release evidence.

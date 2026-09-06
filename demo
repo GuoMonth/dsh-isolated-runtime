@@ -4,11 +4,16 @@
 set -Eeuo pipefail
 umask 077
 repo_root="$(cd "$(dirname "$0")" && pwd)"
-demo_root="${DSH_DEMO_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime}"
+source "$repo_root/demo-files/host.sh"
+initialize_demo_host
+if [[ "$demo_os" == darwin && -z "${XDG_STATE_HOME:-}" ]]; then
+  demo_default="$HOME/Library/Application Support/DSH Isolated Runtime"
+else demo_default="${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime"; fi
+demo_root="${DSH_DEMO_HOME:-$demo_default}"
 mkdir -p "$demo_root"
 demo_root="$(cd "$demo_root" && pwd)"
 exec 9>"$demo_root/lock"
-flock -n 9 || { echo 'Another demo command is running' >&2; exit 1; }
+demo_lock acquire || { echo 'Another demo command is running' >&2; exit 1; }
 source "$repo_root/demo-files/tools.sh"
 source "$repo_root/hack/lib/reference-versions.sh"
 source "$repo_root/hack/lib/browser-stack.sh"
@@ -22,7 +27,7 @@ dex_alice_sub="CglhbGljZS1zdWISBWxvY2Fs"
 k() { kubectl --kubeconfig "$kubeconfig" "$@"; }
 pull_image() {
   for attempt in $(seq 1 5); do
-    if docker pull --platform linux/amd64 "$1" >/dev/null; then return; fi
+    if docker pull --platform "$demo_platform" "$1" >/dev/null; then return; fi
     sleep "$attempt"
   done
   echo "Could not pull required image: $1" >&2; return 1
@@ -38,33 +43,13 @@ owned_cluster() {
   [[ "$(cat "$demo_root/owner")" == "$cluster_name" ]]
 }
 stop_forwards() {
-  local file pid
+  local file
   for file in "$test_root/18443.pid" "$test_root/15556.pid"; do
-    [[ -f "$file" ]] || continue
-    pid="$(cat "$file")"
-    # A reused PID must never let demo down kill an unrelated process.
-    if [[ "$pid" =~ ^[0-9]+$ ]] && [[ -r "/proc/$pid/cmdline" ]] &&
-      tr '\0' ' ' < "/proc/$pid/cmdline" | grep -Fq -- "--kubeconfig $kubeconfig"; then
-      kill "$pid" 2>/dev/null || true
-      for _ in $(seq 1 50); do
-        [[ -e "/proc/$pid" ]] || break
-        sleep 0.1
-      done
-    fi
-    rm -f "$file"
+    stop_demo_process "$file" 'port-forward' "--kubeconfig $kubeconfig"
   done
 }
 stop_browser() {
-  local pid
-  [[ -f "$test_root/browser.pid" ]] || return 0
-  pid="$(cat "$test_root/browser.pid")"
-  if [[ "$pid" =~ ^[0-9]+$ && -r "/proc/$pid/cmdline" ]] &&
-    tr '\0' '\n' < "/proc/$pid/cmdline" | grep -Fxq "$demo_root" &&
-    tr '\0' '\n' < "/proc/$pid/cmdline" | grep -Fq '/demo-files/open.cjs'; then
-    kill "$pid" 2>/dev/null || true
-    for _ in $(seq 1 50); do [[ -e "/proc/$pid" ]] || break; sleep 0.1; done
-  fi
-  rm -f "$test_root/browser.pid"
+  stop_demo_process "$test_root/browser.pid" '/demo-files/open.cjs' "$demo_root"
 }
 start_forward() {
   local service="$1" port="$2" remote="$3"
@@ -73,7 +58,7 @@ start_forward() {
   fi
   nohup kubectl --kubeconfig "$kubeconfig" -n dsh-system port-forward --address 127.0.0.1 "service/$service" "$port:$remote" \
     >"$test_root/$port.log" 2>&1 < /dev/null 9>&- &
-  echo "$!" > "$test_root/$port.pid"
+  record_demo_process "$test_root/$port.pid" "$!"
   for _ in $(seq 1 60); do
     (echo >"/dev/tcp/127.0.0.1/$port") 2>/dev/null && return
     sleep 1
@@ -90,8 +75,10 @@ forward_browser() {
 case "${1:-help}" in
   up)
     [[ $# == 1 || ($# == 2 && "$2" == --snapshots) ]] || { echo 'usage: demo up [--snapshots]' >&2; exit 2; }
+    require_demo_docker
     prepare_demo_tools
     [[ -f "$repo_root/release.json" ]] || { echo 'Use the release bundle, which includes release.json with tested image digests' >&2; exit 1; }
+    [[ "$(jq -r .platform "$repo_root/release.json")" == "$demo_platform" ]] || { echo "This bundle does not target $demo_platform; download the archive for this architecture" >&2; exit 1; }
     cell_image="$(jq -er .images.cell "$repo_root/release.json")"
     operator_image="$(jq -er .images.operator "$repo_root/release.json")"
     [[ "$cell_image" =~ @sha256:[a-f0-9]{64}$ && "$operator_image" =~ @sha256:[a-f0-9]{64}$ ]]
@@ -164,7 +151,7 @@ YAML
     ;;
   open)
     owned_cluster || { echo 'Run demo up first' >&2; exit 1; }
-    [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || { echo 'A Linux graphical session is required for demo open; use the headless acceptance runner in CI.' >&2; exit 1; }
+    [[ "$demo_os" == darwin || -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || { echo 'A graphical session is required for demo open; use the headless acceptance runner in CI.' >&2; exit 1; }
     prepare_demo_tools
     forward_browser
     mkdir -p "$demo_root/browser"
@@ -174,7 +161,7 @@ YAML
     if [[ -z "${CHROME_EXECUTABLE:-}" ]]; then
       node "$demo_root/browser/node_modules/playwright/cli.js" install chromium
     fi
-    flock -u 9
+    demo_lock release
     DSH_DEMO_HOME="$demo_root" node "$repo_root/demo-files/open.cjs" "$demo_root"
     ;;
   down)

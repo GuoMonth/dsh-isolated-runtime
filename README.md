@@ -13,7 +13,7 @@ project fleet inventory, scheduler, namespace policy engine, or backup service.
 
 [中文](./README.zh-CN.md)
 
-MVP v0.1.0 is being prepared. Start with the [local Quickstart](docs/quickstart.md); release status and acceptance are tracked in [milestone 7](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7).
+Get the local MVP packages for Linux x86_64 and Apple Silicon macOS from [GitHub Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases). Start with the [Quickstart](docs/quickstart.md). The first MVP [milestone](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7) is complete.
 
 ## Cell contract
 

@@ -5,15 +5,16 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {execFileSync as run} from 'node:child_process';
 const root = path.resolve(import.meta.dirname, '..');
-const [version, cell, operator, output = 'dist'] = process.argv.slice(2);
+const [version, cell, operator, output = 'dist', packagePlatform = 'linux/amd64'] = process.argv.slice(2);
+const platforms = {'linux/amd64':'linux/amd64','darwin/arm64':'linux/arm64'};
 if (!/^v\d+\.\d+\.\d+(?:-[a-z0-9.]+)?$/.test(version || '') ||
-    ![cell,operator].every(ref => /^ghcr\.io\/guomonth\/dsh-isolated-runtime-(cell|operator)@sha256:[a-f0-9]{64}$/.test(ref || ''))) {
-  throw new Error('usage: package-release.mjs VERSION CELL_DIGEST_REF OPERATOR_DIGEST_REF [OUTPUT]');
+    ![cell,operator].every(ref => /^ghcr\.io\/guomonth\/dsh-isolated-runtime-(cell|operator)@sha256:[a-f0-9]{64}$/.test(ref || '')) || !platforms[packagePlatform]) {
+  throw new Error('usage: package-release.mjs VERSION CELL_DIGEST_REF OPERATOR_DIGEST_REF [OUTPUT] [linux/amd64|darwin/arm64]');
 }
 const sourceSHA = run('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 if (run('git',['status','--porcelain'],{cwd:root,encoding:'utf8'}).trim()) throw new Error('Commit all release inputs before packaging');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(),'dsh-release-'));
-const name = `dsh-isolated-runtime-${version}-linux-amd64`;
+const name = `dsh-isolated-runtime-${version}-${packagePlatform.replace('/','-')}`;
 const stage = path.join(temp,name);
 const out = path.resolve(output);
 fs.mkdirSync(stage); fs.mkdirSync(out,{recursive:true});
@@ -30,7 +31,7 @@ try {
       fs.writeFileSync(to,text);
     }
   }
-  const manifest = {schemaVersion:1,version,sourceSHA,platform:'linux/amd64',
+  const manifest = {schemaVersion:1,version,sourceSHA,packagePlatform,platform:platforms[packagePlatform],
     baseline:JSON.parse(fs.readFileSync(path.join(root,'compat/dsh/baseline.json'))),
     images:{cell,operator},candidateRun:process.env.GITHUB_RUN_ID || null,
     candidateURL:process.env.GITHUB_RUN_ID ? `https://github.com/GuoMonth/dsh-isolated-runtime/actions/runs/${process.env.GITHUB_RUN_ID}` : null};
