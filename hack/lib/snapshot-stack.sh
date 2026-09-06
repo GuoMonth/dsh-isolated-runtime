@@ -117,7 +117,10 @@ k -n kube-system rollout status deployment/snapshot-controller --timeout=300s
 # The upstream fixture assumes GNU utilities and paths without spaces. Run it
 # unchanged inside the owned Linux kind node, including on macOS hosts.
 docker exec "${cluster_name}-control-plane" mkdir -p /tmp/dsh-reference-csi
-docker cp "$hostpath_root/deploy" "${cluster_name}-control-plane:/tmp/dsh-reference-csi/"
+# Extract in the node's mount namespace: systemd mounts /tmp after Docker starts,
+# so docker cp can write into a different /tmp than docker exec sees.
+tar -C "$hostpath_root" -cf - deploy | docker exec -i "${cluster_name}-control-plane" \
+  tar -C /tmp/dsh-reference-csi -xf -
 docker exec "${cluster_name}-control-plane" env \
   KUBECONFIG=/etc/kubernetes/admin.conf \
   CSI_SNAPSHOTTER_TAG=v8.5.0 HOSTPATHPLUGIN_TAG=v1.18.0 \

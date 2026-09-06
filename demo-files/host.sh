@@ -4,9 +4,10 @@
 initialize_demo_host() {
   case "$(uname -s)/$(uname -m)" in
     Linux/x86_64) demo_os=linux; demo_arch=amd64; node_arch=x64; jq_os=linux ;;
+    # CI exercises the Mac's Linux container architecture on a native ARM runner.
     Linux/aarch64|Linux/arm64) demo_os=linux; demo_arch=arm64; node_arch=arm64; jq_os=linux ;;
     Darwin/arm64) demo_os=darwin; demo_arch=arm64; node_arch=arm64; jq_os=macos ;;
-    *) echo 'Supported hosts: Linux x86_64/arm64 and Apple Silicon macOS (native arm64 terminal)' >&2; return 1 ;;
+    *) echo 'Release hosts: Linux x86_64 and Apple Silicon macOS (native arm64 terminal)' >&2; return 1 ;;
   esac
   demo_platform="linux/$demo_arch"
   if [[ "$demo_os" == darwin ]]; then

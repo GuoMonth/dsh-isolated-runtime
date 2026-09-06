@@ -56,7 +56,7 @@ reference_openssl req -new -sha256 -newkey rsa:2048 -nodes \
   -keyout "$test_root/gateway.key" -out "$test_root/gateway.csr" \
   -subj '/CN=*.cells.test'
 reference_openssl x509 -req -sha256 -days 365 -in "$test_root/gateway.csr" \
-  -CA "$test_root/ca.crt" -CAkey "$test_root/ca.key" -CAcreateserial \
+  -CA "$test_root/ca.crt" -CAkey "$test_root/ca.key" -CAserial "$test_root/ca.srl" -CAcreateserial \
   -extfile "$test_root/gateway.ext" -out "$test_root/gateway.crt"
 reference_openssl req -new -sha256 -newkey rsa:2048 -nodes \
   -keyout "$test_root/dex.key" -out "$test_root/dex.csr" \

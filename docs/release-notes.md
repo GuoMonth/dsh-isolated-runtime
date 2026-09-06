@@ -1,7 +1,9 @@
 # v0.1.1 — local MVP with Apple Silicon
 
 This MVP pre-release adds an Apple Silicon macOS demo package while retaining the
-Linux x86_64 package. Cell and Operator images contain native Linux amd64 and
+Linux x86_64 package. These are the only two host packages. Apple Silicon uses
+Linux arm64 containers inside Docker Desktop, not a third host distribution.
+Cell and Operator images contain native Linux amd64 and
 arm64 variants under the same digest-pinned OCI indexes. They retain their SBOM
 and provenance; publication copies the accepted archives and attaches version
 tags to the accepted indexes without rebuilding.
