@@ -9,16 +9,22 @@ Milestone: https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7
 - #51: real DSH UI/model/tool/file/restart/restore acceptance
 - #52: local demo and capability-based installation
 - #53: immutable release bundle and bilingual Quickstart
-- #54: final exact-artifact review, live-model smoke, GO and publication
+- #54: final exact-artifact review, GO and publication; live-model testing follows publication
 
 ## Release gate
 
 Build Cell and Operator once. Run all existing gates and the MVP journey using
-those digests. Generate and test the installation/demo archive once. Run the live
-DeepSeek smoke manually on that same candidate. Record source SHA, both image
-digests, archive checksum, model and CI evidence without credentials. Only then
-publish v0.1.0 as a pre-release and close the milestone. Missing live credentials
-or any failed gate keeps the retrospective open.
+those digests. Generate and test the installation/demo archive once. Record source
+SHA, both image digests, archive checksum and deterministic CI evidence without
+credentials. Publish v0.1.0 as a GitHub pre-release with the original archive and
+the same GHCR images, verify anonymous downloads, then close the milestone.
+
+The maintainer's 2026-09-06 decision replaces the original pre-release live-model
+gate: publish the MVP first, run real-model end-to-end testing after publication,
+and release fixes as needed. The release must explicitly report that live testing
+has not run. The manual live-model workflow remains available to collect evidence
+later; absent credentials do not block this MVP publication. Automatic candidate
+failures still block publication. This project has no npm distribution.
 
 ## Current findings
 

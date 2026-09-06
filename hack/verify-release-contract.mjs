@@ -9,7 +9,7 @@ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'dsh-release-contract-'));
 try {
   const ref=type=>`ghcr.io/guomonth/dsh-isolated-runtime-${type}@sha256:${'a'.repeat(64)}`;
   execFileSync(process.execPath,[path.join(root,'hack/package-release.mjs'),'v0.1.0',ref('cell'),ref('operator'),temp]);
-  const verify=(live)=>spawnSync(process.execPath,[path.join(root,'hack/check-release.mjs'),temp,...live?[live]:[]],{encoding:'utf8'});
+  const verify=(live,kind)=>spawnSync(process.execPath,[path.join(root,'hack/check-release.mjs'),temp,...live?[live,...kind?[kind]:[]]:[]],{encoding:'utf8'});
   const result=verify();assert.equal(result.status,0,result.stderr);
   const accepted=JSON.parse(result.stdout);
   const live=path.join(temp,'live.json');
@@ -17,6 +17,12 @@ try {
   fs.writeFileSync(live,JSON.stringify(proof));assert.equal(verify(live).status,0);
   for(const change of [{success:false},{sourceSHA:'b'.repeat(40)},{archiveSHA256:'b'.repeat(64)},{images:{cell:ref('operator'),operator:ref('cell')}},{kind:'deterministic'},{model:''}]) {
     fs.writeFileSync(live,JSON.stringify({...proof,...change}));assert.notEqual(verify(live).status,0,'forged live evidence was accepted');
+  }
+  const deterministic={...proof,kind:'deterministic'};
+  fs.writeFileSync(live,JSON.stringify(deterministic));assert.equal(verify(live,'deterministic').status,0);
+  assert.notEqual(verify(live).status,0,'deterministic evidence was accepted as a live smoke');
+  for(const change of [{success:false},{sourceSHA:'b'.repeat(40)},{archiveSHA256:'b'.repeat(64)},{images:{cell:ref('operator'),operator:ref('cell')}},{kind:'live-model'},{model:''}]) {
+    fs.writeFileSync(live,JSON.stringify({...deterministic,...change}));assert.notEqual(verify(live,'deterministic').status,0,'forged deterministic evidence was accepted');
   }
   const manifestFile=path.join(temp,'release.json');const manifest=fs.readFileSync(manifestFile);
   fs.writeFileSync(manifestFile,JSON.stringify({...JSON.parse(manifest),sourceSHA:'b'.repeat(40)}));
@@ -29,5 +35,5 @@ try {
   }
   const missing=spawnSync(path.join(root,'demo'),['up'],{env:{...process.env,PATH:tools,DSH_DEMO_HOME:path.join(temp,'missing-docker')},encoding:'utf8'});
   assert.notEqual(missing.status,0);assert.match(missing.stderr,/Missing prerequisite: docker/);
-  console.log('Release identity, archive integrity and live-evidence guards passed');
+  console.log('Release identity, archive integrity and deterministic/live evidence guards passed');
 } finally {fs.rmSync(temp,{recursive:true,force:true});}
