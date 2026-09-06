@@ -93,7 +93,9 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 	headers := http.Header{
 		"Cookie": []string{cookie + "; theme=dark; AccessToken-5f93c2e4=access-secret; OauthHMAC-5f93c2e4=hmac-secret; " +
 			"OauthExpires-5f93c2e4=123; IdToken-5f93c2e4=id-secret; RefreshToken-5f93c2e4=refresh-secret; " +
-			"OauthNonce-5f93c2e4=nonce-secret; CodeVerifier-5f93c2e4=verifier-secret; BearerToken=legacy-secret"},
+			"OauthNonce-5f93c2e4=nonce-secret; CodeVerifier-5f93c2e4=verifier-secret; BearerToken=legacy-secret; " +
+			"AccessToken-5f93c2e=short-access; IdToken-0=short-id; OauthHMAC-ab=short-hmac; " +
+			"OauthExpires-abc=123; RefreshToken-1234=short-refresh; OauthNonce-abcde=short-nonce; CodeVerifier-ABCDEF=short-verifier"},
 		"Origin":               []string{"https://cell.example.test"},
 		"Authorization":        []string{"Bearer must-not-reach-dsh"},
 		"X-Cell-Principal":     []string{"spoofed"},
@@ -120,6 +122,9 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 		if ok && accesscontract.IsEnvoyOAuthCookie(name) {
 			t.Fatalf("DSH could overwrite an ingress credential cookie: %q", setCookie)
 		}
+	}
+	if len(echo.Header.Values("Set-Cookie")) != 1 {
+		t.Fatal("only the ordinary application cookie may leave the Cell")
 	}
 	if got := echo.Header.Get("Set-Cookie"); !strings.HasPrefix(got, "dsh-preference=compact") || !strings.Contains(got, "Secure") {
 		t.Fatalf("ordinary DSH response cookie was not preserved safely: %q", got)
@@ -431,6 +436,7 @@ func helperHandler(authority string) http.Handler {
 		case "/api/settings/describe":
 			writer.Header().Set("Content-Type", "application/json")
 			writer.Header().Add("Set-Cookie", "AccessToken-5f93c2e4=child-forged; Path=/; Domain=.cells.test")
+			writer.Header().Add("Set-Cookie", "IdToken-5f93c2e=child-forged-short; Path=/; Domain=.cells.test")
 			writer.Header().Add("Set-Cookie", "dsh-preference=compact; Path=/")
 			_ = json.NewEncoder(writer).Encode(map[string]string{
 				"host": request.Host, "origin": request.Header.Get("Origin"),

@@ -325,8 +325,10 @@ async function main() {
       if (!response || response.status() !== 200) throw new Error(`credential capture status ${response?.status()}`);
       const observed = JSON.parse(await response.text());
       const upstreamNames = new Set(observed.oauthCookieNames || []);
-      const cookiePattern = /^(AccessToken|OauthHMAC|OauthExpires|IdToken|RefreshToken|OauthNonce|CodeVerifier)-[0-9a-f]{8}$/i;
-      const browserNames = new Set((await context.cookies(cellA)).map(({ name }) => name).filter((name) => cookiePattern.test(name)));
+      // Gateway's Digest32 uses %x, so leading zeroes are absent.
+      const cookiePattern = /^(AccessToken|OauthHMAC|OauthExpires|IdToken|RefreshToken|OauthNonce|CodeVerifier)-[0-9a-f]{1,8}$/i;
+      const storedCookies = await cookieEvidence(page, cellA);
+      const browserNames = new Set(storedCookies.map(({ name }) => name).filter((name) => cookiePattern.test(name)));
       // The browser must hold the pinned filter's complete session proof. The
       // data plane is allowed to consume any subset before proxying upstream;
       // every name that does arrive is still bound to the launcher's filter by
@@ -334,13 +336,14 @@ async function main() {
       const expectedBases = ["AccessToken", "OauthHMAC", "OauthExpires", "IdToken"];
       const suffixes = new Set();
       for (const required of expectedBases) {
-        const matches = [...browserNames].filter((name) => new RegExp(`^${required}-([0-9a-f]{8})$`, "i").test(name));
+        const matches = [...browserNames].filter((name) => new RegExp(`^${required}-([0-9a-f]{1,8})$`, "i").test(name));
         if (matches.length !== 1) {
-          throw new Error(`browser held ${matches.length} ${required} cookies; observed safe names: ${[...browserNames].join(",")}`);
+          throw new Error(`browser held ${matches.length} ${required} cookies; safe metadata: ${JSON.stringify(storedCookies)}`);
         }
         suffixes.add(matches[0].slice(required.length + 1).toLowerCase());
       }
       if (suffixes.size !== 1) throw new Error(`pinned Envoy credential cookies did not share one policy suffix`);
+      if (!suffixes.has(requireEnv("EXPECT_COOKIE_SUFFIX"))) throw new Error("browser cookies did not match the selected short policy suffix");
       for (const name of upstreamNames) {
         if (!browserNames.has(name)) throw new Error(`upstream observed an unknown credential cookie name: ${name}`);
       }

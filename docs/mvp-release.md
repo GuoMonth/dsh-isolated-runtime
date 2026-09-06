@@ -43,6 +43,13 @@ or any failed gate keeps the retrospective open.
 - Exact-archive deterministic acceptance passed locally and in candidate CI
   for f767ce4. Subsequent fixes require a new complete candidate result; these
   earlier successes are supporting evidence, not a final release GO.
+- Main candidate acceptance found a pinned Envoy cookie-contract error: its
+  FNV-1a suffix uses unpadded hexadecimal, so it can have 1–8 digits. The launcher
+  and browser proof now recognize all emitted widths. Regression tests first
+  reproduced short credential cookies crossing the proxy, then verify request
+  filtering and prevention of child response-cookie overwrites. The real Gateway
+  gate selects a Kubernetes-assigned policy UID with a short default suffix
+  before login, so every run covers this case without overriding cookie names.
 
 ## Accepted defaults
 

@@ -195,6 +195,7 @@ browser() {
       npm --prefix "$test_root/browser" ci --ignore-scripts --no-audit --no-fund
     fi
     MODE="$mode" USERNAME="$username" \
+      EXPECT_COOKIE_SUFFIX="$cookie_suffix" \
       CELL_A_URL="https://${cell_a_authority}" \
       CELL_B_URL="https://${cell_b_authority}" \
       EXPECT_URL="$expect_url" EXPECT_STATUS="$expect_status" \
@@ -210,6 +211,7 @@ browser() {
     --volume "$repo_root/test/e2e/phase2:/src:ro" \
     --volume "$test_root/browser:/work" \
     --env "MODE=$mode" \
+    --env "EXPECT_COOKIE_SUFFIX=$cookie_suffix" \
     --env "USERNAME=$username" \
     --env "CELL_A_URL=https://${cell_a_authority}" \
     --env "CELL_B_URL=https://${cell_b_authority}" \
@@ -397,6 +399,21 @@ gateway_forward_pid="$(start_forward dsh-system "service/${gateway_service}" 184
 dex_forward_pid="$(start_forward dsh-system service/dex 15556:15556 "$test_root/dex-forward.log" 15556)"
 mkdir -p "$test_root/browser"
 
+# Exercise the actual unpadded default cookie names on every run. Policy UIDs
+# are assigned by Kubernetes; before any client logs in, select a policy whose
+# FNV-1a suffix has leading zero bits. No Gateway cookie-name override is used.
+k -n dsh-system get securitypolicy dsh-browser-access -o json | \
+  jq '{apiVersion,kind,metadata:{name:.metadata.name,namespace:.metadata.namespace},spec}' > "$test_root/cookie-policy.json"
+for _ in $(seq 1 512); do
+  policy_uid="$(k -n dsh-system get securitypolicy dsh-browser-access -o jsonpath='{.metadata.uid}')"
+  cookie_suffix="$(go run "$repo_root/test/e2e/dshprobe" --envoy-cookie-suffix-for-uid "$policy_uid")"
+  [[ ${#cookie_suffix} -lt 8 ]] && break
+  k -n dsh-system delete securitypolicy dsh-browser-access --wait=true >/dev/null
+  k create -f "$test_root/cookie-policy.json" >/dev/null
+done
+[[ "$cookie_suffix" =~ ^[0-9a-f]{1,7}$ ]] || { echo 'Could not obtain a short default Envoy cookie suffix for the regression' >&2; exit 1; }
+echo "Exercising the pinned Envoy default cookie suffix: $cookie_suffix"
+
 # Gateway Programmed and Route Accepted precede complete xDS convergence by a
 # short interval. Keep the proof strict, but tolerate that transport window:
 # every attempt still has to complete OIDC plus the full DSH protocol suite.
@@ -408,7 +425,7 @@ browser_eventually initial alice@example.com
 # launcher tests bind the complete browser-side contract to the pre-DSH filter.
 k -n dsh-system scale deployment/cell-operator --replicas=0
 k -n dsh-system wait pod -l app.kubernetes.io/name=cell-operator --for=delete --timeout=90s
-credential_capture='const h=require("http");const reserved=/^(AccessToken|OauthHMAC|OauthExpires|IdToken|RefreshToken|OauthNonce|CodeVerifier)-[0-9a-f]{8}$/i;h.createServer((q,s)=>{const names=(q.headers.cookie||"").split(";").map(x=>x.trim().split("=",1)[0]).filter(x=>reserved.test(x));s.setHeader("content-type","application/json");s.end(JSON.stringify({oauthCookieNames:names,oidcHeader:typeof q.headers["x-dsh-oidc-token"]==="string"}))}).listen(8080,"0.0.0.0");h.createServer((q,s)=>{s.statusCode=200;s.end()}).listen(8081,"0.0.0.0");'
+credential_capture='const h=require("http");const reserved=/^(AccessToken|OauthHMAC|OauthExpires|IdToken|RefreshToken|OauthNonce|CodeVerifier)-[0-9a-f]{1,8}$/i;h.createServer((q,s)=>{const names=(q.headers.cookie||"").split(";").map(x=>x.trim().split("=",1)[0]).filter(x=>reserved.test(x));s.setHeader("content-type","application/json");s.end(JSON.stringify({oauthCookieNames:names,oidcHeader:typeof q.headers["x-dsh-oidc-token"]==="string"}))}).listen(8080,"0.0.0.0");h.createServer((q,s)=>{s.statusCode=200;s.end()}).listen(8081,"0.0.0.0");'
 k -n tenant-a patch statefulset "$cell_a_base" --type=strategic -p "$(jq -cn --arg script "$credential_capture" '{spec:{template:{spec:{containers:[{name:"cell",command:["/usr/local/bin/node"],args:["-e",$script]}]}}}}')"
 k -n tenant-a rollout status statefulset "$cell_a_base" --timeout=180s
 browser credential-capture alice@example.com
