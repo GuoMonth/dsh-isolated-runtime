@@ -56,7 +56,7 @@ wait "$probe_pid" 2>/dev/null || true
 if kill -0 "$probe_pid" 2>/dev/null; then echo 'Owned process did not stop' >&2; exit 1; fi
 mkdir -p "$demo_root/browser"
 cp "$bundle/test/e2e/phase2/package"*.json "$demo_root/browser/"
-npm --prefix "$demo_root/browser" ci --ignore-scripts --no-audit --no-fund
+(cd "$demo_root/browser" && npm ci --ignore-scripts --no-audit --no-fund)
 export PLAYWRIGHT_BROWSERS_PATH="$demo_root/browser/browsers"
 node "$demo_root/browser/node_modules/playwright/cli.js" install chromium
 node "$bundle/test/e2e/mvp/host.cjs" "$demo_root" "$candidate/evidence/macos-browser.png"

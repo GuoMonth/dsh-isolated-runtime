@@ -85,7 +85,7 @@ wait_cell assistant
 k -n tenant-demo rollout status "statefulset/cell-$uid" --timeout=300s
 mkdir -p "$DSH_DEMO_HOME/browser"
 cp "$bundle/test/e2e/phase2/package"*.json "$DSH_DEMO_HOME/browser/"
-npm --prefix "$DSH_DEMO_HOME/browser" ci --ignore-scripts --no-audit --no-fund
+(cd "$DSH_DEMO_HOME/browser" && npm ci --ignore-scripts --no-audit --no-fund)
 source "$repo_root/hack/lib/reference-versions.sh"
 browser_run() {
   if [[ -n "${CHROME_EXECUTABLE:-}" ]]; then

@@ -156,7 +156,8 @@ YAML
     forward_browser
     mkdir -p "$demo_root/browser"
     cp "$repo_root/test/e2e/phase2/package"*.json "$demo_root/browser/"
-    npm --prefix "$demo_root/browser" ci --ignore-scripts --no-audit --no-fund
+    # npm --prefix misidentifies a project under macOS /var -> /private/var.
+    (cd "$demo_root/browser" && npm ci --ignore-scripts --no-audit --no-fund)
     export PLAYWRIGHT_BROWSERS_PATH="$demo_root/browser/browsers"
     if [[ -z "${CHROME_EXECUTABLE:-}" ]]; then
       node "$demo_root/browser/node_modules/playwright/cli.js" install chromium
