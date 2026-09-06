@@ -14,7 +14,13 @@ async function openDemo(root) {
   const pidFile=path.join(root,'runtime/browser.pid');
   fs.writeFileSync(`${pidFile}.started`,execFileSync('ps',['-p',String(process.pid),'-o','lstart=']),{mode:0o600});
   fs.writeFileSync(pidFile,String(process.pid),{mode:0o600});
-  const stop=()=>{void browser.close();};
+  let stopping=false;
+  const stop=()=>{if(!stopping) {stopping=true;void browser.close().catch(()=>{});}};
+  // macOS normally keeps Chrome alive after its last window closes. Release the
+  // demo profile too, so the next demo open can reuse it without a background app.
+  const watchPage=page=>page.once('close',()=>{if(browser.pages().length===0) stop();});
+  browser.on('page',watchPage);
+  browser.pages().forEach(watchPage);
   process.once('SIGTERM',stop);
   process.once('SIGINT',stop);
   const closed=new Promise(resolve=>browser.once('close',()=>{

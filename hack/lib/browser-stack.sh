@@ -39,22 +39,31 @@ docker exec "${cluster_name}-control-plane" ctr --namespace=k8s.io images tag --
   "docker.io/library/${envoy_shutdown_cache_image}" "docker.io/envoyproxy/gateway-dev:latest" >/dev/null
 
 }
+reference_openssl() {
+  if ! openssl "$@" > /dev/null 2>"$test_root/certificate-command.log"; then
+    openssl version >&2
+    cat "$test_root/certificate-command.log" >&2
+    return 1
+  fi
+}
 create_reference_certificates() {
-openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+printf 'subjectAltName=DNS:*.cells.test,DNS:auth.cells.test\n' > "$test_root/gateway.ext"
+printf 'subjectAltName=DNS:dex.dsh-system.svc\n' > "$test_root/dex.ext"
+reference_openssl req -x509 -sha256 -newkey rsa:2048 -nodes -days 365 \
   -keyout "$test_root/ca.key" -out "$test_root/ca.crt" \
-  -subj /CN=dsh-phase2-test-ca >/dev/null 2>&1
-openssl req -new -newkey rsa:2048 -nodes \
+  -subj /CN=dsh-phase2-test-ca
+reference_openssl req -new -sha256 -newkey rsa:2048 -nodes \
   -keyout "$test_root/gateway.key" -out "$test_root/gateway.csr" \
-  -subj '/CN=*.cells.test' >/dev/null 2>&1
-openssl x509 -req -days 365 -in "$test_root/gateway.csr" \
+  -subj '/CN=*.cells.test'
+reference_openssl x509 -req -sha256 -days 365 -in "$test_root/gateway.csr" \
   -CA "$test_root/ca.crt" -CAkey "$test_root/ca.key" -CAcreateserial \
-  -extfile <(printf 'subjectAltName=DNS:*.cells.test,DNS:auth.cells.test\n') -out "$test_root/gateway.crt" >/dev/null 2>&1
-openssl req -new -newkey rsa:2048 -nodes \
+  -extfile "$test_root/gateway.ext" -out "$test_root/gateway.crt"
+reference_openssl req -new -sha256 -newkey rsa:2048 -nodes \
   -keyout "$test_root/dex.key" -out "$test_root/dex.csr" \
-  -subj /CN=dex.dsh-system.svc >/dev/null 2>&1
-openssl x509 -req -days 365 -in "$test_root/dex.csr" \
+  -subj /CN=dex.dsh-system.svc
+reference_openssl x509 -req -sha256 -days 365 -in "$test_root/dex.csr" \
   -CA "$test_root/ca.crt" -CAkey "$test_root/ca.key" -CAserial "$test_root/ca.srl" \
-  -extfile <(printf 'subjectAltName=DNS:dex.dsh-system.svc\n') -out "$test_root/dex.crt" >/dev/null 2>&1
+  -extfile "$test_root/dex.ext" -out "$test_root/dex.crt"
 }
 
 install_reference_identity() {

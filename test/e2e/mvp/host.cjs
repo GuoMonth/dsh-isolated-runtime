@@ -21,11 +21,12 @@ const [root,screenshot]=process.argv.slice(2);
     await context.page.evaluate(()=>localStorage.setItem('host-proof','retained'));
     await context.page.screenshot({path:screenshot});
     assert.equal(fs.readFileSync(path.join(runtime,'browser.pid'),'utf8'),String(process.pid));
-    await context.browser.close();await context.closed;
+    await context.page.close();
+    await Promise.race([context.closed,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Last macOS window did not release the demo profile')),15000).unref())]);
     assert.equal(fs.existsSync(path.join(runtime,'browser.pid')),false);
     context=await openDemo(root);
     assert.equal(await context.page.evaluate(()=>localStorage.getItem('host-proof')),'retained');
-    await context.browser.close();await context.closed;context=undefined;
+    await context.page.close();await context.closed;context=undefined;
     assert.equal(fs.existsSync(path.join(runtime,'browser.pid.started')),false);
     console.log('Native Apple Silicon Chromium DNS, TLS and retained private-profile lifecycle passed');
   } finally {
