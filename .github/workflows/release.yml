@@ -66,7 +66,7 @@ jobs:
           mkdir -p digests
           printf '%s' '${{ steps.cell.outputs.digest }}' > digests/cell-${{ matrix.arch }}
           printf '%s' '${{ steps.operator.outputs.digest }}' > digests/operator-${{ matrix.arch }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: image-digests-${{ matrix.arch }}
           path: digests/
@@ -310,7 +310,7 @@ jobs:
           CELL_REF: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}
           OPERATOR_REF: ${{ env.OPERATOR_REPOSITORY }}@${{ needs.candidate.outputs.operator-digest }}
         run: node hack/package-release.mjs "$(cat VERSION)" "$CELL_REF" "$OPERATOR_REF" dist '${{ matrix.platform }}'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mvp-candidate-${{ matrix.target }}
           path: dist/
@@ -338,7 +338,7 @@ jobs:
           path: dist
       - name: Anonymous exact-archive journey on the native Linux container architecture
         run: ./hack/verify-mvp.sh dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mvp-acceptance-${{ matrix.target }}
@@ -361,7 +361,7 @@ jobs:
           path: dist
       - name: Native tools, stock TLS, locks, process ownership and actual Chromium
         run: ./hack/verify-macos-host.sh dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mvp-macos-host
