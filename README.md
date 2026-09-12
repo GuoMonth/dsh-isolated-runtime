@@ -52,8 +52,8 @@ make verify-dsh         # exact upstream DSH compatibility suite
 golangci-lint run
 ```
 
-The supported DSH baseline is exactly `dsh-v0.1.3-alpha.1` at commit
-`d347e703908d0406b7a7ef80e3a0e594d86b2215`; it is not a semver range. The
+The supported DSH baseline is exactly `dsh-v0.1.5-rc.2` at commit
+`fb2c4b9e698e30edb738bca4cf0618587db7d203`; it is not a semver range. The
 [compatibility record](./compat/dsh/README.md) explains why the selected access
 seam is a Cell-local launcher that owns the DSH child process.
 

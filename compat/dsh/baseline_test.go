@@ -58,7 +58,7 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	if value.SchemaVersion != 1 || value.Source.Repository != "https://github.com/deepseek-ai/deepseek-harness.git" {
 		t.Fatalf("unexpected source contract: %+v", value.Source)
 	}
-	if value.Source.Tag != "dsh-v0.1.3-alpha.1" || value.Source.Version != "0.1.3-alpha.1" {
+	if value.Source.Tag != "dsh-v0.1.5-rc.2" || value.Source.Version != "0.1.5-rc.2" {
 		t.Fatalf("unexpected DSH release: %+v", value.Source)
 	}
 	if len(value.Source.Commit) != 40 {

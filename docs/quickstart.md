@@ -13,13 +13,13 @@ Download the archive for your host and `SHA256SUMS` from [GitHub Releases](https
 For Apple Silicon:
 
 ```sh
-archive=dsh-isolated-runtime-v0.1.1-darwin-arm64.tar.gz
+archive=dsh-isolated-runtime-v0.1.2-darwin-arm64.tar.gz
 grep -F "  $archive" SHA256SUMS | shasum -a 256 -c -
 tar -xzf "$archive"
 cd "${archive%.tar.gz}"
 ```
 
-On Linux x86_64 select `dsh-isolated-runtime-v0.1.1-linux-amd64.tar.gz` and use
+On Linux x86_64 select `dsh-isolated-runtime-v0.1.2-linux-amd64.tar.gz` and use
 `sha256sum -c -` in the verification pipeline. The public checksum file covers
 both archives; select the line for the one you downloaded. Each archive includes
 its own `release.json` binding the runtime architecture and tested image digests.
@@ -51,6 +51,14 @@ An explicit `XDG_STATE_HOME` takes precedence on either host.
 Set `DSH_DEMO_HOME` to select another state directory. Repeating `up` retains the
 Cell and reconnects browser forwarding. Closing Chromium retains data. Do not
 change the demo release in place: export needed files before deleting a demo.
+
+Version v0.1.2 upgrades DSH to 0.1.5-rc.2 and session format V3. Upstream migrates
+supported older logs while retaining originals, but upgraded sessions cannot be
+read by the old DSH version. Keep a backup before an existing Cell image upgrade;
+cross-version CellSnapshot restore is rejected. To try the new release without
+changing the old demo, use a separate `DSH_DEMO_HOME` after stopping its browser
+and port forwards; both demos use the same local ports. There is no automatic
+in-place demo upgrade or downgrade command.
 
 ```sh
 if [ "$(uname -s)" = Darwin ] && [ -z "${XDG_STATE_HOME:-}" ]; then

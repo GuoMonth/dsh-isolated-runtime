@@ -50,6 +50,9 @@ vitest="$checkout/node_modules/.bin/vitest"
   packages/bundle/web-app/tests/startup.spec.ts \
   packages/client/connection/tests/browser-auth.host.spec.ts \
   packages/client/connection/tests/fetch-routes.host.spec.ts \
+  packages/session/session-format-v2-to-v3/tests/combined-migration.spec.ts \
+  packages/session/session-persistence-jsonl/tests/v2-system-migration.spec.ts \
+  packages/session/session-persistence-jsonl/tests/v2-ptc-migration.spec.ts \
   apps/cli/tests/process-shutdown.spec.ts
 "$vitest" run --config vitest.e2e.config.ts \
   apps/cli/tests/web-auth.e2e.ts \

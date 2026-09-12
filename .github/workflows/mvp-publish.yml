@@ -60,7 +60,7 @@ jobs:
             test "$actual" = "${ref#*@}"
           done
           gh release create "$version" dist/* --repo "$GITHUB_REPOSITORY" --target "$source_sha" \
-            --prerelease --title "$version — local MVP with Apple Silicon" --notes-file docs/release-notes.md
+            --prerelease --title "$version - DSH $(jq -r .source.version compat/dsh/baseline.json)" --notes-file docs/release-notes.md
       - name: Verify anonymous release download
         run: |
           version="$(jq -r .version dist/release.json)"

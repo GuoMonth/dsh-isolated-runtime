@@ -65,7 +65,7 @@ func run() error {
 	}()
 
 	instance, err := launcher.Start(launcher.Config{
-		// The official 0.1.3-alpha.1 web profile uses the Node module loader's
+		// The official 0.1.5-rc.2 web profile uses the Node module loader's
 		// watch service and therefore requires Node's internal loader API.
 		DSHCommand:      []string{cellcontract.NodePath, "--expose-internals", cellcontract.DSHPath},
 		PatchFiles:      []string{cellcontract.PatchPath},
