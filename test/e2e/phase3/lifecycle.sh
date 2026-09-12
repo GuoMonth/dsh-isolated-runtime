@@ -19,7 +19,7 @@ docker tag "$local_cell_b" "$cell_repo:e2e-b"
 docker push "$cell_repo:e2e-b" >/dev/null
 cell_b_digest="$(registry_digest dsh-cell e2e-b)"
 test "$cell_b_digest" != "$cell_digest"
-test "$(docker run --rm --entrypoint node "$local_cell_b" -e "process.stdout.write(require('/opt/dsh/node_modules/@deepseek-ai/dsh/package.json').version)")" = "0.1.3-alpha.1"
+test "$(docker run --rm --entrypoint node "$local_cell_b" -e "process.stdout.write(require('/opt/dsh/node_modules/@deepseek-ai/dsh/package.json').version)")" = "0.1.5-rc.2"
 test "$(docker image inspect "$local_cell" --format '{{json .RootFS.Layers}}')" = \
   "$(docker image inspect "$local_cell_b" --format '{{json .RootFS.Layers}}')"
 runtime_config_a="$(docker image inspect "$local_cell" | jq -cS '.[0].Config | {User,Entrypoint,Cmd,Env,WorkingDir,Labels:(.Labels | del(."org.opencontainers.image.revision"))}')"

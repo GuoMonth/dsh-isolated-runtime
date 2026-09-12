@@ -11,13 +11,13 @@ Chromium，无须 Go 编译器、Homebrew 或 Rosetta，不修改系统 hosts �
 Apple Silicon 使用：
 
 ```sh
-archive=dsh-isolated-runtime-v0.1.1-darwin-arm64.tar.gz
+archive=dsh-isolated-runtime-v0.1.2-darwin-arm64.tar.gz
 grep -F "  $archive" SHA256SUMS | shasum -a 256 -c -
 tar -xzf "$archive"
 cd "${archive%.tar.gz}"
 ```
 
-Linux x86_64 选择 `dsh-isolated-runtime-v0.1.1-linux-amd64.tar.gz`，校验管道使用
+Linux x86_64 选择 `dsh-isolated-runtime-v0.1.2-linux-amd64.tar.gz`，校验管道使用
 `sha256sum -c -`。公开校验和文件包含两个安装包，只选取已下载文件对应的一行。
 包内 `release.json` 记录运行架构及精确镜像 digest。
 
@@ -41,6 +41,11 @@ macOS 默认状态目录为 `~/Library/Application Support/DSH Isolated Runtime`
 `${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime`。显式 `XDG_STATE_HOME` 在两种系统上均优先，
 也可用 `DSH_DEMO_HOME` 指定另一个目录。重复 `up` 保留现有 Cell 并重新连接转发，关闭浏览器不会删数据。
 本地演示不做跨版本原地迁移；需要保留的文件应在显式清理前导出。
+
+v0.1.2 将 DSH 升级到 0.1.5-rc.2，使用 V3 会话格式。上游迁移受支持的旧日志时保留原文件，
+但升级后的会话不能由旧版 DSH 读取。已有 Cell 更换镜像前应保留备份；跨版本 CellSnapshot
+恢复会被拒绝。试用新版本可另设 `DSH_DEMO_HOME`，并先停止旧 demo 的浏览器和端口转发，
+因为两套环境使用相同的本地端口。当前没有自动原地升级或降级 demo 的命令。
 
 ```sh
 if [ "$(uname -s)" = Darwin ] && [ -z "${XDG_STATE_HOME:-}" ]; then

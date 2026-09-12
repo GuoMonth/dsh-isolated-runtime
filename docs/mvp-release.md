@@ -5,6 +5,14 @@ current DSH baseline, existing Cell/CellSnapshot v1alpha1 APIs. No fleet platfor
 or historical compatibility. v0.1.0 and milestone 7 are complete; v0.1.1 adds the
 Apple Silicon host package and native Linux arm64 images.
 
+The v0.1.2 candidate advances the exact DSH source baseline to 0.1.5-rc.2,
+commit fb2c4b9e698e30edb738bca4cf0618587db7d203. The existing settings patch
+applies unchanged. Compatibility acceptance adds upstream V2-to-V3 migration
+and log-publication tests. V3 sessions cannot be read by the old DSH version;
+cross-version CellSnapshot restore and in-place demo release changes remain
+unsupported. Release-specific behavior and upgrade limits are recorded in
+[release notes](release-notes.md).
+
 Milestone: https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7
 
 - #50: exact DSH baseline and stable required checks

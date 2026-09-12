@@ -1,7 +1,7 @@
 # DSH compatibility baseline
 
-The project supports exactly `dsh-v0.1.3-alpha.1` at
-`d347e703908d0406b7a7ef80e3a0e594d86b2215`, installed with `pnpm@11.7.0` and
+The project supports exactly `dsh-v0.1.5-rc.2` at
+`fb2c4b9e698e30edb738bca4cf0618587db7d203`, installed with `pnpm@11.7.0` and
 the frozen lockfile digest recorded in [`baseline.json`](./baseline.json).
 Persistence is version-bound; passing a newer or older session format is not a
 compatibility promise.
@@ -20,10 +20,10 @@ built DSH CLI for a real browser exchange.
 | --- | --- |
 | Direct DSH exposure | Rejected: the standard CLI intentionally binds loopback and the launch URL contains a bearer token. |
 | Gateway configuration only | Rejected: it cannot own the process-memory token exchange or harden the returned cookie. |
-| Independent sidecar | Rejected: 0.1.3-alpha.1 has no supported way to inject or retrieve the launch token across a process boundary. |
+| Independent sidecar | Rejected: 0.1.5-rc.2 has no supported way to inject or retrieve the launch token across a process boundary. |
 | Cell-local launcher | Selected: the parent process observes readiness, keeps the token in memory, and proxies DSH opaquely. |
 
-The current GitHub release has not been published to npm. The Cell image builds
+The Cell image retains the source-build distribution: it builds
 `build:official` from the exact source archive/checksum in baseline.json, deploys
 the upstream runtime closure, and completes omitted transitive workspace peers
 from that same source. It does not substitute older npm packages. The only source change is the hashed
@@ -31,8 +31,10 @@ Cell settings integration patch described below.
 The launcher remains PID 1. The native runtime dependencies are built in the image.
 
 Snapshot guarantees remain writer-stopped crash consistency. Upstream owns its
-session format v2 and migrations; this project maintains no historical restore
-or migration layer. Credential filtering retains the pinned Envoy cookie family
+session format V3 and V2-to-V3 migrations, which preserve original logs but do
+not support downgrade reads. The compatibility suite exercises upstream migration
+and publication tests; this project maintains no historical restore or migration
+layer. Credential filtering retains the pinned Envoy cookie family
 and forged/stale unsuffixed names as part of the access boundary.
 
 ## State ownership

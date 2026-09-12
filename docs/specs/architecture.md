@@ -54,7 +54,7 @@ database.
 
 ## Access seam
 
-DSH 0.1.3-alpha.1 creates a launch token in process memory, prints it once in the
+DSH 0.1.5-rc.2 creates a launch token in process memory, prints it once in the
 loopback readiness URL, and exchanges it for an authority-bound browser cookie.
 There is no supported token injection interface. Therefore the selected design
 is a launcher in the same container:
@@ -115,7 +115,7 @@ namespace-wide check proving that neither a Pod owned by the current StatefulSet
 nor any Pod carrying the exact Cell name and UID remains establishes
 `WriterStopped=True` and permits creation of the CSI `VolumeSnapshot`. The
 controller revalidates the PVC UID and both CSI
-class drivers immediately before creation. DSH 0.1.3-alpha.1 maps successful disposal, disposal
+class drivers immediately before creation. DSH 0.1.5-rc.2 maps successful disposal, disposal
 rejection, and timeout to externally indistinguishable process termination, so
 the public contract deliberately claims crash consistency and never application
 flush. Snapshot errors delete the owned Kubernetes snapshot object before the

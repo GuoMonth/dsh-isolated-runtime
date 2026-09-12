@@ -1,7 +1,7 @@
 # DSH 兼容基线
 
-项目只支持 `dsh-v0.1.3-alpha.1`，commit
-`d347e703908d0406b7a7ef80e3a0e594d86b2215`，使用 `pnpm@11.7.0` 与
+项目只支持 `dsh-v0.1.5-rc.2`，commit
+`fb2c4b9e698e30edb738bca4cf0618587db7d203`，使用 `pnpm@11.7.0` 与
 [`baseline.json`](./baseline.json) 记录的 frozen lockfile digest。持久化格式与该版本绑定，
 不承诺兼容更新或更旧的 session format。
 
@@ -17,15 +17,16 @@ launcher 完成真实 browser exchange。
 | --- | --- |
 | 直接暴露 DSH | 拒绝：标准 CLI 有意只监听 loopback，launch URL 还包含 bearer token。 |
 | 纯 Gateway 配置 | 拒绝：无法持有进程内 token exchange，也无法加固返回 cookie。 |
-| 独立 sidecar | 拒绝：0.1.3-alpha.1 没有跨进程注入或取得 launch token 的支持接口。 |
+| 独立 sidecar | 拒绝：0.1.5-rc.2 没有跨进程注入或取得 launch token 的支持接口。 |
 | Cell-local launcher | 选择：父进程观测 readiness，将 token 留在内存，并透明代理 DSH。 |
 
-当前 GitHub release 尚无对应 npm 发布。Cell 镜像从 baseline.json 的精确源码归档和校验和构建
+Cell 镜像继续从 baseline.json 的精确源码归档和校验和构建
 `build:official`，再使用上游 runtime closure 部署已编译产物，并补齐该 closure 漏列的传递 workspace peer。
 不从旧 npm 版本补依赖；唯一源码修改是下面记录并校验的 Cell 设置补丁。launcher 是镜像 PID 1。
 
 DSH 仍不提供可区分的应用 flush acknowledgement，快照保持 writer-stopped crash consistency。
-上游 0.1.3 引入 session format v2 和自身迁移逻辑；本项目不维护旧版本恢复或迁移层。
+上游 0.1.5 使用 session format V3，V2 迁移会保留原始日志，但升级后的日志不支持降级读取。
+兼容套件包含上游迁移和日志发布测试；本项目不维护旧版本恢复或迁移层。
 凭据过滤保留固定 Envoy cookie 家族及可能伪造的无后缀名称；这些拒绝规则属于凭据隔离保证。
 
 ## 状态归属
