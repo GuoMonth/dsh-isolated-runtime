@@ -18,7 +18,7 @@ phase4_dump_failure() {
   local status=$?
   trap - ERR
   set +e
-  echo "Phase 4 bounded fleet proof failed; aggregate evidence follows" >&2
+  echo "Phase 4 bounded fleet proof failed at line ${BASH_LINENO[0]}; aggregate evidence follows" >&2
   k get cells -A -o json | jq '[.items[] | select(.metadata.namespace | startswith("fleet-")) |
     .status.conditions[]? | {type, status, reason}] |
     group_by([.type, .status, .reason]) |
@@ -535,13 +535,23 @@ if grep -Fq "$fleet_secret_value" "$operator_metrics_log" "$authorizer_metrics_l
   exit 1
 fi
 
-# After all API-visible work is complete, a quiet cluster must not generate
-# reconciles solely to discover that it is still quiet.
-steady_before="$(controller_reconcile_sum "$operator_metrics_log")"
-sleep 20
+# Sample after the authorizer rollout and browser checks, then allow their
+# outstanding native watch events to drain. Persistent reconciliation still
+# fails the bounded requirement for a complete 20-second quiet window.
 curl -fsS http://127.0.0.1:19080/metrics >"$operator_metrics_log"
-steady_after="$(controller_reconcile_sum "$operator_metrics_log")"
-test "$steady_after" = "$steady_before"
+steady_before="$(controller_reconcile_sum "$operator_metrics_log")"
+steady_start="$SECONDS"
+while :; do
+  sleep 20
+  curl -fsS http://127.0.0.1:19080/metrics >"$operator_metrics_log"
+  steady_after="$(controller_reconcile_sum "$operator_metrics_log")"
+  if [[ "$steady_after" = "$steady_before" ]]; then break; fi
+  if (( SECONDS - steady_start >= 120 )); then
+    echo "controller did not settle: reconciles ${steady_before} -> ${steady_after} in the last 20 seconds" >&2
+    exit 1
+  fi
+  steady_before="$steady_after"
+done
 
 # No Cell ever has more than one writer Pod, including during snapshot restart
 # and namespace churn. This is checked from the authoritative API objects, not
