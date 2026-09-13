@@ -1,5 +1,9 @@
 # Design documents
 
+- [Local installation](./quickstart.md)
+- [AI installation runbook](./ai/local-run.md)
+- [Alpha distribution](./distribution.md)
+
 - [Architecture](./specs/architecture.md) — ownership, boundaries, flows, and non-goals.
 - [Threat model](./specs/threat-model.md) — guarantees, assumptions, and abuse cases.
 - [Namespace contract](./specs/namespace-contract.md) — native capability and policy boundaries.

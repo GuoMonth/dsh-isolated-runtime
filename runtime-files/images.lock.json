@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "images": [
+    {
+      "source": "quay.io/calico/cni:v3.32.2",
+      "optional": false,
+      "ref": "quay.io/calico/cni@sha256:0ef740bc587f25565905adf1d1f61a7faff0d571c449c6bdd789feed743d3ef7",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "quay.io/calico/node:v3.32.2",
+      "optional": false,
+      "ref": "quay.io/calico/node@sha256:99b03fe91e8bfbcb153ae65ef4b701b24ce541ffdd74ff314eb041096008f7fd",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "quay.io/calico/kube-controllers:v3.32.2",
+      "optional": false,
+      "ref": "quay.io/calico/kube-controllers@sha256:7870b67ebb13fabc3005252b44fe6e78b21635649bd3072b80afa1684b6565d0",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "envoyproxy/gateway:v1.9.1",
+      "optional": false,
+      "ref": "envoyproxy/gateway@sha256:0049bcb384c591c6a6dd043fe5c9929ef6e74f230e12dd678d2d3701df9b301e",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "ghcr.io/dexidp/dex@sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20332cd697dc9937f808462",
+      "optional": false,
+      "ref": "ghcr.io/dexidp/dex@sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20332cd697dc9937f808462",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "docker.io/envoyproxy/envoy:distroless-v1.39.1@sha256:eb2c01c13125d1629637cb4e4cce7207009fb7cc2c8027f9742758549d15b6f4",
+      "optional": false,
+      "ref": "docker.io/envoyproxy/envoy@sha256:eb2c01c13125d1629637cb4e4cce7207009fb7cc2c8027f9742758549d15b6f4",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "docker.io/envoyproxy/gateway-dev@sha256:a4a8e6e8135d61a91b6c57859929991bae67b1ddfe1f923ee786fbf4b4253331",
+      "optional": false,
+      "ref": "docker.io/envoyproxy/gateway-dev@sha256:a4a8e6e8135d61a91b6c57859929991bae67b1ddfe1f923ee786fbf4b4253331",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a",
+      "optional": false,
+      "ref": "kindest/node@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "registry.k8s.io/sig-storage/snapshot-controller:v8.5.0",
+      "optional": true,
+      "ref": "registry.k8s.io/sig-storage/snapshot-controller@sha256:74ca61ab13e978f03cf0f336a607281d15f04cda0a38a881306365473b28a3d8",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "registry.k8s.io/sig-storage/hostpathplugin:v1.18.0",
+      "optional": true,
+      "ref": "registry.k8s.io/sig-storage/hostpathplugin@sha256:44e2cb773c42f31ea2b6c1d736b53e96805ab03aec743d2ceea445b17b75b85c",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "registry.k8s.io/sig-storage/csi-external-health-monitor-controller:v0.18.0",
+      "optional": true,
+      "ref": "registry.k8s.io/sig-storage/csi-external-health-monitor-controller@sha256:430c1f2267152ce6e4547ebbad225a2b399d03e5894f2f39ba233a38e4750a47",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0",
+      "optional": true,
+      "ref": "registry.k8s.io/sig-storage/csi-node-driver-registrar@sha256:f9de845b170155199f2a2a3f9531cf13d78e31235e9db6b6582a8b0db0a50dad",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "registry.k8s.io/sig-storage/livenessprobe:v2.19.0",
+      "optional": true,
+      "ref": "registry.k8s.io/sig-storage/livenessprobe@sha256:06da0d5b8908072f2e4522692aee8dc119fba7247a9658497e1153992cd777e9",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "registry.k8s.io/sig-storage/csi-attacher:v4.12.0",
+      "optional": true,
+      "ref": "registry.k8s.io/sig-storage/csi-attacher@sha256:b9dc9a714a484ccdeeb6f86d88d4db9b7a5ecfc5a55da6db3a60bb3fa33c278a",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "registry.k8s.io/sig-storage/csi-provisioner:v6.3.0",
+      "optional": true,
+      "ref": "registry.k8s.io/sig-storage/csi-provisioner@sha256:a4b0b1a37605b7b04a293e136edf7006ec1786a8eb3f4e5a945f81d667dcc371",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "registry.k8s.io/sig-storage/csi-resizer:v2.2.1",
+      "optional": true,
+      "ref": "registry.k8s.io/sig-storage/csi-resizer@sha256:ea1d25e23479000c7e8eeb92d827df66258df4e482ca054c5e7ce3fc0f5c41a5",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    {
+      "source": "registry.k8s.io/sig-storage/csi-snapshotter:v8.5.0",
+      "optional": true,
+      "ref": "registry.k8s.io/sig-storage/csi-snapshotter@sha256:da081c27e8a6d91f36042c1942362d0515ced8d06e18c11b8f893e58c4d6d797",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    }
+  ]
+}

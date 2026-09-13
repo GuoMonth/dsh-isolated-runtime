@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "images": [
+    {"source": "quay.io/calico/cni:v3.32.2", "optional": false},
+    {"source": "quay.io/calico/node:v3.32.2", "optional": false},
+    {"source": "quay.io/calico/kube-controllers:v3.32.2", "optional": false},
+    {"source": "envoyproxy/gateway:v1.9.1", "optional": false},
+    {"source": "ghcr.io/dexidp/dex@sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20332cd697dc9937f808462", "optional": false},
+    {"source": "docker.io/envoyproxy/envoy:distroless-v1.39.1@sha256:eb2c01c13125d1629637cb4e4cce7207009fb7cc2c8027f9742758549d15b6f4", "optional": false},
+    {"source": "docker.io/envoyproxy/gateway-dev@sha256:a4a8e6e8135d61a91b6c57859929991bae67b1ddfe1f923ee786fbf4b4253331", "optional": false},
+    {"source": "kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a", "optional": false},
+    {"source": "registry.k8s.io/sig-storage/snapshot-controller:v8.5.0", "optional": true},
+    {"source": "registry.k8s.io/sig-storage/hostpathplugin:v1.18.0", "optional": true},
+    {"source": "registry.k8s.io/sig-storage/csi-external-health-monitor-controller:v0.18.0", "optional": true},
+    {"source": "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.17.0", "optional": true},
+    {"source": "registry.k8s.io/sig-storage/livenessprobe:v2.19.0", "optional": true},
+    {"source": "registry.k8s.io/sig-storage/csi-attacher:v4.12.0", "optional": true},
+    {"source": "registry.k8s.io/sig-storage/csi-provisioner:v6.3.0", "optional": true},
+    {"source": "registry.k8s.io/sig-storage/csi-resizer:v2.2.1", "optional": true},
+    {"source": "registry.k8s.io/sig-storage/csi-snapshotter:v8.5.0", "optional": true}
+  ]
+}

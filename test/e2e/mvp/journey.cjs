@@ -21,8 +21,9 @@ const cookieFile=path.join(root,'runtime/journey-cookies.json');
     const host=fs.readFileSync(path.join(root,'runtime/hostname'),'utf8').trim();
     await page.goto(`https://${host}:18443`,{waitUntil:'domcontentloaded',timeout:90000});
     if(page.url().includes('/dex/')) {
-      await page.locator('input[name="login"]').fill('alice@example.com');
-      await page.locator('input[name="password"]').fill('password');
+      const credentials=JSON.parse(fs.readFileSync(path.join(root,'credentials.json')));
+      await page.locator('input[name="login"]').fill(credentials.email);
+      await page.locator('input[name="password"]').fill(credentials.password);
       await page.getByRole('button',{name:/login/i}).click();
       await page.waitForURL(url=>url.hostname===host,{timeout:90000});
     }

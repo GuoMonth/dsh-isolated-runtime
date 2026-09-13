@@ -32,7 +32,7 @@ demo_lock() {
 
 record_demo_process() {
   local file="$1" pid="$2"
-  ps -p "$pid" -o lstart= > "$file.started"
+  ps -p "$pid" -o lstart= > "$file.started" || return 1
   printf '%s\n' "$pid" > "$file"
 }
 

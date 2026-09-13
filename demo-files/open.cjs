@@ -4,7 +4,7 @@ const {execFileSync} = require('node:child_process');
 async function openDemo(root) {
   const {chromium} = require(path.join(root, 'browser/node_modules/playwright'));
   if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
-    throw new Error('A graphical session is required for demo open; CI uses the headless acceptance runner.');
+    throw new Error('A graphical session is required for dsh-runtime open; CI uses the headless acceptance runner.');
   }
   const browser = await chromium.launchPersistentContext(path.join(root, 'browser/profile'), {
     headless:false, executablePath:process.env.CHROME_EXECUTABLE || undefined,

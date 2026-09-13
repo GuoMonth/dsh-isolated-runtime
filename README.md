@@ -13,7 +13,12 @@ project fleet inventory, scheduler, namespace policy engine, or backup service.
 
 [中文](./README.zh-CN.md)
 
-Get the local MVP packages for Linux x86_64 and Apple Silicon macOS from [GitHub Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases). Start with the [Quickstart](docs/quickstart.md). The first MVP [milestone](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7) is complete.
+**Local installation alpha: v0.2.0-alpha.1 is in preparation.**
+Start with the [Quickstart](docs/quickstart.md), or give your AI assistant the
+[AI installation runbook](docs/ai/local-run.md). The npm launcher and direct
+[GitHub Release](https://github.com/GuoMonth/dsh-isolated-runtime/releases)
+download use the same immutable installation bundle and public GHCR images.
+See [distribution and release gates](docs/distribution.md).
 
 ## Cell contract
 

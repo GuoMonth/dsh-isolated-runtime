@@ -1,0 +1,34 @@
+name: Alpha installation
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: alpha-install-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  install:
+    name: Alpha local installation (published baseline images)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Package this PR's installation layer with unchanged public runtime images
+        run: |
+          test "$(jq -r .source.commit compat/dsh/baseline.json)" = fb2c4b9e698e30edb738bca4cf0618587db7d203
+          node hack/package-release.mjs "$(cat VERSION)" \
+            ghcr.io/guomonth/dsh-isolated-runtime-cell@sha256:8dbe38c80b9f0e0281ad8bcb179fdf00b5fc009baaf39aee24d30dc877ea00e2 \
+            ghcr.io/guomonth/dsh-isolated-runtime-operator@sha256:f1fb2fc2c4b35f99d095407c397657a9fd1d6036255e831f086c042e818bdd5d \
+            dist
+      - name: Verify random login, file tools, stop/resume and restore
+        run: ./hack/verify-mvp.sh dist
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alpha-installation-proof
+          path: dist/evidence/*.json
+          retention-days: 14

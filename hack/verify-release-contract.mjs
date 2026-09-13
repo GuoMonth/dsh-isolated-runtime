@@ -25,9 +25,10 @@ try {
     fs.writeFileSync(live,JSON.stringify({...deterministic,...change}));assert.notEqual(verify(live,'deterministic').status,0,'forged deterministic evidence was accepted');
   }
   const candidates=path.join(temp,'candidates');
+  const npmVersion=JSON.parse(fs.readFileSync(path.join(root,'packages/cli/package.json'))).version;
   for(const target of ['linux-amd64','darwin-arm64']) {
     const dir=path.join(candidates,target);
-    execFileSync(process.execPath,[path.join(root,'hack/package-release.mjs'),'v0.1.1',ref('cell'),ref('operator'),dir,target.replace('-','/')]);
+    execFileSync(process.execPath,[path.join(root,'hack/package-release.mjs'),`v${npmVersion}`,ref('cell'),ref('operator'),dir,target.replace('-','/')]);
     const identity=JSON.parse(execFileSync(process.execPath,[path.join(root,'hack/check-release.mjs'),dir],{encoding:'utf8'}));
     fs.mkdirSync(path.join(dir,'evidence'));
     fs.writeFileSync(path.join(dir,'evidence/deterministic.json'),JSON.stringify({...identity,kind:'deterministic',model:'fixture',success:true}));
@@ -37,6 +38,13 @@ try {
   const publicTool=path.join(root,'hack/public-release.mjs');
   execFileSync(process.execPath,[publicTool,'prepare',candidates,publicDir]);
   execFileSync(process.execPath,[publicTool,'verify',publicDir]);
+  const npmOut=path.join(temp,'npm');
+  execFileSync(process.execPath,[path.join(root,'hack/package-npm.mjs'),publicDir,npmOut]);
+  const npmArchive=path.join(npmOut,fs.readdirSync(npmOut).find(name=>name.endsWith('.tgz')));
+  const npmManifest=JSON.parse(execFileSync('tar',['-xOzf',npmArchive,'package/release.json'],{encoding:'utf8'}));
+  assert.deepEqual(npmManifest,JSON.parse(fs.readFileSync(path.join(publicDir,'release.json'))));
+  const packageManifest=JSON.parse(execFileSync('tar',['-xOzf',npmArchive,'package/package.json'],{encoding:'utf8'}));
+  assert.equal(packageManifest.version,npmVersion);assert.equal(packageManifest.publishConfig.tag,'alpha');
   const macEvidence=path.join(publicDir,'deterministic-darwin-arm64.json');
   const originalMacEvidence=fs.readFileSync(macEvidence);
   fs.writeFileSync(macEvidence,fs.readFileSync(path.join(publicDir,'deterministic-linux-amd64.json')));
