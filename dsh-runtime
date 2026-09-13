@@ -135,8 +135,9 @@ case "${1:-help}" in
   up)
     [[ $# == 1 || ($# == 2 && "$2" == --snapshots) ]] || { echo 'usage: dsh-runtime up [--snapshots]' >&2; exit 2; }
     require_demo_docker
-    prepare_demo_tools
     [[ -f "$repo_root/release.json" ]] || { echo 'Use the release bundle, which includes release.json with tested image digests' >&2; exit 1; }
+    [[ -f "$repo_root/runtime-files/images.lock.json" ]] || { echo 'Release is missing its runtime image lock' >&2; exit 1; }
+    prepare_demo_tools
     [[ "$(jq -r .platform "$repo_root/release.json")" == "$demo_platform" ]] || { echo "This bundle does not target $demo_platform; download the archive for this architecture" >&2; exit 1; }
     cell_image="$(jq -er .images.cell "$repo_root/release.json")"
     operator_image="$(jq -er .images.operator "$repo_root/release.json")"
@@ -170,7 +171,6 @@ YAML
       kind create cluster --name "$cluster_name" --kubeconfig "$kubeconfig" --config "$test_root/kind.yaml" \
         --image kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
     fi
-    [[ -f "$repo_root/runtime-files/images.lock.json" ]] || { echo 'Release is missing its runtime image lock' >&2; exit 1; }
     # Completion markers make an interrupted up resumable without reissuing TLS
     # keys or replacing a user's populated Cell.
     if [[ ! -f "$test_root/network-ready" ]]; then

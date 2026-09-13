@@ -31,6 +31,7 @@ test('status JSON, command validation, legacy path conflict', t => {
   assert.equal(f.run(['unknown']).status, 2);
   assert.equal(f.run(['uninstall']).status, 2);
   assert.equal(f.run(['status'], {DSH_DEMO_HOME: '/different'}).status, 2);
+  assert.match(f.run(['up']).stderr, /Use the release bundle/);
   assert.equal(fs.existsSync(f.env.TEST_LOG), false);
 });
 test('stop preserves data and uninstall requires exact ownership', t => {
@@ -67,4 +68,15 @@ test('identity is random, private, stable, and rendered as a Secret', t => {
   assert.equal(config.staticPasswords[0].email, credentials.email);
   assert.equal(require('../runtime-files/node_modules/bcryptjs').compareSync(credentials.password, config.staticPasswords[0].hash), true);
   assert.deepEqual(result.items[1].spec.template.spec.volumes[0].secret, {secretName: 'dex'});
+});
+test('reference image lock covers each declared source with both native architectures', () => {
+  const inventory = JSON.parse(fs.readFileSync(path.join(repo, 'runtime-files/images.json')));
+  const lock = JSON.parse(fs.readFileSync(path.join(repo, 'runtime-files/images.lock.json')));
+  assert.deepEqual(lock.images.map(item => item.source), inventory.images.map(item => item.source));
+  assert.equal(new Set(lock.images.map(item => item.source)).size, lock.images.length);
+  for (const item of lock.images) {
+    assert.match(item.ref, /@sha256:[a-f0-9]{64}$/);
+    assert.deepEqual(item.platforms, ['linux/amd64', 'linux/arm64']);
+    if (item.source.includes('@')) assert.equal(item.ref.split('@')[1], item.source.split('@')[1]);
+  }
 });
