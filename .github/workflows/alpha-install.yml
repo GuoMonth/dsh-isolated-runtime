@@ -1,6 +1,5 @@
 name: Alpha installation
 on:
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read

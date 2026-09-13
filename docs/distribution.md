@@ -54,9 +54,10 @@ Do not install unverified public mirror shortcuts into users' Docker settings.
 
 ## Release Sequence
 
-1. Review and merge the alpha PR only after required CI passes. Keep historical
-   protected check names; do not bypass gates to simplify the release.
-2. Main builds candidate images once and verifies exact digests. Exact archives
+1. Review and merge after lightweight Source standards CI and appropriate local
+   behavioral verification. Record local evidence in the PR.
+2. Candidate publication is manual, never triggered by a main push. The optional
+   Tested OCI promotion workflow builds candidate images once and verifies exact digests. Exact archives
    run through deterministic model/browser, random identity, stop/resume and
    snapshot acceptance. macOS host evidence remains distinct from Docker Desktop.
 3. The explicit Publish accepted alpha workflow consumes that candidate and
@@ -74,6 +75,11 @@ Do not install unverified public mirror shortcuts into users' Docker settings.
 5. The maintainer downloads on Mac, configures a real model privately and records
    file write/read plus stop/resume results. Fix failures in a new alpha. Until
    then, evidence must continue to say Docker Desktop/live-model not-run.
+
+Routine PRs do not run remote integration tests, image builds or multi-platform
+jobs. Existing publication still requires accepted candidate artifacts; the
+manual release workflow is an explicit, potentially expensive operation, not a
+merge gate. Local test success must not be forged into a GitHub candidate run.
 
 The npm package is version-bound; changing a dist-tag does not upgrade an
 existing state directory. Cross-release local migration is intentionally not
