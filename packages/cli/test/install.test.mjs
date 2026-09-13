@@ -17,7 +17,7 @@ async function fixture(t) {
   t.after(() => fs.rm(root, {recursive: true, force: true}));
   const release = {schemaVersion: 2, version: `v${version}`, sourceSHA: 'b'.repeat(40), images, packages: {}};
   await fs.mkdir(path.join(root, folder));
-  await fs.writeFile(path.join(root, folder, 'release.json'), JSON.stringify({...release, schemaVersion: 1, packagePlatform: 'linux/amd64'}));
+  await fs.writeFile(path.join(root, folder, 'release.json'), JSON.stringify({...release, schemaVersion: 1, packagePlatform: 'linux/amd64', platform: 'linux/amd64'}));
   await fs.writeFile(path.join(root, folder, 'dsh-runtime'), '#!/bin/sh\nexit 0\n');
   const archive = path.join(root, 'archive.tgz');
   await tar.c({gzip: true, cwd: root, file: archive}, [folder]);
@@ -70,4 +70,27 @@ test('source cannot publish or destroy data without explicit confirmation', () =
     assert.notEqual(spawnSync(process.execPath, [cli.pathname, ...argv]).status, 0);
   }
   assert.equal(spawnSync(process.execPath, [cli.pathname, '--help']).status, 0);
+});
+test('bound CLI start invokes the shipped runtime and propagates failures', async t => {
+  const f = await fixture(t);
+  await fs.writeFile(path.join(f.root, folder, 'dsh-runtime'), '#!/bin/bash\nprintf "%s\\n" "$*" >> "$DSH_TEST_LOG"\nexit "${DSH_TEST_EXIT:-0}"\n');
+  await tar.c({gzip: true, cwd: f.root, file: f.archive}, [folder]);
+  const body = await fs.readFile(f.archive);
+  f.release.packages[target].archiveSHA256 = crypto.createHash('sha256').update(body).digest('hex');
+  f.release.packages['darwin-arm64'] = {archive: `dsh-isolated-runtime-v${version}-darwin-arm64.tar.gz`, archiveSHA256: 'a'.repeat(64)};
+  const bound = path.join(f.root, 'cli'); await fs.mkdir(bound);
+  for (const name of ['bin', 'lib', 'package.json']) await fs.cp(new URL(`../${name}`, import.meta.url), path.join(bound, name), {recursive: true});
+  await fs.symlink(new URL('../node_modules', import.meta.url).pathname, path.join(bound, 'node_modules'));
+  await fs.writeFile(path.join(bound, 'release.json'), JSON.stringify(f.release));
+  const preload = path.join(f.root, 'fetch.mjs');
+  await fs.writeFile(preload, `globalThis.fetch=async()=>new Response(Buffer.from('${body.toString('base64')}','base64'));`);
+  const log = path.join(f.root, 'commands');
+  const env = {...process.env, XDG_CACHE_HOME: path.join(f.root, 'cache'), DSH_TEST_LOG: log};
+  const run = (argv, extra = {}) => spawnSync(process.execPath, ['--import', preload, path.join(bound, 'bin/cli.mjs'), ...argv], {env: {...env, ...extra}, encoding: 'utf8'});
+  const result = run(['start', '--no-open', '--snapshots']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(await fs.readFile(log, 'utf8'), 'up --snapshots\n');
+  assert.equal(run(['status'], {DSH_TEST_EXIT: '7'}).status, 7);
+  assert.equal(run(['uninstall']).status, 1);
+  assert.equal(await fs.readFile(log, 'utf8'), 'up --snapshots\nstatus\n');
 });

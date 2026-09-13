@@ -7,5 +7,7 @@ coverage.out
 
 # Go
 bin/
+!packages/cli/bin/
+!packages/cli/bin/cli.mjs
 *.test
 *.out

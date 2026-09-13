@@ -80,7 +80,8 @@ export async function install(release, version, target, cache, fetcher = fetch) 
     await unpack(archive, work, folder);
     const directory = path.join(work, folder);
     const inner = JSON.parse(await fs.readFile(path.join(directory, 'release.json'), 'utf8'));
-    if (inner.version !== release.version || inner.sourceSHA !== release.sourceSHA || inner.packagePlatform !== target.replace('-', '/') ||
+    if (inner.schemaVersion !== 1 || inner.version !== release.version || inner.sourceSHA !== release.sourceSHA || inner.packagePlatform !== target.replace('-', '/') ||
+        inner.platform !== (target === 'darwin-arm64' ? 'linux/arm64' : 'linux/amd64') ||
         JSON.stringify(inner.images) !== JSON.stringify(release.images)) throw new Error('Extracted release identity mismatch');
     await fs.chmod(path.join(directory, 'dsh-runtime'), 0o700);
     return {directory, cleanup: () => fs.rm(work, {recursive: true, force: true})};

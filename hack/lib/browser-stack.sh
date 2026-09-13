@@ -107,6 +107,7 @@ fi
 k -n dsh-system create configmap dex-ca --from-file="ca.crt=$test_root/ca.crt" --dry-run=client -o yaml | k apply -f -
 if [[ -n "${DSH_LOCAL_IDENTITY_ROOT:-}" ]]; then
   k create --dry-run=client --validate=false -f "$repo_root/test/e2e/phase2/dex.yaml" -o json | \
+    jq -s '{apiVersion:"v1",kind:"List",items:.}' | \
     node "$repo_root/runtime-files/identity.cjs" render "$DSH_LOCAL_IDENTITY_ROOT" | k apply -f -
 else
   k apply -f "$repo_root/test/e2e/phase2/dex.yaml"
