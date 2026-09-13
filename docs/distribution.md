@@ -67,7 +67,10 @@ Do not install unverified public mirror shortcuts into users' Docker settings.
    It checks that run's identity, anonymously downloads and verifies the public
    release, and reproduces the npm tarball from the publication's exact source.
    Only a byte-identical original artifact is published, with the alpha tag.
-   Do not publish packages/cli directly or assign the prerelease to latest.
+   The maintainer has explicitly selected 0.2.0-alpha.1 as latest too: after
+   registry integrity verification, the workflow adds latest to that same
+   version and verifies anonymous resolution. Other alpha versions do not
+   automatically move latest. Do not publish packages/cli directly.
 5. The maintainer downloads on Mac, configures a real model privately and records
    file write/read plus stop/resume results. Fix failures in a new alpha. Until
    then, evidence must continue to say Docker Desktop/live-model not-run.
@@ -102,8 +105,11 @@ gh workflow run npm-publish.yml --ref main -f publication_run=RUN_ID
 
 Missing credentials stop publication. A failed or wrong workflow, unpublished
 GitHub release, invalid evidence, or changed tarball also stops publication.
-The action never overwrites an npm version, changes package ownership, or
-promotes `latest`. If publication succeeds but the final registry check fails,
+The action never overwrites an npm version or changes package ownership.
+For this first alpha, both `alpha` and `latest` point to `0.2.0-alpha.1`; the
+version remains a prerelease and the GitHub pre-release status is unchanged.
+After successful publication, the default entry is `npx dsh-isolated-runtime start`.
+If publication succeeds but the final registry check fails,
 inspect `npm view dsh-isolated-runtime@0.2.0-alpha.1 dist.integrity` and the run
 logs before retrying; npm versions are immutable. Expired Actions artifacts
 require a reviewed recovery, not republishing an unverified source checkout.

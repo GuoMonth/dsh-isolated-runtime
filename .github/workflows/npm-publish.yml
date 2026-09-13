@@ -98,3 +98,24 @@ jobs:
           done
           echo '::error::Anonymous npm integrity/dist-tag verification failed; inspect the existing version before retrying.'
           exit 1
+      - name: Promote the first alpha to latest
+        if: steps.package.outputs.version == '0.2.0-alpha.1'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: npm dist-tag add "dsh-isolated-runtime@$VERSION" latest --registry https://registry.npmjs.org
+      - name: Verify anonymous latest resolution
+        if: steps.package.outputs.version == '0.2.0-alpha.1'
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          for _attempt in {1..12}; do
+            if latest="$(npm view dsh-isolated-runtime dist-tags.latest --registry https://registry.npmjs.org)" &&
+              [[ "$latest" == "$VERSION" ]]; then
+              echo "latest and alpha both resolve to dsh-isolated-runtime@$VERSION" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo '::error::latest verification failed; the published version and alpha tag remain available.'
+          exit 1
