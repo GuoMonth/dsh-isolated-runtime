@@ -1,5 +1,14 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2154
+forward_ready() {
+  local service="$1" port="$2" host=auth.cells.test route=/ code
+  if [[ "$service" == dex ]]; then host=dex.dsh-system.svc; route=/dex/.well-known/openid-configuration; fi
+  code="$(curl --silent --max-time 3 --connect-timeout 2 --noproxy '*' \
+    --cacert "$test_root/ca.crt" --resolve "$host:$port:127.0.0.1" \
+    --output /dev/null --write-out '%{http_code}' "https://$host:$port$route")" || return 1
+  [[ "$code" == 200 || ("$service" != dex && "$code" == 302) ]]
+}
+
 start_forward() {
   local service="$1" port="$2" remote="$3" pid tick deadline
   deadline=$((SECONDS + 180))
@@ -21,7 +30,7 @@ start_forward() {
       ((SECONDS < deadline)) || break
       kill -0 "$pid" 2>/dev/null || break
       if grep -Fq "Forwarding from 127.0.0.1:$port" "$test_root/$port.log" &&
-        (echo >"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then return; fi
+        forward_ready "$service" "$port"; then return; fi
       sleep 1
     done
     stop_demo_process "$test_root/$port.pid" 'port-forward' "--kubeconfig $kubeconfig"

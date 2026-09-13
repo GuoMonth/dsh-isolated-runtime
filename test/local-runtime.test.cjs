@@ -95,6 +95,7 @@ if(n<15){console.error('pod not found');process.exit(1);}
 require('node:net').createServer(s=>s.end()).listen(${port},'127.0.0.1',()=>console.log('Forwarding from 127.0.0.1:${port} -> 443'));`);
   fs.writeFileSync(path.join(f.root, 'bin/kubectl'), '#!/bin/bash\nexec node "$TEST_FORWARD_SCRIPT" "$@"\n', {mode: 0o700});
   fs.writeFileSync(path.join(f.root, 'bin/sleep'), '#!/bin/bash\nexec /bin/sleep 0.05\n', {mode: 0o700});
+  fs.writeFileSync(path.join(f.root, 'bin/curl'), '#!/bin/bash\nif [[ ! -f "$TEST_PROBE_LOG" ]]; then touch "$TEST_PROBE_LOG"; printf 503; else printf 200; fi\n', {mode: 0o700});
   const probe = `set -euo pipefail
 source "$1/demo-files/host.sh"
 source "$1/demo-files/forward.sh"
@@ -104,7 +105,7 @@ trap 'stop_demo_process "$test_root/$3.pid" port-forward "--kubeconfig $kubeconf
 start_forward dsh "$3" 443
 `;
   const result = spawnSync('bash', ['-c', probe, 'bash', repo, f.state, String(port)], {
-    env: {...f.env, TEST_FORWARD_SCRIPT: script}, encoding: 'utf8', timeout: 20_000,
+    env: {...f.env, TEST_FORWARD_SCRIPT: script, TEST_PROBE_LOG: path.join(f.root, 'tls-probe')}, encoding: 'utf8', timeout: 20_000,
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(fs.readFileSync(f.env.TEST_LOG, 'utf8'), '16');

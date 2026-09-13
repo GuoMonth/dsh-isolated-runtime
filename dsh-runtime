@@ -202,6 +202,15 @@ YAML
     fi
     k -n tenant-demo wait cell assistant --for=condition=Ready --timeout=300s
     uid="$(k -n tenant-demo get cell assistant -o jsonpath='{.metadata.uid}')"
+    # After a node restart, persisted Ready conditions can precede the live
+    # container. Probe the actual launcher before announcing a usable runtime.
+    ready_deadline=$((SECONDS + 180))
+    until k --request-timeout=10s -n tenant-demo exec "cell-$uid-0" -- node -e \
+      'fetch("http://127.0.0.1:8081/readyz",{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))' \
+      >"$test_root/ready.log" 2>&1; do
+      if ((SECONDS >= ready_deadline)); then echo "DSH did not become ready; inspect $test_root/ready.log" >&2; exit 1; fi
+      sleep 2
+    done
     k -n tenant-demo create rolebinding demo-access --role="cell-$uid-access" --user="$dex_issuer#$dex_alice_sub" --dry-run=client -o yaml | k apply -f -
     k -n tenant-demo get httproute "cell-$uid" -o jsonpath='{.spec.hostnames[0]}' > "$test_root/hostname"
     forward_browser
