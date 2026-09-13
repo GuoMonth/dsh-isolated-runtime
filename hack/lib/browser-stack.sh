@@ -5,8 +5,13 @@ for calico_image in \
   quay.io/calico/cni:v3.32.2 \
   quay.io/calico/node:v3.32.2 \
   quay.io/calico/kube-controllers:v3.32.2; do
-  if [[ "${DSH_LOCAL_RUNTIME:-0}" == 1 ]]; then pull_image "$calico_image"; fi
-  if docker image inspect "$calico_image" >/dev/null 2>&1; then
+  if [[ "${DSH_LOCAL_RUNTIME:-0}" == 1 ]]; then
+    pull_image "$calico_image"
+    # A native pull may retain a multi-arch index without other architectures'
+    # blobs. Import only the native platform, as for the gateway images below.
+    docker save "$calico_image" | docker exec --privileged -i "${cluster_name}-control-plane" \
+      ctr --namespace=k8s.io images import --snapshotter=overlayfs - >/dev/null
+  elif docker image inspect "$calico_image" >/dev/null 2>&1; then
     kind load docker-image --name "$cluster_name" "$calico_image"
   fi
 done
