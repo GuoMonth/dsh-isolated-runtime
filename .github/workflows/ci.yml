@@ -1,116 +1,23 @@
 name: CI
-
 on:
-  push:
-    branches: [main]
   pull_request:
-
+  workflow_dispatch:
 permissions:
   contents: read
-
+concurrency:
+  group: standards-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  test:
-    name: test (go ${{ matrix.go-version }})
+  standards:
+    name: Source standards
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        go-version: ["1.24", "stable"]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
-      - name: Verify
-        run: make verify
-
-  cell-contract:
-    name: Cell contract (kind)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-          cache: true
-      - name: Install kind
-        run: go install sigs.k8s.io/kind@v0.32.0
-      - name: Verify Cell API against Kubernetes
-        run: make verify-cell
-
-  controller-envtest:
-    name: controller envtest (Kubernetes 1.34)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-          cache: true
-      - name: Verify reconciliation against a real API server
-        run: make test-envtest
-
-  manifests:
-    name: Kustomize manifests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Render install surface
-        run: |
-          kubectl kustomize config/default > /tmp/dsh-install.yaml
-          kubectl kustomize config/browser > /tmp/dsh-phase2-install.yaml
-          kubectl kustomize config/snapshots > /tmp/dsh-phase3-install.yaml
-          mkdir -p config/.metrics-check
-          printf 'resources: [../snapshots]\ncomponents: [../metrics]\n' > config/.metrics-check/kustomization.yaml
-          kubectl kustomize config/.metrics-check > /tmp/dsh-phase4-install.yaml
-          rm -r config/.metrics-check
-      - name: Assert one controller and both public CRDs
-        run: |
-          test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-install.yaml)" = 2
-          test "$(grep -c '^kind: Deployment$' /tmp/dsh-install.yaml)" = 1
-          test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-phase2-install.yaml)" = 2
-          test "$(grep -c '^kind: Deployment$' /tmp/dsh-phase2-install.yaml)" = 2
-          test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-phase3-install.yaml)" = 2
-          test "$(grep -c '^kind: Deployment$' /tmp/dsh-phase3-install.yaml)" = 2
-          test "$(grep -c '^kind: CustomResourceDefinition$' /tmp/dsh-phase4-install.yaml)" = 2
-          test "$(grep -c '^kind: Deployment$' /tmp/dsh-phase4-install.yaml)" = 2
-          grep -q '^kind: Gateway$' /tmp/dsh-phase2-install.yaml
-          grep -q '^kind: Backend$' /tmp/dsh-phase2-install.yaml
-          grep -q '^kind: SecurityPolicy$' /tmp/dsh-phase2-install.yaml
-          grep -q -- '--enable-snapshots=true' /tmp/dsh-phase3-install.yaml
-          grep -q -- '--writer-stop-timeout=2m' /tmp/dsh-phase3-install.yaml
-          grep -q -- '--snapshot-timeout=30m' /tmp/dsh-phase3-install.yaml
-          grep -q -- '--metrics-bind-address=:8080' /tmp/dsh-phase4-install.yaml
-          grep -q -- '--cell-concurrency=4' /tmp/dsh-phase4-install.yaml
-          grep -q -- '--snapshot-concurrency=2' /tmp/dsh-phase4-install.yaml
-          grep -q -- '--metrics-bind-address=:9090' /tmp/dsh-phase4-install.yaml
-
-  lint:
-    name: lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-          cache: true
-      - uses: golangci/golangci-lint-action@v9.3.0
-        with:
-          version: v2.13.2
-          args: --timeout=3m
-
-  release-contract:
-    name: MVP release contract
-    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
-      - run: node hack/verify-release-contract.mjs
-      - run: npm ci --ignore-scripts --prefix packages/cli
-      - run: npm test --prefix packages/cli
-      - run: npm ci --ignore-scripts --prefix runtime-files
-      - run: node --test test/local-runtime.test.cjs
-      - run: shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh demo-files/forward.sh hack/verify-mvp.sh hack/verify-macos-host.sh hack/fetch-candidate.sh
+      - name: Syntax, Go formatting, whitespace and LF endings
+        run: node hack/check-standards.mjs
+      - name: Workflow syntax
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11 -shellcheck=""

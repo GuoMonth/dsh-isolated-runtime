@@ -5,6 +5,16 @@ ambiguity rather than add compatibility layers.
 
 ## Before opening a pull request
 
+GitHub automatically runs only `Source standards`: syntax, Go formatting,
+whitespace, LF/final-newline and workflow syntax checks. It has one Linux job,
+a five-minute timeout and cancels superseded PR runs. Main pushes do not repeat
+CI or build images. Run the same source check with `node hack/check-standards.mjs`.
+
+Run behavioral tests locally according to the changed surface and record the
+commit, commands, results and relevant artifact digests in the PR. Heavy GitHub
+workflows remain manual diagnostic/release tools; do not dispatch them for
+routine PR acceptance. Local success is sufficient for behavioral acceptance.
+
 ```bash
 make verify
 golangci-lint run
@@ -13,6 +23,11 @@ golangci-lint run
 Run `make verify-cell` for API/CRD changes and `make verify-dsh` for changes
 under `compat/dsh`, `internal/dshcompat`, or the Cell image/access seam. The full
 DSH check downloads and tests the exact pinned upstream tree.
+
+For cluster changes, run the relevant `make verify-kind`, `make verify-kind-phase2`,
+`make verify-kind-phase3` or `make verify-kind-phase4` locally. Installation and
+release changes also need the focused checks in AGENTS.md and exact-archive
+acceptance in `hack/verify-mvp.sh`. Do not relabel local evidence as CI evidence.
 
 ## Design rules
 

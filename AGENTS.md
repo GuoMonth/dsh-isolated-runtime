@@ -8,8 +8,9 @@ For helping a user install a release, read docs/ai/local-run.md first.
   internal fixtures and state identities to avoid breaking ownership checks.
 - Never erase state merely to make a test pass. Use isolated DSH_RUNTIME_HOME
   directories for local tests and explicitly tear down only test-owned clusters.
-- Do not rename required CI checks without updating their branch-protection
-  contract. Historical MVP check names are not public product branding.
+- Automatic GitHub CI is limited to Source standards (syntax, formatting and
+  LF endings). Keep that name aligned with branch protection. Do not restore
+  automatic builds, cluster tests or image publication without authorization.
 - npm is a thin version-bound launcher. Do not publish packages, create release
   tags, promote images or change package visibility without release authorization.
 - A source checkout is deliberately not an installable release. Packaging binds
@@ -28,5 +29,6 @@ shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh demo-files
 
 After committing all release inputs, node hack/verify-release-contract.mjs
 checks the real archive packer/verifier. Broader runtime changes require the
-existing Go and kind gates. Changes to the public local flow also require the
+existing Go and kind checks locally, with results recorded in the PR.
+Changes to the public local flow also require the
 exact-archive acceptance in hack/verify-mvp.sh.
