@@ -1,8 +1,9 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2154
 start_forward() {
-  local service="$1" port="$2" remote="$3" pid attempt tick
-  for ((attempt=1; attempt<=12; attempt++)); do
+  local service="$1" port="$2" remote="$3" pid tick deadline
+  deadline=$((SECONDS + 180))
+  while ((SECONDS < deadline)); do
     if (echo >"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
       echo "Local port $port is occupied; stop its owner and retry" >&2; return 1
     fi
@@ -17,6 +18,7 @@ start_forward() {
     # Node readiness can precede kubelet's restored pod sandboxes. Retry exited
     # forwarders, but never mistake another process's listener for our own.
     for ((tick=1; tick<=10; tick++)); do
+      ((SECONDS < deadline)) || break
       kill -0 "$pid" 2>/dev/null || break
       if grep -Fq "Forwarding from 127.0.0.1:$port" "$test_root/$port.log" &&
         (echo >"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then return; fi

@@ -81,7 +81,7 @@ test('reference image lock covers each declared source with both native architec
     if (item.source.includes('@')) assert.equal(item.ref.split('@')[1], item.source.split('@')[1]);
   }
 });
-test('port forwarding retries a transient missing pod before reporting ready', async t => {
+test('port forwarding does not exhaust its time budget on fast missing-pod errors', async t => {
   const f = fixture(t);
   const net = require('node:net');
   const server = net.createServer();
@@ -91,9 +91,10 @@ test('port forwarding retries a transient missing pod before reporting ready', a
   const script = path.join(f.root, 'forward.cjs');
   fs.writeFileSync(script, `const fs=require('node:fs');const file=process.env.TEST_LOG;
 const n=fs.existsSync(file)?Number(fs.readFileSync(file)):0;fs.writeFileSync(file,String(n+1));
-if(n===0){console.error('pod not found');process.exit(1);}
+if(n<15){console.error('pod not found');process.exit(1);}
 require('node:net').createServer(s=>s.end()).listen(${port},'127.0.0.1',()=>console.log('Forwarding from 127.0.0.1:${port} -> 443'));`);
   fs.writeFileSync(path.join(f.root, 'bin/kubectl'), '#!/bin/bash\nexec node "$TEST_FORWARD_SCRIPT" "$@"\n', {mode: 0o700});
+  fs.writeFileSync(path.join(f.root, 'bin/sleep'), '#!/bin/bash\nexec /bin/sleep 0.05\n', {mode: 0o700});
   const probe = `set -euo pipefail
 source "$1/demo-files/host.sh"
 source "$1/demo-files/forward.sh"
@@ -106,5 +107,5 @@ start_forward dsh "$3" 443
     env: {...f.env, TEST_FORWARD_SCRIPT: script}, encoding: 'utf8', timeout: 20_000,
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(fs.readFileSync(f.env.TEST_LOG, 'utf8'), '2');
+  assert.equal(fs.readFileSync(f.env.TEST_LOG, 'utf8'), '16');
 });
