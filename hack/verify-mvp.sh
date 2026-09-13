@@ -23,7 +23,7 @@ cleanup() {
     mkdir -p "$candidate/evidence"
     kubectl --kubeconfig "$DSH_DEMO_HOME/kubeconfig" get pods,cells,httproutes -A > "$candidate/evidence/objects.txt" 2>&1 || true
     node "$repo_root/hack/check-release.mjs" "$candidate" | jq --arg kind "$MVP_MODE" '. + {kind:$kind,success:false}' > "$candidate/evidence/failure.json"
-  elif [[ "${MVP_KEEP_DEMO:-0}" != 1 ]]; then "$bundle/demo" down; rm -rf "$proof_root"; fi
+  elif [[ "${MVP_KEEP_DEMO:-0}" != 1 ]]; then "$bundle/dsh-runtime" uninstall --yes; rm -rf "$proof_root"; fi
 }
 trap cleanup EXIT
 # A real occupied listener must fail before creating a cluster.
@@ -31,14 +31,14 @@ node -e 'const fs=require("node:fs");require("node:net").createServer().listen(1
 port_pid=$!
 for _ in $(seq 1 50); do [[ -f "$proof_root/port-ready" ]] && break; sleep 0.1; done
 if [[ ! -f "$proof_root/port-ready" ]]; then echo 'Free demo ports 18443 and 15556 before acceptance' >&2; exit 1; fi
-if "$bundle/demo" up --snapshots > "$proof_root/port-conflict.log" 2>&1; then
+if "$bundle/dsh-runtime" up --snapshots > "$proof_root/port-conflict.log" 2>&1; then
   kill "$port_pid"; echo 'Demo accepted an occupied port' >&2; exit 1
 fi
 kill "$port_pid"; wait "$port_pid" 2>/dev/null || true
 unset port_pid
 grep -Fq 'Local port 18443 is occupied' "$proof_root/port-conflict.log"
 test ! -f "$DSH_DEMO_HOME/owner"
-"$bundle/demo" up --snapshots
+"$bundle/dsh-runtime" up --snapshots
 export PATH="$DSH_DEMO_HOME/tools/bin:$PATH"
 k() { kubectl --kubeconfig "$DSH_DEMO_HOME/kubeconfig" "$@"; }
 wait_cell() {
@@ -153,23 +153,27 @@ k -n tenant-demo get httproute "cell-$restored_uid" -o jsonpath='{.spec.hostname
 MVP_RESTORED=1 browser_run
 storage_check "$restored_uid" restored-configured
 # Repeating up preserves the source UID and data, and does not replace TLS state.
-"$bundle/demo" up --snapshots
+"$bundle/dsh-runtime" status --json | jq -e '.state=="running" and .ready'
+"$bundle/dsh-runtime" stop
+"$bundle/dsh-runtime" status --json | jq -e '.state=="stopped" and (.ready|not)'
+"$bundle/dsh-runtime" up --snapshots
 test "$(k -n tenant-demo get cell assistant -o jsonpath='{.metadata.uid}')" = "$uid"
+test "$(k -n tenant-demo exec "cell-$uid-0" -- cat "/var/lib/dsh/data/workspace/$marker.txt")" = "$marker"
 # Refuse deletion when ownership evidence disagrees, preserving all Cells.
 saved_owner="$(cat "$DSH_DEMO_HOME/owner")"
 printf 'unowned\n' > "$DSH_DEMO_HOME/owner"
-if "$bundle/demo" down > "$proof_root/ownership.log" 2>&1; then
+if "$bundle/dsh-runtime" uninstall --yes > "$proof_root/ownership.log" 2>&1; then
   echo 'Demo deleted resources without matching ownership' >&2; exit 1
 fi
 printf '%s\n' "$saved_owner" > "$DSH_DEMO_HOME/owner"
 unset saved_owner
 test "$(k -n tenant-demo get cell assistant -o jsonpath='{.metadata.uid}')" = "$uid"
 # Explicit teardown is destructive only to the owned demo, and idempotent.
-"$bundle/demo" down
-"$bundle/demo" down
+"$bundle/dsh-runtime" uninstall --yes
+"$bundle/dsh-runtime" uninstall --yes
 test ! -f "$DSH_DEMO_HOME/kubeconfig"
 # Also prove the default installation works without opting into CSI/metrics.
-"$bundle/demo" up
+"$bundle/dsh-runtime" up
 k -n tenant-demo get cell assistant -o json | jq -e '.spec.storage.storageClassName=="standard"' >/dev/null
 if k get crd volumesnapshots.snapshot.storage.k8s.io >/dev/null 2>&1; then echo 'Default demo installed snapshots unexpectedly' >&2; exit 1; fi
 k -n dsh-system get deployment cell-operator -o json | jq -e 'all(.spec.template.spec.containers[0].args[]; (startswith("--metrics-bind-address=")|not) or .=="--metrics-bind-address=0")' >/dev/null

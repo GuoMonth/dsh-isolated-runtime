@@ -5,6 +5,7 @@ for calico_image in \
   quay.io/calico/cni:v3.32.2 \
   quay.io/calico/node:v3.32.2 \
   quay.io/calico/kube-controllers:v3.32.2; do
+  if [[ "${DSH_LOCAL_RUNTIME:-0}" == 1 ]]; then pull_image "$calico_image"; fi
   if docker image inspect "$calico_image" >/dev/null 2>&1; then
     kind load docker-image --name "$cluster_name" "$calico_image"
   fi
@@ -91,10 +92,20 @@ k -n dsh-system create secret tls dsh-gateway-tls \
   --cert="$test_root/gateway.crt" --key="$test_root/gateway.key" --dry-run=client -o yaml | k apply -f -
 k -n dsh-system create secret tls dex-tls \
   --cert="$test_root/dex.crt" --key="$test_root/dex.key" --dry-run=client -o yaml | k apply -f -
-k -n dsh-system create secret generic dsh-oidc-client \
-  --from-literal=client-secret=dsh-phase2-client-secret --dry-run=client -o yaml | k apply -f -
+if [[ -n "${DSH_LOCAL_IDENTITY_ROOT:-}" ]]; then
+  k -n dsh-system create secret generic dsh-oidc-client \
+    --from-file="client-secret=$DSH_LOCAL_IDENTITY_ROOT/identity/client-secret" --dry-run=client -o yaml | k apply -f -
+else
+  k -n dsh-system create secret generic dsh-oidc-client \
+    --from-literal=client-secret=dsh-phase2-client-secret --dry-run=client -o yaml | k apply -f -
+fi
 k -n dsh-system create configmap dex-ca --from-file="ca.crt=$test_root/ca.crt" --dry-run=client -o yaml | k apply -f -
-k apply -f "$repo_root/test/e2e/phase2/dex.yaml"
+if [[ -n "${DSH_LOCAL_IDENTITY_ROOT:-}" ]]; then
+  k create --dry-run=client --validate=false -f "$repo_root/test/e2e/phase2/dex.yaml" -o json | \
+    node "$repo_root/runtime-files/identity.cjs" render "$DSH_LOCAL_IDENTITY_ROOT" | k apply -f -
+else
+  k apply -f "$repo_root/test/e2e/phase2/dex.yaml"
+fi
 k -n dsh-system rollout status deployment/dex --timeout=600s
 
 }

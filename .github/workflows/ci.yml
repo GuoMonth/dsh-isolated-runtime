@@ -109,4 +109,8 @@ jobs:
         with:
           node-version: "24"
       - run: node hack/verify-release-contract.mjs
-      - run: shellcheck -x demo demo-files/host.sh demo-files/tools.sh hack/verify-mvp.sh hack/verify-macos-host.sh hack/fetch-candidate.sh
+      - run: npm ci --ignore-scripts --prefix packages/cli
+      - run: npm test --prefix packages/cli
+      - run: npm ci --ignore-scripts --prefix runtime-files
+      - run: node --test test/local-runtime.test.cjs
+      - run: shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh hack/verify-mvp.sh hack/verify-macos-host.sh hack/fetch-candidate.sh

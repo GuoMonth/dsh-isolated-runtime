@@ -1,150 +1,106 @@
-# Local MVP quickstart
+# Local Installation
 
-Use Linux x86_64 or Apple Silicon macOS (native arm64 terminal). On Mac, install
-and start Docker Desktop for Apple Silicon; its Linux VM runs the arm64 images.
-Docker must be available to the current user. A graphical desktop is needed for
-`demo open`. The reference CI envelope is 4 CPUs and 16 GiB memory; actual needs
-depend on workload. Bash, curl, tar, OpenSSL and Git are prerequisites. Linux also
-needs sha256sum/flock; macOS uses its stock shasum/Perl utilities. The demo privately
-downloads pinned native kind, kubectl, jq, Node and Chromium tools. No Go compiler,
-Homebrew installation, Rosetta or system configuration changes are required.
+Target release: **v0.2.0-alpha.1**. This branch prepares the alpha; the commands
+below that download it become available only after publication. Existing
+v0.1.2 archives retain their original commands.
 
-Download the archive for your host and `SHA256SUMS` from [GitHub Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases).
+## Prerequisites
+
+Linux x86_64 or Apple Silicon macOS with a native arm64 terminal. Install and
+start Docker (Docker Desktop on Mac), and make it available to your user.
+Bash, curl, tar, OpenSSL and Git are required; Linux also needs sha256sum/flock,
+Mac uses shasum/Perl. A graphical desktop is needed only to open the browser.
+The reference CI allocation is 4 CPUs / 16 GiB RAM, not a measured minimum.
+
+You do not need a preinstalled Kubernetes cluster, kind, kubectl, Go or DSH.
+Private tools and a separate kind cluster are managed by the installer. Ports
+18443 and 15556 must be free. No system hosts or certificate trust changes.
+Docker installation: https://docs.docker.com/get-started/get-docker/
+
+## npm Entry
+
+After npm publication, with Node.js 22+ and npm available:
+
+```sh
+npx dsh-isolated-runtime@0.2.0-alpha.1 start
+```
+
+Use `start --no-open` on headless hosts or `start --snapshots` to opt into
+the reference CSI driver before creating the Cell. The thin launcher downloads
+the exact checksum-bound release; it does not build images or install Docker.
+The first start still requires network access to tools and image registries.
+The npm name is proposed until publication permissions are confirmed.
+
+## Direct Download
+
+No host Node installation is required for this path. Download the matching
+archive and SHA256SUMS from
+[the release](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.2.0-alpha.1).
 For Apple Silicon:
 
 ```sh
-archive=dsh-isolated-runtime-v0.1.2-darwin-arm64.tar.gz
+archive=dsh-isolated-runtime-v0.2.0-alpha.1-darwin-arm64.tar.gz
 grep -F "  $archive" SHA256SUMS | shasum -a 256 -c -
 tar -xzf "$archive"
 cd "${archive%.tar.gz}"
+./dsh-runtime doctor
+./dsh-runtime up
+./dsh-runtime open
 ```
 
-On Linux x86_64 select `dsh-isolated-runtime-v0.1.2-linux-amd64.tar.gz` and use
-`sha256sum -c -` in the verification pipeline. The public checksum file covers
-both archives; select the line for the one you downloaded. Each archive includes
-its own `release.json` binding the runtime architecture and tested image digests.
+Linux uses the `linux-amd64` archive and `sha256sum -c -`. Always verify
+before extraction. `release.json` records source and exact image identities.
+
+## First Login
+
+Run `./dsh-runtime credentials` privately to see the generated local login.
+Do not paste its output into an AI conversation or issue. The installation
+generates an independent password and OIDC client secret, stored with private
+permissions; Dex receives its configuration as a Kubernetes Secret.
+
+In DSH's native onboarding, enter your own model API key. Choose workspace,
+edit the path to `/var/lib/dsh/data/workspace`, then ask DSH to create and read
+a file. Model charges belong to your account. Model credentials live in the
+private volume, not in snapshots.
+
+## Lifecycle and Data
 
 ```sh
-./demo up
-./demo open
+./dsh-runtime status --json
+./dsh-runtime doctor --json
+./dsh-runtime stop
+./dsh-runtime up
+# Destructive: only after exporting needed data and explicitly deciding to delete.
+./dsh-runtime uninstall --yes
 ```
 
-The first command creates a local kind cluster with Calico, Envoy Gateway, Dex,
-storage and one DSH Cell. It prints the Cell address and dedicated kubeconfig.
-The second opens an isolated Chromium profile with local name resolution and
-test TLS handling. It does not modify system hosts or certificate trust.
-Ports 18443 and 15556 must be free; listeners bind only to loopback. Test login:
-`alice@example.com` / `password`. These credentials and the test identity server
-are only for the local demonstration.
+`stop` stops browser/forwarding and the owned kind node without deleting data.
+Closing the browser also retains data. `uninstall --yes` deletes the whole
+owned cluster, including retained PVCs. It does not uninstall Docker or delete
+other clusters. Downloaded tools and release cache remain reusable.
 
-In DSH's own first-run dialog, acknowledge the notice and enter your DeepSeek
-API key. Choose **Choose workspace → Edit path**, enter
-`/var/lib/dsh/data/workspace`, press Enter and select **Open**. Select a model and
-send a request such as “create hello.txt and read it back.” Model calls use your
-account. The project supplies no model service or separate provider settings UI.
-Keys configured in DSH live on the private volume; provider keys may alternatively
-be injected through a same-namespace Secret referenced by `credentialsRef`.
+State defaults to `~/Library/Application Support/DSH Isolated Runtime` on Mac,
+and `${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime` on Linux.
+An explicit XDG_STATE_HOME takes precedence on both. Set DSH_RUNTIME_HOME to
+choose a directory; legacy DSH_DEMO_HOME is still accepted. Conflicting values
+are rejected. Historical cluster/namespace identifiers remain for ownership
+compatibility; they are not an instruction to discard user data.
 
-On macOS the default state directory is `~/Library/Application Support/DSH Isolated Runtime`;
-on Linux it is `${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime`.
-An explicit `XDG_STATE_HOME` takes precedence on either host.
-Set `DSH_DEMO_HOME` to select another state directory. Repeating `up` retains the
-Cell and reconnects browser forwarding. Closing Chromium retains data. Do not
-change the demo release in place: export needed files before deleting a demo.
+Another release's state is never silently upgraded or removed. Export data
+using that release before deciding whether to uninstall, or use a different
+state directory after stopping the old installation. DSH V3 sessions cannot
+be downgraded. Cross-version snapshot restore is unsupported.
 
-Version v0.1.2 upgrades DSH to 0.1.5-rc.2 and session format V3. Upstream migrates
-supported older logs while retaining originals, but upgraded sessions cannot be
-read by the old DSH version. Keep a backup before an existing Cell image upgrade;
-cross-version CellSnapshot restore is rejected. To try the new release without
-changing the old demo, use a separate `DSH_DEMO_HOME` after stopping its browser
-and port forwards; both demos use the same local ports. There is no automatic
-in-place demo upgrade or downgrade command.
+## Advanced Installation
 
-```sh
-if [ "$(uname -s)" = Darwin ] && [ -z "${XDG_STATE_HOME:-}" ]; then
-  export DSH_DEMO_HOME="${DSH_DEMO_HOME:-$HOME/Library/Application Support/DSH Isolated Runtime}"
-else
-  export DSH_DEMO_HOME="${DSH_DEMO_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime}"
-fi
-export PATH="$DSH_DEMO_HOME/tools/bin:$PATH"
-export KUBECONFIG="$DSH_DEMO_HOME/kubeconfig"
-kubectl -n tenant-demo get cells
-kubectl -n tenant-demo describe cell assistant
-kubectl -n tenant-demo get httproutes
-```
+Existing clusters use `config/default`, `config/browser`, or
+`config/snapshots`; administrators supply networking, storage, DNS, TLS, OIDC
+and access grants. The local identity and local CA are not a production IdP/PKI.
+See the [snapshot sample](../config/samples/dsh_v1alpha1_cellsnapshot.yaml).
+The optional hostpath CSI driver is a local reference driver, not a backup
+product. No k3d/k3s or Windows/Intel Mac installation guarantee in this alpha.
 
-Use Cell Conditions, the referenced native objects and Kubernetes Events for
-diagnosis. The HTTPRoute contains the external hostname; Cell status deliberately
-does not duplicate it. Missing prerequisites, occupied ports and startup failures
-are reported by the demo; its private runtime directory retains diagnostics.
+[AI runbook](ai/local-run.md) | [Distribution and network requirements](distribution.md)
 
-## Optional snapshots
-
-Choose `./demo up --snapshots` on the first start. This adds the reference CSI
-hostpath test driver and snapshot controller; the Cell uses that StorageClass.
-The basic local-path volume cannot be changed to the CSI class in place.
-
-After exporting the dedicated kubeconfig as above:
-
-```sh
-kubectl -n tenant-demo apply -f - <<'YAML'
-apiVersion: dsh.isolated.io/v1alpha1
-kind: CellSnapshot
-metadata: {name: assistant-backup}
-spec:
-  cellRef: {name: assistant}
-  volumeSnapshotClassName: csi-hostpath-snapclass
-YAML
-kubectl -n tenant-demo wait cellsnapshot assistant-backup --for=condition=Ready --timeout=720s
-
-cell_image="$(jq -r .images.cell release.json)"
-kubectl -n tenant-demo apply -f - <<YAML
-apiVersion: dsh.isolated.io/v1alpha1
-kind: Cell
-metadata: {name: restored}
-spec:
-  image: $cell_image
-  storage:
-    size: 1Gi
-    storageClassName: csi-hostpath-sc
-    retentionPolicy: Retain
-    restoreFrom: {name: assistant-backup}
-YAML
-kubectl -n tenant-demo wait cell restored --for=condition=Ready --timeout=300s
-restored_uid="$(kubectl -n tenant-demo get cell restored -o jsonpath='{.metadata.uid}')"
-kubectl -n tenant-demo create rolebinding restored-access --role="cell-$restored_uid-access" \
-  --user='https://dex.dsh-system.svc:15556/dex#CglhbGljZS1zdWISBWxvY2Fs'
-kubectl -n tenant-demo get httproute "cell-$restored_uid" -o jsonpath='{.spec.hostnames[0]}'
-```
-
-Open `https://<printed-hostname>:18443` in the Chromium window opened by
-`demo open`. Select the restored session and re-enter your model key through
-DSH's native onboarding. The original Cell is resumed after snapshot completion.
-
-Snapshots stop the writer and provide crash consistency, not an acknowledged
-application flush. The fresh Cell has new identity and private storage: authorize
-its new access Role and configure its model credentials again. Snapshots remain
-optional; production CSI and backup lifecycle are owned by the cluster operator.
-
-## Cleanup and existing clusters
-
-`./demo down` deletes this demo's cluster **and all its data**, including retained
-PVCs inside that disposable cluster. Downloaded tools are retained for reuse.
-It never switches or deletes another Kubernetes context.
-
-For an existing cluster use `config/default` for core resources or
-`config/browser` for the recommended authenticated access setup; `config/snapshots`
-adds the snapshot capability. `config/metrics` is an optional Kustomize component
-for browser/snapshot installations. Configure domain, TLS, OIDC and route eligibility
-in your own overlay before applying. Kubernetes, Gateway and CSI remain external
-prerequisites; the operator does not install or own those systems.
-
-Only the exact current DSH baseline is supported. Images cover Linux amd64/arm64; host packages cover Linux x86_64 and Apple Silicon macOS. There is no
-historical API or cross-version restore commitment. HA, production capacity,
-multi-cluster operation and enterprise policy are outside this MVP.
-
-CI verifies the complete deterministic DSH journey on native Linux amd64 and arm64,
-and the actual macOS arm64 tools, certificate generation, process ownership and
-Chromium profile lifecycle. Full Docker Desktop end-to-end testing and live model
-testing remain maintainer follow-ups after this pre-release; neither is reported
-as passed by the release evidence.
+Mac Docker Desktop end-to-end and real-model acceptance are maintainer follow-ups
+after alpha publication, not implied by deterministic Linux CI success.

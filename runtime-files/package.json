@@ -1,0 +1,6 @@
+{
+  "name": "dsh-local-identity",
+  "private": true,
+  "version": "0.2.0-alpha.1",
+  "dependencies": {"bcryptjs": "3.0.3"}
+}

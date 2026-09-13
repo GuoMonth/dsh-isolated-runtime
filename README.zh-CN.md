@@ -12,7 +12,11 @@ controller 和封闭枚举授权结果。本项目仍不维护 fleet inventory�
 
 [English](./README.md)
 
-本地 MVP 提供 Linux x86_64 和 Apple Silicon macOS 安装包，下载见 [GitHub Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases)，使用入口见[本地快速开始](docs/quickstart.zh-CN.md)。首个 MVP [里程碑](https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7)已完成。
+**本地安装 alpha：v0.2.0-alpha.1 正在准备中。**
+从[本地安装](docs/quickstart.zh-CN.md)开始，或把 [AI 安装手册](docs/ai/local-run.md)
+交给你的 AI 助手。npm 入口与 [GitHub Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases)
+直接下载复用同一份不可变安装包和公共 GHCR 镜像。
+发行边界见[发行与验收](docs/distribution.md)。
 
 ## Cell 契约
 

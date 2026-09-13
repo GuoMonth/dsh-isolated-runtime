@@ -1,5 +1,9 @@
 # 设计文档
 
+- [本地安装](./quickstart.zh-CN.md)
+- [AI 安装手册](./ai/local-run.md)
+- [Alpha 发行与网络依赖](./distribution.md)
+
 - [架构](./specs/architecture.zh-CN.md) —— 资源归属、边界、数据流与非目标。
 - [威胁模型](./specs/threat-model.zh-CN.md) —— 保证、假设与攻击面。
 - [Namespace 契约](./specs/namespace-contract.zh-CN.md) —— 原生能力与策略边界。

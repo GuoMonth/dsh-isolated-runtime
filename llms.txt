@@ -1,0 +1,15 @@
+# DSH Isolated Runtime
+
+Kubernetes-native isolated execution for one exact DSH baseline. Not a DSH plugin.
+
+- [Local installation for AI assistants](docs/ai/local-run.md)
+- [Human quickstart](docs/quickstart.md)
+- [Chinese quickstart](docs/quickstart.zh-CN.md)
+- [Distribution, networks and release gates](docs/distribution.md)
+- [Architecture](docs/specs/architecture.md)
+- [Threat model](docs/specs/threat-model.md)
+- [Contributor instructions](AGENTS.md)
+
+Use the documents shipped with the selected release. Do not treat main as a
+published version. Never delete user data, request model credentials in chat,
+or operate an existing cluster without explicit user direction.
