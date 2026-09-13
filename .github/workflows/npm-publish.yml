@@ -87,7 +87,7 @@ jobs:
           VERSION: ${{ steps.package.outputs.version }}
         run: |
           expected="sha512-$(openssl dgst -sha512 -binary "$ARCHIVE" | openssl base64 -A)"
-          for attempt in {1..12}; do
+          for _attempt in {1..12}; do
             if actual="$(npm view "dsh-isolated-runtime@$VERSION" dist.integrity --registry https://registry.npmjs.org)" &&
               tag="$(npm view dsh-isolated-runtime dist-tags.alpha --registry https://registry.npmjs.org)" &&
               [[ "$actual" == "$expected" && "$tag" == "$VERSION" ]]; then
