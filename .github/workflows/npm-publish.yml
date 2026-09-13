@@ -67,8 +67,8 @@ jobs:
           node hack/package-npm.mjs public expected
           archive="dsh-isolated-runtime-$version.tgz"
           cmp "original/$archive" "expected/$archive"
-          npm publish "original/$archive" --dry-run --ignore-scripts --access public --tag alpha
-          echo "archive=original/$archive" >> "$GITHUB_OUTPUT"
+          npm publish "./original/$archive" --dry-run --ignore-scripts --access public --tag alpha
+          echo "archive=./original/$archive" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Publish the verified tarball to npm alpha
         env:
