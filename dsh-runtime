@@ -4,6 +4,7 @@
 set -Eeuo pipefail
 umask 077
 repo_root="$(cd "$(dirname "$0")" && pwd)"
+runtime_command="${DSH_RUNTIME_COMMAND:-./dsh-runtime}"
 source "$repo_root/demo-files/host.sh"
 initialize_demo_host
 if [[ -n "${DSH_RUNTIME_HOME:-}" && -n "${DSH_DEMO_HOME:-}" && "$DSH_RUNTIME_HOME" != "$DSH_DEMO_HOME" ]]; then
@@ -130,7 +131,7 @@ case "${1:-help}" in
     stop_browser
     stop_forwards
     docker stop "${cluster_name}-control-plane" >/dev/null
-    echo 'Local cluster stopped; data retained. Run dsh-runtime up to resume.'
+    printf 'Local cluster stopped; data retained. Run %s up to resume.\n' "$runtime_command"
     ;;
   up)
     [[ $# == 1 || ($# == 2 && "$2" == --snapshots) ]] || { echo 'usage: dsh-runtime up [--snapshots]' >&2; exit 2; }
@@ -217,7 +218,7 @@ YAML
     k -n tenant-demo create rolebinding demo-access --role="cell-$uid-access" --user="$dex_issuer#$dex_alice_sub" --dry-run=client -o yaml | k apply -f -
     k -n tenant-demo get httproute "cell-$uid" -o jsonpath='{.spec.hostnames[0]}' > "$test_root/hostname"
     forward_browser
-    printf 'Ready: https://%s:18443\nLocal login: ./dsh-runtime credentials (keep private)\nOpen: ./dsh-runtime open\nKubeconfig: %s\n' "$(cat "$test_root/hostname")" "$kubeconfig"
+    printf 'Ready: https://%s:18443\nLocal login: %s credentials (keep private)\nOpen: %s open\nKubeconfig: %s\n' "$(cat "$test_root/hostname")" "$runtime_command" "$runtime_command" "$kubeconfig"
     ;;
   open)
     [[ $# == 1 ]] || exit 2

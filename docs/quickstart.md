@@ -31,6 +31,12 @@ the exact checksum-bound release; it does not build images or install Docker.
 The first start still requires network access to tools and image registries.
 The npm name is proposed until publication permissions are confirmed.
 
+For this entry, use the same npm prefix for later commands, in another terminal
+while the browser is open: `npx dsh-isolated-runtime@0.2.0-alpha.1 credentials`,
+`npx dsh-isolated-runtime@0.2.0-alpha.1 status --json`, or
+`npx dsh-isolated-runtime@0.2.0-alpha.1 stop`. The ./dsh-runtime commands below
+are the equivalent direct-download form.
+
 ## Direct Download
 
 No host Node installation is required for this path. Download the matching

@@ -26,6 +26,12 @@ npx dsh-isolated-runtime@0.2.0-alpha.1 start
 npm 只下载并校验同一份固定版本发行包，不在本机编译镜像或安装 Docker。
 首次启动仍需要联网下载工具和镜像。npm 包名在实际取得发布权限前为拟定名称。
 
+后续操作沿用同一 npm 前缀。浏览器打开时，可以在另一个终端运行
+`npx dsh-isolated-runtime@0.2.0-alpha.1 credentials` 私下查看登录信息，
+或运行 `npx dsh-isolated-runtime@0.2.0-alpha.1 status --json`、
+`npx dsh-isolated-runtime@0.2.0-alpha.1 stop`。
+下面的 ./dsh-runtime 命令是直接下载方式的对应写法。
+
 ## 直接下载
 
 这种方式不要求预装 Node。从

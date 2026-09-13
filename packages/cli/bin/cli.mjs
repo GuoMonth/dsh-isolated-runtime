@@ -26,7 +26,9 @@ async function main() {
   const cache = path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'dsh-isolated-runtime');
   const installation = await install(release, version, target, cache);
   const run = (argv) => new Promise((resolve, reject) => {
-    const child = spawn('bash', [path.join(installation.directory, 'dsh-runtime'), ...argv], {stdio: 'inherit'});
+    const child = spawn('bash', [path.join(installation.directory, 'dsh-runtime'), ...argv], {
+      stdio: 'inherit', env: {...process.env, DSH_RUNTIME_COMMAND: `npx dsh-isolated-runtime@${version}`},
+    });
     const interrupt = signal => child.kill(signal);
     const int = () => interrupt('SIGINT'); const term = () => interrupt('SIGTERM');
     process.once('SIGINT', int); process.once('SIGTERM', term);

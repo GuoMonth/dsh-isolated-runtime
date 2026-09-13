@@ -43,6 +43,10 @@ After publication, the npm entry is:
 npx dsh-isolated-runtime@0.2.0-alpha.1 start --no-open
 ```
 
+When using npm, replace every ./dsh-runtime prefix below with
+`npx dsh-isolated-runtime@0.2.0-alpha.1`; there is no executable installed
+in the user's working directory. Do not assume a global npm installation.
+
 Without npm, download the platform archive and SHA256SUMS from the official
 GitHub Release, verify the archive before extracting, then run:
 
