@@ -242,7 +242,7 @@ YAML
     owned_cluster || { echo 'Cannot verify ownership; no resources removed' >&2; exit 1; }
     stop_browser
     stop_forwards
-    kind delete cluster --name "$cluster_name"
+    kind delete cluster --name "$cluster_name" --kubeconfig "$kubeconfig"
     rm -rf "$test_root" "$demo_root/browser/profile"
     rm -f "$demo_root/owner" "$demo_root/kubeconfig" "$demo_root/release-sha"
     rm -f "$demo_root/credentials.json" "$demo_root/identity/client-secret"

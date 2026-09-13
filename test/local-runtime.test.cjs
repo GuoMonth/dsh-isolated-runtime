@@ -48,6 +48,7 @@ test('stop preserves data and uninstall requires exact ownership', t => {
   assert.equal(f.run(['uninstall', '--yes']).status, 0);
   assert.equal(f.run(['uninstall', '--yes']).status, 0);
   assert.match(fs.readFileSync(f.env.TEST_LOG, 'utf8'), /delete cluster --name dsh-demo-/);
+  assert.ok(fs.readFileSync(f.env.TEST_LOG, 'utf8').includes(`--kubeconfig ${f.state}/kubeconfig`));
   assert.equal(fs.existsSync(path.join(f.state, 'kubeconfig')), false);
 });
 test('identity is random, private, stable, and rendered as a Secret', t => {
