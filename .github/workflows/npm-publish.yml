@@ -1,0 +1,100 @@
+name: Publish npm alpha
+on:
+  workflow_dispatch:
+    inputs:
+      publication_run:
+        description: Successful Publish accepted alpha run ID (not the candidate run)
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: npm-alpha-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Validate the publication workflow identity
+        id: publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLICATION_RUN: ${{ inputs.publication_run }}
+        run: |
+          [[ "$PUBLICATION_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_RUN" > run.json
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .path == ".github/workflows/mvp-publish.yml" and
+            .head_branch == "main" and .event == "workflow_dispatch" and
+            .head_repository.full_name == $repo and .conclusion == "success"
+          ' run.json > /dev/null
+          echo "sha=$(jq -r .head_sha run.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.publication.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+      - name: Verify the original npm tarball against the public release
+        id: package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLICATION_RUN: ${{ inputs.publication_run }}
+        run: |
+          version="$(jq -r .version packages/cli/package.json)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]
+          test "v$version" = "$(cat VERSION)"
+          test "$(jq -r .name packages/cli/package.json)" = dsh-isolated-runtime
+          gh release view "v$version" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease |
+            jq -e '.isDraft == false and .isPrerelease == true'
+          gh run download "$PUBLICATION_RUN" --repo "$GITHUB_REPOSITORY" \
+            --name npm-alpha-package --dir original
+          mkdir public
+          for file in release.json SHA256SUMS release-acceptance.json macos-host.json \
+            release-linux-amd64.json release-darwin-arm64.json \
+            deterministic-linux-amd64.json deterministic-darwin-arm64.json \
+            "dsh-isolated-runtime-v$version-linux-amd64.tar.gz" \
+            "dsh-isolated-runtime-v$version-darwin-arm64.tar.gz"; do
+            curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 --max-time 120 \
+              "https://github.com/$GITHUB_REPOSITORY/releases/download/v$version/$file" \
+              --output "public/$file"
+          done
+          node hack/package-npm.mjs public expected
+          archive="dsh-isolated-runtime-$version.tgz"
+          cmp "original/$archive" "expected/$archive"
+          npm publish "original/$archive" --dry-run --ignore-scripts --access public --tag alpha
+          echo "archive=original/$archive" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Publish the verified tarball to npm alpha
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+        run: |
+          if [[ -z "$NODE_AUTH_TOKEN" ]]; then
+            echo '::error::Configure the repository Actions secret NPM_TOKEN with npm publish permission.'
+            exit 1
+          fi
+          npm whoami --registry https://registry.npmjs.org
+          npm publish "$ARCHIVE" --ignore-scripts --access public --tag alpha --registry https://registry.npmjs.org
+      - name: Verify anonymous registry integrity and dist-tag
+        env:
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          expected="sha512-$(openssl dgst -sha512 -binary "$ARCHIVE" | openssl base64 -A)"
+          for attempt in {1..12}; do
+            if actual="$(npm view "dsh-isolated-runtime@$VERSION" dist.integrity --registry https://registry.npmjs.org)" &&
+              tag="$(npm view dsh-isolated-runtime dist-tags.alpha --registry https://registry.npmjs.org)" &&
+              [[ "$actual" == "$expected" && "$tag" == "$VERSION" ]]; then
+              echo "Published dsh-isolated-runtime@$VERSION to alpha" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo '::error::Anonymous npm integrity/dist-tag verification failed; inspect the existing version before retrying.'
+          exit 1
