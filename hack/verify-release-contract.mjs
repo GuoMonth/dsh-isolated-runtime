@@ -41,6 +41,10 @@ try {
   const npmOut=path.join(temp,'npm');
   execFileSync(process.execPath,[path.join(root,'hack/package-npm.mjs'),publicDir,npmOut]);
   const npmArchive=path.join(npmOut,fs.readdirSync(npmOut).find(name=>name.endsWith('.tgz')));
+  const repeatedNpmOut=path.join(temp,'npm-repeated');
+  execFileSync(process.execPath,[path.join(root,'hack/package-npm.mjs'),publicDir,repeatedNpmOut]);
+  assert.deepEqual(fs.readFileSync(npmArchive),fs.readFileSync(path.join(repeatedNpmOut,path.basename(npmArchive))),
+    'npm publication requires byte-identical packaging of the same accepted inputs');
   const npmManifest=JSON.parse(execFileSync('tar',['-xOzf',npmArchive,'package/release.json'],{encoding:'utf8'}));
   assert.deepEqual(npmManifest,JSON.parse(fs.readFileSync(path.join(publicDir,'release.json'))));
   const packageManifest=JSON.parse(execFileSync('tar',['-xOzf',npmArchive,'package/package.json'],{encoding:'utf8'}));

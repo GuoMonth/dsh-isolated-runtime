@@ -63,9 +63,10 @@ Do not install unverified public mirror shortcuts into users' Docker settings.
    publishes original archives and image identities as a GitHub pre-release.
    It also creates a version-bound npm tarball artifact via
    node hack/package-npm.mjs dist npm-dist, without publishing it to npm.
-4. Confirm npm name/ownership and configure publication credentials separately.
-   Inspect the bound tarball, test it against the publicly downloadable release,
-   and publish that tarball with npm publish PACKAGE.tgz --access public --tag alpha.
+4. Run Publish npm alpha with the successful Publish accepted alpha run ID.
+   It checks that run's identity, anonymously downloads and verifies the public
+   release, and reproduces the npm tarball from the publication's exact source.
+   Only a byte-identical original artifact is published, with the alpha tag.
    Do not publish packages/cli directly or assign the prerelease to latest.
 5. The maintainer downloads on Mac, configures a real model privately and records
    file write/read plus stop/resume results. Fix failures in a new alpha. Until
@@ -75,3 +76,34 @@ The npm package is version-bound; changing a dist-tag does not upgrade an
 existing state directory. Cross-release local migration is intentionally not
 automated. Security dependency follow-ups from issue #70 are not fixed by this
 distribution work and must not be marked complete as part of this PR.
+
+## npm Publication Credentials
+
+In GitHub Settings > Secrets and variables > Actions, create a repository
+**secret** named `NPM_TOKEN`, not a plaintext Actions variable. The workflow
+injects it as `NODE_AUTH_TOKEN` only for the publication step. Do not put the
+token in source, a PR, an issue, or a chat message.
+
+Use an npm granular access token with package read/write permission and bypass
+2FA enabled for non-interactive publishing. The account/token must be allowed
+to create the initially unpublished `dsh-isolated-runtime` package. After the
+first publish, narrow permission to that package and rotate short-lived tokens.
+See [npm CI credentials](https://docs.npmjs.com/using-private-packages-in-a-ci-cd-workflow/).
+Token-based direct publishing is transitional: npm targets January 2027 for
+removing bypass-2FA direct publish. Migrate to OIDC trusted publishing before
+that change; see the [npm notice](https://github.blog/changelog/2026-07-31-restricting-npm-bypass-2fa-granular-access-tokens/).
+
+Trigger from main, replacing RUN_ID with the successful publication run (not
+the main candidate build):
+
+```sh
+gh workflow run npm-publish.yml --ref main -f publication_run=RUN_ID
+```
+
+Missing credentials stop publication. A failed or wrong workflow, unpublished
+GitHub release, invalid evidence, or changed tarball also stops publication.
+The action never overwrites an npm version, changes package ownership, or
+promotes `latest`. If publication succeeds but the final registry check fails,
+inspect `npm view dsh-isolated-runtime@0.2.0-alpha.1 dist.integrity` and the run
+logs before retrying; npm versions are immutable. Expired Actions artifacts
+require a reviewed recovery, not republishing an unverified source checkout.
