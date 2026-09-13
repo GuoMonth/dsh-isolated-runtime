@@ -22,6 +22,7 @@ demo_lock acquire || { echo 'Another runtime command is running' >&2; exit 1; }
 source "$repo_root/demo-files/tools.sh"
 source "$repo_root/hack/lib/reference-versions.sh"
 source "$repo_root/hack/lib/browser-stack.sh"
+source "$repo_root/demo-files/forward.sh"
 export DSH_LOCAL_RUNTIME=1
 export PATH="$demo_root/tools/bin:$PATH"
 kubeconfig="$demo_root/kubeconfig"
@@ -65,20 +66,6 @@ stop_forwards() {
 }
 stop_browser() {
   stop_demo_process "$test_root/browser.pid" '/demo-files/open.cjs' "$demo_root"
-}
-start_forward() {
-  local service="$1" port="$2" remote="$3"
-  if (echo >"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
-    echo "Local port $port is occupied; stop its owner and retry" >&2; return 1
-  fi
-  nohup kubectl --kubeconfig "$kubeconfig" -n dsh-system port-forward --address 127.0.0.1 "service/$service" "$port:$remote" \
-    >"$test_root/$port.log" 2>&1 < /dev/null 9>&- &
-  record_demo_process "$test_root/$port.pid" "$!"
-  for _ in $(seq 1 60); do
-    (echo >"/dev/tcp/127.0.0.1/$port") 2>/dev/null && return
-    sleep 1
-  done
-  echo "Port-forward $port did not become ready" >&2; return 1
 }
 forward_browser() {
   stop_forwards

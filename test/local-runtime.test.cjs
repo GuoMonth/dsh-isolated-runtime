@@ -81,3 +81,30 @@ test('reference image lock covers each declared source with both native architec
     if (item.source.includes('@')) assert.equal(item.ref.split('@')[1], item.source.split('@')[1]);
   }
 });
+test('port forwarding retries a transient missing pod before reporting ready', async t => {
+  const f = fixture(t);
+  const net = require('node:net');
+  const server = net.createServer();
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  await new Promise(resolve => server.close(resolve));
+  const script = path.join(f.root, 'forward.cjs');
+  fs.writeFileSync(script, `const fs=require('node:fs');const file=process.env.TEST_LOG;
+const n=fs.existsSync(file)?Number(fs.readFileSync(file)):0;fs.writeFileSync(file,String(n+1));
+if(n===0){console.error('pod not found');process.exit(1);}
+require('node:net').createServer(s=>s.end()).listen(${port},'127.0.0.1',()=>console.log('Forwarding from 127.0.0.1:${port} -> 443'));`);
+  fs.writeFileSync(path.join(f.root, 'bin/kubectl'), '#!/bin/bash\nexec node "$TEST_FORWARD_SCRIPT" "$@"\n', {mode: 0o700});
+  const probe = `set -euo pipefail
+source "$1/demo-files/host.sh"
+source "$1/demo-files/forward.sh"
+test_root="$2/runtime"; mkdir -p "$test_root"; kubeconfig="$2/kubeconfig"
+exec 9>"$2/lock"
+trap 'stop_demo_process "$test_root/$3.pid" port-forward "--kubeconfig $kubeconfig"' EXIT
+start_forward dsh "$3" 443
+`;
+  const result = spawnSync('bash', ['-c', probe, 'bash', repo, f.state, String(port)], {
+    env: {...f.env, TEST_FORWARD_SCRIPT: script}, encoding: 'utf8', timeout: 20_000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(fs.readFileSync(f.env.TEST_LOG, 'utf8'), '2');
+});

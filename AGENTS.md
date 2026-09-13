@@ -23,7 +23,7 @@ npm ci --ignore-scripts --prefix packages/cli
 npm test --prefix packages/cli
 npm ci --ignore-scripts --prefix runtime-files
 node --test test/local-runtime.test.cjs
-shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh
+shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh demo-files/forward.sh
 ```
 
 After committing all release inputs, node hack/verify-release-contract.mjs

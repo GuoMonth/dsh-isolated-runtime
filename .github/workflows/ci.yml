@@ -113,4 +113,4 @@ jobs:
       - run: npm test --prefix packages/cli
       - run: npm ci --ignore-scripts --prefix runtime-files
       - run: node --test test/local-runtime.test.cjs
-      - run: shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh hack/verify-mvp.sh hack/verify-macos-host.sh hack/fetch-candidate.sh
+      - run: shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh demo-files/forward.sh hack/verify-mvp.sh hack/verify-macos-host.sh hack/fetch-candidate.sh
