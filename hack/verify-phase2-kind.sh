@@ -4,6 +4,8 @@
 set -Eeuo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=hack/lib/kubernetes-test.sh
+source "$repo_root/hack/lib/kubernetes-test.sh"
 cluster_name="dsh-phase2-${RANDOM}"
 registry_name="dsh-phase2-registry-${RANDOM}"
 registry_port="$((30000 + RANDOM % 10000))"
@@ -60,6 +62,11 @@ expect_failure() {
 
 dump_failure() {
   echo "Phase 2 kind verification failed; redacted cluster evidence follows" >&2
+  for forward_log in "$test_root/gateway-forward.log" "$test_root/dex-forward.log"; do
+    if [[ -f "$forward_log" ]]; then
+      sed -n '1,80p' "$forward_log" >&2
+    fi
+  done
   k get gateway,httproute,backend,backendtlspolicy,securitypolicy -A >&2 || true
   k get cellsnapshots,volumesnapshots -A >&2 || true
   k get cells -A -o wide >&2 || true
@@ -171,15 +178,21 @@ wait_gateway() {
 
 start_forward() {
   local namespace="$1" resource="$2" mapping="$3" logfile="$4" port="$5"
-  k -n "$namespace" port-forward "$resource" "$mapping" >"$logfile" 2>&1 &
+  k -n "$namespace" port-forward --address 127.0.0.1 "$resource" "$mapping" >"$logfile" 2>&1 &
   local pid=$!
   for _ in $(seq 1 60); do
-    if bash -c "</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1; then
+    if ! kill -0 "$pid" 2>/dev/null; then
+      break
+    fi
+    if grep -Fq "Forwarding from 127.0.0.1:${port} ->" "$logfile" &&
+      bash -c "</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1; then
       echo "$pid"
       return
     fi
     sleep 1
   done
+  kill "$pid" >/dev/null 2>&1 || true
+  wait "$pid" 2>/dev/null || true
   sed -n '1,120p' "$logfile" >&2
   return 1
 }
@@ -243,18 +256,16 @@ browser_eventually() {
   return 1
 }
 
-sed \
-  -e "s/REGISTRY_PORT/${registry_port}/g" \
-  -e "s/REGISTRY_NAME/${registry_name}/g" \
-  "$repo_root/test/e2e/phase2/kind-template.yaml" >"$kind_config"
+cp "$repo_root/test/e2e/phase2/kind-template.yaml" "$kind_config"
 
 docker run --detach --restart=always --name "$registry_name" \
   --publish "127.0.0.1:${registry_port}:5000" \
   registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373 >/dev/null
 kind create cluster --name "$cluster_name" --kubeconfig "$kubeconfig" \
-  --image kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a \
+  --image "$kind_node_image" \
   --config "$kind_config" --wait 60s
 docker network connect kind "$registry_name"
+configure_test_registry "${cluster_name}-control-plane" "$registry_port" "$registry_name"
 
 install_reference_network
 revision="$(git -C "$repo_root" rev-parse HEAD)"
@@ -395,8 +406,6 @@ gateway_service="$(k -n dsh-system get service \
   -l gateway.envoyproxy.io/owning-gateway-name=dsh,gateway.envoyproxy.io/owning-gateway-namespace=dsh-system \
   -o jsonpath='{.items[0].metadata.name}')"
 test -n "$gateway_service"
-gateway_forward_pid="$(start_forward dsh-system "service/${gateway_service}" 18443:443 "$test_root/gateway-forward.log" 18443)"
-dex_forward_pid="$(start_forward dsh-system service/dex 15556:15556 "$test_root/dex-forward.log" 15556)"
 mkdir -p "$test_root/browser"
 
 # Exercise the actual unpadded default cookie names on every run. Policy UIDs
@@ -413,6 +422,16 @@ for _ in $(seq 1 512); do
 done
 [[ "$cookie_suffix" =~ ^[0-9a-f]{1,7}$ ]] || { echo 'Could not obtain a short default Envoy cookie suffix for the regression' >&2; exit 1; }
 echo "Exercising the pinned Envoy default cookie suffix: $cookie_suffix"
+
+# Programmed describes Gateway configuration, not data-plane Pod readiness.
+# Do not attach a one-shot port-forward to a still-starting Envoy container.
+gateway_deployment="$(k -n dsh-system get deployment \
+  -l gateway.envoyproxy.io/owning-gateway-name=dsh,gateway.envoyproxy.io/owning-gateway-namespace=dsh-system \
+  -o jsonpath='{.items[0].metadata.name}')"
+test -n "$gateway_deployment"
+k -n dsh-system rollout status "deployment/${gateway_deployment}" --timeout=180s
+gateway_forward_pid="$(start_forward dsh-system "service/${gateway_service}" 18443:443 "$test_root/gateway-forward.log" 18443)"
+dex_forward_pid="$(start_forward dsh-system service/dex 15556:15556 "$test_root/dex-forward.log" 15556)"
 
 # Gateway Programmed and Route Accepted precede complete xDS convergence by a
 # short interval. Keep the proof strict, but tolerate that transport window:

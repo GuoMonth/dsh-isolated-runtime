@@ -65,7 +65,7 @@ func (r *CellReconciler) reconcilePublicAccess(ctx context.Context, cell *dshv1a
 	}
 	if err != nil {
 		if r.Recorder != nil {
-			r.Recorder.Eventf(cell, "Warning", reasonForError(err), "public access reconciliation failed: %v", err)
+			r.Recorder.Eventf(cell, nil, "Warning", reasonForError(err), "ReconcilePublicAccess", "public access reconciliation failed: %v", err)
 		}
 		ctrl.LoggerFrom(ctx).Error(err, "public access reconciliation failed", "cell", client.ObjectKeyFromObject(cell))
 		return fmt.Errorf("public access reconciliation: %w", err)
@@ -169,7 +169,7 @@ func (r *CellReconciler) observeHTTPRoute(ctx context.Context, cell *dshv1alpha1
 	for _, parent := range route.Status.Parents {
 		for _, condition := range parent.Conditions {
 			if (condition.Type == string(gatewayv1.RouteConditionAccepted) || condition.Type == string(gatewayv1.RouteConditionResolvedRefs)) && condition.Status == metav1.ConditionFalse {
-				r.Recorder.Eventf(cell, "Warning", "RouteRejected", "HTTPRoute %s: %s", condition.Reason, condition.Message)
+				r.Recorder.Eventf(cell, nil, "Warning", "RouteRejected", "ReconcilePublicAccess", "HTTPRoute %s: %s", condition.Reason, condition.Message)
 				ctrl.LoggerFrom(ctx).Info("Cell HTTPRoute is not ready", "cell", client.ObjectKeyFromObject(cell), "reason", condition.Reason)
 				return
 			}

@@ -3,6 +3,8 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=hack/lib/kubernetes-test.sh
+source "$repo_root/hack/lib/kubernetes-test.sh"
 cluster_name="dsh-cell-contract-${RANDOM}"
 kubeconfig="$(mktemp)"
 
@@ -12,7 +14,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-kind create cluster --name "$cluster_name" --kubeconfig "$kubeconfig" --wait 120s
+kind create cluster --name "$cluster_name" --kubeconfig "$kubeconfig" --image "$kind_node_image" --wait 120s
 kubectl --kubeconfig "$kubeconfig" apply -k "$repo_root/config/crd"
 kubectl --kubeconfig "$kubeconfig" wait --for=condition=Established \
   crd/cells.dsh.isolated.io crd/cellsnapshots.dsh.isolated.io --timeout=60s

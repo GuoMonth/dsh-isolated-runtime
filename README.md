@@ -18,6 +18,8 @@ The next MVP targets administrator-managed Kubernetes deployment, standard OIDC
 individual access and persistent Cells, with a kind technical-validation path.
 Helm is the preferred planned delivery, not an available installation command.
 See the [alpha MVP scope and acceptance](docs/alpha-mvp.md).
+The next cluster baseline and infrastructure prerequisites are documented in
+[Kubernetes alpha baseline](docs/kubernetes-baseline.md).
 
 **Published local installation alpha: v0.2.0-alpha.1.**
 Start with the [Quickstart](docs/quickstart.md), or give your AI assistant the

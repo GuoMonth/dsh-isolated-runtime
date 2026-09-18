@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -21,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -284,7 +287,7 @@ func TestEnvtestManagerCancellation(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	for range 2 {
+	for iteration := range 2 {
 		// These sequential managers share a test process; production has one.
 		skipNameValidation := true
 		scheme := runtime.NewScheme()
@@ -306,6 +309,7 @@ func TestEnvtestManagerCancellation(t *testing.T) {
 		reconciler := &CellReconciler{
 			Client: manager.GetClient(), APIReader: manager.GetAPIReader(),
 			Scheme: scheme, SystemNamespace: "dsh-system",
+			Recorder: manager.GetEventRecorder("cell-operator"),
 		}
 		if err := reconciler.SetupWithManager(manager); err != nil {
 			t.Fatal(err)
@@ -319,6 +323,25 @@ func TestEnvtestManagerCancellation(t *testing.T) {
 		go func() { done <- manager.Start(ctx) }()
 		if !manager.GetCache().WaitForCacheSync(ctx) {
 			t.Fatal("cache did not start")
+		}
+		namespace := &corev1.Namespace{}
+		if err := manager.GetAPIReader().Get(ctx, client.ObjectKey{Name: "default"}, namespace); err != nil {
+			t.Fatal(err)
+		}
+		reconciler.Recorder.Eventf(namespace, nil, corev1.EventTypeNormal, "LifecycleTest", "VerifyRecorder", "manager iteration %d", iteration)
+		if err := wait.PollUntilContextTimeout(ctx, 50*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
+			var events eventsv1.EventList
+			if err := manager.GetAPIReader().List(ctx, &events, client.InNamespace("default")); err != nil {
+				return false, err
+			}
+			for _, event := range events.Items {
+				if event.Reason == "LifecycleTest" && event.ReportingController == "cell-operator" && event.Note == fmt.Sprintf("manager iteration %d", iteration) {
+					return true, nil
+				}
+			}
+			return false, nil
+		}); err != nil {
+			t.Fatalf("events.k8s.io/v1 recording failed: %v", err)
 		}
 		cancel()
 		select {

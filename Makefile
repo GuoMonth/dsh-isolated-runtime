@@ -2,8 +2,8 @@ GO ?= go
 export GOTOOLCHAIN := go1.27.1
 GOLANGCI_LINT_VERSION := v2.13.2
 GOVULNCHECK_VERSION := v1.8.0
-SETUP_ENVTEST_VERSION ?= v0.0.0-20260125163108-a19ec76a3c5d
-ENVTEST_K8S_VERSION ?= 1.34.x
+SETUP_ENVTEST_VERSION ?= v0.25.1
+ENVTEST_K8S_VERSION ?= 1.37.0
 
 .PHONY: build fmt fmt-check generate images lint test test-envtest vet verify verify-phase1 verify-phase2 verify-phase3 verify-phase4 verify-cell verify-dsh verify-generated verify-images verify-kind verify-kind-phase2 verify-kind-phase3 verify-kind-phase4
 
@@ -34,8 +34,8 @@ test:
 	$(GO) test -race -cover ./...
 
 test-envtest:
-	KUBEBUILDER_ASSETS="$$($(GO) run sigs.k8s.io/controller-runtime/tools/setup-envtest@$(SETUP_ENVTEST_VERSION) use -p path $(ENVTEST_K8S_VERSION))" \
-		$(GO) test -count=1 -run TestEnvtest ./internal/controller
+	assets="$$($(GO) run sigs.k8s.io/controller-runtime/tools/setup-envtest@$(SETUP_ENVTEST_VERSION) use -p path $(ENVTEST_K8S_VERSION))" && \
+		KUBEBUILDER_ASSETS="$$assets" $(GO) test -count=1 -run TestEnvtest ./internal/controller
 
 vet:
 	$(GO) vet ./...

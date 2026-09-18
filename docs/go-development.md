@@ -3,7 +3,7 @@
 The module and supported build paths use Go 1.27.1. Make pins GOTOOLCHAIN to
 that exact patch; Docker builders pin the matching multi-platform image digest.
 Manual workflows and Source standards use the same Go patch. Kubernetes SDK
-and envtest remain on the existing 1.34 generation until issue #78.
+and test tooling follow the [Kubernetes baseline](kubernetes-baseline.md).
 
 Run from the repository root:
 
@@ -15,7 +15,7 @@ make test-envtest
 ```
 
 `verify` checks formatting, reproducible code generation, vet, race tests and
-builds. The existing controller-gen v0.19.0 remains pinned and must reproduce
+builds. The controller-gen v0.22.0 is pinned and must reproduce
 the committed API/CRD/RBAC files without drift. `lint` uses golangci-lint v2.13.2
 with standard checks plus response-body closure analysis. `vuln` uses
 govulncheck v1.8.0 and the current upstream vulnerability database; tool versions

@@ -3,8 +3,8 @@
 // +kubebuilder:object:generate=true
 // +groupName=dsh.isolated.io
 //
-//go:generate go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0 object paths=./...
-//go:generate go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0 crd paths=./... output:crd:artifacts:config=../../config/crd/bases
+//go:generate go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.22.0 object paths=./...
+//go:generate go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.22.0 crd paths=./... output:crd:artifacts:config=../../config/crd/bases
 package v1alpha1
 
 const (
