@@ -173,15 +173,21 @@ wait_gateway() {
 
 start_forward() {
   local namespace="$1" resource="$2" mapping="$3" logfile="$4" port="$5"
-  k -n "$namespace" port-forward "$resource" "$mapping" >"$logfile" 2>&1 &
+  k -n "$namespace" port-forward --address 127.0.0.1 "$resource" "$mapping" >"$logfile" 2>&1 &
   local pid=$!
   for _ in $(seq 1 60); do
-    if bash -c "</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1; then
+    if ! kill -0 "$pid" 2>/dev/null; then
+      break
+    fi
+    if grep -Fq "Forwarding from 127.0.0.1:${port} ->" "$logfile" &&
+      bash -c "</dev/tcp/127.0.0.1/$port" >/dev/null 2>&1; then
       echo "$pid"
       return
     fi
     sleep 1
   done
+  kill "$pid" >/dev/null 2>&1 || true
+  wait "$pid" 2>/dev/null || true
   sed -n '1,120p' "$logfile" >&2
   return 1
 }

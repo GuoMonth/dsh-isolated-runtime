@@ -51,6 +51,9 @@ snapshot/restore/rollout tests, plus the bounded fleet regression. Phase 3 on th
 second minor repeats the browser and lifecycle proofs. Record exact commits,
 results and missing checks in the PR; an unpassed version is not supported.
 Envtest checks API/controller behavior only, not CNI, CSI or browser behavior.
+Run the browser/lifecycle gates serially: they reserve fixed local forwarding
+ports (including 18443 and 15556). A busy port is a prerequisite failure, not
+evidence that the new test's forwarding process is ready.
 The upstream CSI fixture directory named `kubernetes-1.34` is an immutable
 fixture layout, not this project's declared Kubernetes support version.
 
