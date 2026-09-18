@@ -61,6 +61,28 @@ Test registries use containerd `certs.d/hosts.toml` on test-owned nodes only.
 No host daemon registry configuration or unrelated clusters are changed.
 Automatic CI remains Source standards only; kind workflows stay manually triggered.
 
+### Verified reference matrix
+
+Local Linux amd64 regression completed on 2026-09-18; detailed commands and
+failed-attempt diagnostics are recorded in [PR #81](https://github.com/GuoMonth/dsh-isolated-runtime/pull/81).
+
+| Reference | CRD validation | Browser, OIDC/RBAC, isolation and persistence | Snapshot/restore lifecycle | Bounded fleet |
+| --- | --- | --- | --- | --- |
+| Kubernetes 1.37.0 / kind 0.33.0 | Passed | Passed | Passed | Passed |
+| Kubernetes 1.36.4 / kind 0.33.0 | Passed | Passed | Passed | Not repeated |
+| Envtest 1.37.0 and 1.36.2 | Passed | Not applicable | Controller/API tests only | Not applicable |
+
+Both cluster runs use the same runtime images built from `1da9a84`. The 1.37
+Phase 4 runner is `cb93d9b`; the 1.36 Phase 3 runner is `9c2bca8`, which adds
+an explicit Gateway data-plane readiness wait before port forwarding. Production
+Go code is unchanged between these runner commits. No Mac Docker Desktop or
+live-model acceptance is implied.
+
+The 1.37 fleet fixture converged 50 Cells in 59 seconds and 8 overlapping
+snapshots in 59 seconds; operator peak working set was 39,325,696 bytes on a
+32-CPU, 64,903,213,056-byte-memory host. These are regression observations, not
+an SLO or a minimum hardware specification.
+
 ## Published local alpha
 
 The existing v0.2.0-alpha.1 local installer retains its separate 1.34 image and
