@@ -15,6 +15,7 @@ controller 和封闭枚举授权结果。本项目仍不维护 fleet inventory�
 **产品阶段：alpha，企业自托管是长期目标。** 下一 MVP 聚焦管理员在已有 Kubernetes
 中部署、标准 OIDC 个人接入和持久化 Cell，并提供 kind 技术验证路径。Helm 是计划中的
 首选交付方式，目前尚无可用安装命令。详见 [alpha MVP 范围与验收](docs/alpha-mvp.zh-CN.md)。
+新版集群目标、基础设施前提与验证入口见 [Kubernetes alpha 基线](docs/kubernetes-baseline.md)。
 
 **已发布的本地安装 alpha：v0.2.0-alpha.1。**
 从[本地安装](docs/quickstart.zh-CN.md)开始，或把 [AI 安装手册](docs/ai/local-run.md)
