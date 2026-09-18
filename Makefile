@@ -1,4 +1,7 @@
 GO ?= go
+export GOTOOLCHAIN := go1.27.1
+GOLANGCI_LINT_VERSION := v2.13.2
+GOVULNCHECK_VERSION := v1.8.0
 SETUP_ENVTEST_VERSION ?= v0.0.0-20260125163108-a19ec76a3c5d
 ENVTEST_K8S_VERSION ?= 1.34.x
 
@@ -12,16 +15,20 @@ images:
 	docker buildx build --platform linux/amd64 --load -f images/cell/Dockerfile -t dsh-cell:test .
 
 fmt:
-	gofmt -w .
+	"$$($(GO) env GOROOT)/bin/gofmt" -w .
 
 fmt-check:
-	test -z "$$(gofmt -l .)"
+	test -z "$$("$$($(GO) env GOROOT)/bin/gofmt" -l .)"
 
 generate:
 	$(GO) generate ./...
 
 lint:
-	golangci-lint run
+	$(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
+
+.PHONY: vuln
+vuln:
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
 test:
 	$(GO) test -race -cover ./...

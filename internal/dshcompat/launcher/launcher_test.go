@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"os/signal"
@@ -22,6 +23,37 @@ import (
 )
 
 const helperToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+func TestProxyRewritePreservesAuthorityAndOpaqueQuery(t *testing.T) {
+	observed := make(chan *http.Request, 1)
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		observed <- r.Clone(context.Background())
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer backend.Close()
+	target, err := url.Parse(backend.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxy := newProxy(target, helperToken)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "https://cell.example.test/api/opaque?q=%zz&raw=a;b", nil)
+	request.Header.Set("Origin", "https://cell.example.test")
+	request.Header.Set("Authorization", "Bearer private")
+	request.Header.Set("X-Forwarded-Host", "attacker.example")
+	request.Header.Set("Cookie", "IdToken=private; dsh-auth-test=application")
+	response := httptest.NewRecorder()
+	proxy.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", response.Code)
+	}
+	got := <-observed
+	if got.Host != request.Host || got.Header.Get("Origin") != request.Header.Get("Origin") || got.URL.RawQuery != request.URL.RawQuery {
+		t.Fatal("proxy changed DSH authority, origin or opaque query")
+	}
+	if got.Header.Get("Authorization") != "" || got.Header.Get("X-Forwarded-Host") != "" || got.Header.Get("Cookie") != "dsh-auth-test=application" {
+		t.Fatal("proxy forwarded upstream credentials or untrusted routing headers")
+	}
+}
 
 type lockedBuffer struct {
 	mu     sync.Mutex
@@ -285,7 +317,11 @@ func TestCloseBoundsHijackedConnectionsBeforeStoppingDSH(t *testing.T) {
 	}
 	reader := bufio.NewReader(connection)
 	response, err := http.ReadResponse(reader, &http.Request{Method: http.MethodGet})
-	if err != nil || response.StatusCode != http.StatusSwitchingProtocols {
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusSwitchingProtocols {
 		t.Fatalf("upgrade: response=%v err=%v", response, err)
 	}
 
@@ -346,6 +382,7 @@ func assertOpaqueUpgrade(t *testing.T, instanceURL, cookie string) {
 	if response.StatusCode != http.StatusSwitchingProtocols {
 		t.Fatalf("upgrade status=%d", response.StatusCode)
 	}
+	defer func() { _ = response.Body.Close() }()
 	payload := []byte("opaque-websocket-frame")
 	if _, err := conn.Write(payload); err != nil {
 		t.Fatal(err)

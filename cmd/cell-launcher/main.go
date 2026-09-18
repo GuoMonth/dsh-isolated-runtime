@@ -31,6 +31,8 @@ func main() {
 }
 
 func run() error {
+	runCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 	authority := os.Getenv("CELL_AUTHORITY")
 	if authority == "" {
 		return errors.New("CELL_AUTHORITY is required")
@@ -64,7 +66,7 @@ func run() error {
 		}
 	}()
 
-	instance, err := launcher.Start(launcher.Config{
+	instance, err := launcher.StartContext(runCtx, launcher.Config{
 		// The official 0.1.5-rc.2 web profile uses the Node module loader's
 		// watch service and therefore requires Node's internal loader API.
 		DSHCommand:      []string{cellcontract.NodePath, "--expose-internals", cellcontract.DSHPath},
@@ -84,13 +86,9 @@ func run() error {
 	}
 	ready.Store(true)
 
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
-	defer signal.Stop(signals)
-
 	for {
 		select {
-		case <-signals:
+		case <-runCtx.Done():
 			ready.Store(false)
 			ctx, cancel := context.WithTimeout(context.Background(), drainTimeout)
 			err := instance.Close(ctx)
@@ -149,5 +147,7 @@ func newManagementHandler(live, ready *atomic.Bool) http.Handler {
 func shutdownManagement(server *http.Server) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_ = server.Shutdown(ctx)
+	if err := server.Shutdown(ctx); err != nil {
+		_ = server.Close()
+	}
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -64,7 +65,9 @@ func run() error {
 		return errors.New("--metrics-bind-address must be 0 or a non-empty listen address")
 	}
 
-	verifier, err := authorizer.NewOIDCVerifier(context.Background(), issuer, clientID, groupsClaim)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+	verifier, err := authorizer.NewOIDCVerifier(ctx, issuer, clientID, groupsClaim)
 	if err != nil {
 		return err
 	}
@@ -105,7 +108,7 @@ func run() error {
 		return err
 	}
 
-	grpcListener, err := net.Listen("tcp", grpcAddress)
+	grpcListener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", grpcAddress)
 	if err != nil {
 		return fmt.Errorf("listen for ext_authz: %w", err)
 	}
@@ -117,9 +120,10 @@ func run() error {
 	callbackServer := &http.Server{Addr: callbackAddress, Handler: http.NotFoundHandler(), ReadHeaderTimeout: 5 * time.Second}
 	healthServer := &http.Server{Addr: healthAddress, Handler: healthHandler(&ready), ReadHeaderTimeout: 5 * time.Second}
 	errorsCh := make(chan error, 4)
-	go func() { errorsCh <- grpcServer.Serve(grpcListener) }()
-	go func() { errorsCh <- serveHTTP(callbackServer) }()
-	go func() { errorsCh <- serveHTTP(healthServer) }()
+	var serving sync.WaitGroup
+	serving.Go(func() { errorsCh <- grpcServer.Serve(grpcListener) })
+	serving.Go(func() { errorsCh <- serveHTTP(callbackServer) })
+	serving.Go(func() { errorsCh <- serveHTTP(healthServer) })
 	var metricsServer *http.Server
 	if metricsAddress != "0" {
 		metricsServer = &http.Server{
@@ -127,16 +131,13 @@ func run() error {
 			Handler:           promhttp.HandlerFor(metricsRegistry, promhttp.HandlerOpts{}),
 			ReadHeaderTimeout: 5 * time.Second,
 		}
-		go func() { errorsCh <- serveHTTP(metricsServer) }()
+		serving.Go(func() { errorsCh <- serveHTTP(metricsServer) })
 	}
 	ready.Store(true)
 
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
-	defer signal.Stop(signals)
 	var runErr error
 	select {
-	case <-signals:
+	case <-ctx.Done():
 	case runErr = <-errorsCh:
 	}
 	ready.Store(false)
@@ -151,12 +152,22 @@ func run() error {
 	case <-grpcDone:
 	case <-shutdownCtx.Done():
 		grpcServer.Stop()
+		<-grpcDone
 	}
 	var metricsErr error
 	if metricsServer != nil {
-		metricsErr = metricsServer.Shutdown(shutdownCtx)
+		metricsErr = shutdownHTTP(shutdownCtx, metricsServer)
 	}
-	return errors.Join(runErr, callbackServer.Shutdown(shutdownCtx), healthServer.Shutdown(shutdownCtx), metricsErr)
+	shutdownErr := errors.Join(shutdownHTTP(shutdownCtx, callbackServer), shutdownHTTP(shutdownCtx, healthServer), metricsErr)
+	serving.Wait()
+	return errors.Join(runErr, shutdownErr)
+}
+
+func shutdownHTTP(ctx context.Context, server *http.Server) error {
+	if err := server.Shutdown(ctx); err != nil {
+		return errors.Join(err, server.Close())
+	}
+	return nil
 }
 
 func serveHTTP(server *http.Server) error {

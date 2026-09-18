@@ -17,8 +17,13 @@ routine PR acceptance. Local success is sufficient for behavioral acceptance.
 
 ```bash
 make verify
-golangci-lint run
+make lint
+make vuln
 ```
+
+Toolchain pins, lifecycle rules and leak diagnostics are documented in
+[Go development](docs/go-development.md). Keep these checks local; this does not
+expand automatic CI beyond Source standards.
 
 Run `make verify-cell` for API/CRD changes and `make verify-dsh` for changes
 under `compat/dsh`, `internal/dshcompat`, or the Cell image/access seam. The full

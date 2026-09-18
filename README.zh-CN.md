@@ -54,7 +54,7 @@ make verify-kind-phase2 # 用 Envoy、Dex、Chromium 实证 HTTPS/OIDC/RBAC
 make verify-kind-phase3 # 实证 writer-stop、CSI restore、rollout 与 fresh rollback
 make verify-kind-phase4 # 实证 10 namespace / 50 Cell 的 quota、压力与恢复
 make verify-dsh         # 运行精确版本的上游 DSH 兼容套件
-golangci-lint run
+make lint
 ```
 
 当前支持范围只有 `dsh-v0.1.5-rc.2`，commit
