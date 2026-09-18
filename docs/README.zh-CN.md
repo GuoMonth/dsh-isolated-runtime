@@ -1,6 +1,7 @@
 # 设计文档
 
 - [当前 alpha MVP 方向与验收](./alpha-mvp.zh-CN.md)
+- [Go 工具链、生命周期检查与泄漏诊断](./go-development.md)
 - [本地安装](./quickstart.zh-CN.md)
 - [AI 安装手册](./ai/local-run.md)
 - [Alpha 发行与网络依赖](./distribution.md)

@@ -60,7 +60,7 @@ make verify-kind-phase2 # HTTPS/OIDC/RBAC browser proof with Envoy, Dex, Chromiu
 make verify-kind-phase3 # writer-stop/CSI restore/rollout/fresh rollback proof
 make verify-kind-phase4 # 10-namespace/50-Cell quota, pressure and recovery proof
 make verify-dsh         # exact upstream DSH compatibility suite
-golangci-lint run
+make lint
 ```
 
 The supported DSH baseline is exactly `dsh-v0.1.5-rc.2` at commit

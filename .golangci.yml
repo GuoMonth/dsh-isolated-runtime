@@ -3,6 +3,11 @@ version: "2"
 run:
   timeout: 3m
 
+linters:
+  default: standard
+  enable:
+    - bodyclose
+
 formatters:
   enable:
     - goimports

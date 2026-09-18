@@ -6,7 +6,8 @@
 
 ```bash
 make verify
-golangci-lint run
+make lint
+make vuln
 ```
 
 API/CRD 变更运行 `make verify-cell`；`compat/dsh`、`internal/dshcompat` 或 Cell

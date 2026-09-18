@@ -21,8 +21,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -262,5 +264,70 @@ func TestEnvtestReconcileAndAdmission(t *testing.T) {
 	snapshot.Spec.VolumeSnapshotClassName = "other-class"
 	if err := kube.Update(ctx, snapshot); !apierrors.IsInvalid(err) {
 		t.Fatalf("CellSnapshot spec mutation error = %v, want Invalid", err)
+	}
+}
+
+func TestEnvtestManagerCancellation(t *testing.T) {
+	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
+		t.Skip("KUBEBUILDER_ASSETS is not configured")
+	}
+	environment := &envtest.Environment{
+		CRDDirectoryPaths:     []string{"../../config/crd/bases"},
+		ErrorIfCRDPathMissing: true,
+	}
+	configuration, err := environment.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := environment.Stop(); err != nil {
+			t.Error(err)
+		}
+	})
+	for range 2 {
+		// These sequential managers share a test process; production has one.
+		skipNameValidation := true
+		scheme := runtime.NewScheme()
+		if err := clientgoscheme.AddToScheme(scheme); err != nil {
+			t.Fatal(err)
+		}
+		if err := dshv1alpha1.AddToScheme(scheme); err != nil {
+			t.Fatal(err)
+		}
+		manager, err := ctrl.NewManager(configuration, ctrl.Options{
+			Controller:             config.Controller{SkipNameValidation: &skipNameValidation},
+			Scheme:                 scheme,
+			Metrics:                metricsserver.Options{BindAddress: "0"},
+			HealthProbeBindAddress: "0",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		reconciler := &CellReconciler{
+			Client: manager.GetClient(), APIReader: manager.GetAPIReader(),
+			Scheme: scheme, SystemNamespace: "dsh-system",
+		}
+		if err := reconciler.SetupWithManager(manager); err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+		if _, err := manager.GetCache().GetInformer(ctx, &corev1.Namespace{}); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() { done <- manager.Start(ctx) }()
+		if !manager.GetCache().WaitForCacheSync(ctx) {
+			t.Fatal("cache did not start")
+		}
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("manager did not stop its cache and workers")
+		}
 	}
 }

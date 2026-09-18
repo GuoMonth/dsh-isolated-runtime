@@ -64,6 +64,7 @@ type Instance struct {
 	connections     *connectionTracker
 	closeOnce       sync.Once
 	closeErr        error
+	background      sync.WaitGroup
 }
 
 type readiness struct {
@@ -80,6 +81,15 @@ type processState struct {
 // Start launches DSH, captures its process-only launch token, and starts an
 // opaque HTTP/WebSocket proxy. The raw token is never written to LogWriter.
 func Start(cfg Config) (*Instance, error) {
+	return StartContext(context.Background(), cfg)
+}
+
+// StartContext permits cancellation during readiness. Once ready, the caller
+// owns the instance and must call Close, including when ctx is canceled.
+func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if len(cfg.DSHCommand) == 0 || strings.TrimSpace(cfg.DSHCommand[0]) == "" {
 		return nil, errors.New("launcher: DSH command is required")
 	}
@@ -126,7 +136,6 @@ func Start(cfg Config) (*Instance, error) {
 	}
 
 	state := &processState{done: make(chan struct{})}
-	go state.complete(cmd.Wait)
 	ready := make(chan readiness, 1)
 	var readyOnce sync.Once
 	var logMu sync.Mutex
@@ -145,14 +154,23 @@ func Start(cfg Config) (*Instance, error) {
 			logMu.Unlock()
 		}
 	}
-	go scan(stdout)
-	go scan(stderr)
+	var scanners sync.WaitGroup
+	scanners.Go(func() { scan(stdout) })
+	scanners.Go(func() { scan(stderr) })
+	go state.complete(func() error {
+		err := cmd.Wait()
+		scanners.Wait()
+		return err
+	})
 
 	timer := time.NewTimer(cfg.ReadyTimeout)
 	defer timer.Stop()
 	var observed readiness
 	select {
 	case observed = <-ready:
+	case <-ctx.Done():
+		_ = terminate(cmd.Process, cfg.ShutdownTimeout, state)
+		return nil, ctx.Err()
 	case <-state.done:
 		return nil, fmt.Errorf("launcher: DSH exited before readiness: %w", exitError(state.result()))
 	case <-timer.C:
@@ -160,12 +178,14 @@ func Start(cfg Config) (*Instance, error) {
 		return nil, errors.New("launcher: DSH readiness timeout")
 	}
 
-	listener, err := net.Listen("tcp", cfg.ListenAddress)
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", cfg.ListenAddress)
 	if err != nil {
 		_ = terminate(cmd.Process, cfg.ShutdownTimeout, state)
 		return nil, fmt.Errorf("launcher: listen: %w", err)
 	}
 	proxy := newProxy(observed.target, observed.token)
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	proxy.Transport = transport
 	connections := newConnectionTracker()
 	draining := &atomic.Bool{}
 	server := &http.Server{
@@ -190,18 +210,20 @@ func Start(cfg Config) (*Instance, error) {
 		draining:        draining,
 		connections:     connections,
 	}
-	go func() {
+	instance.background.Go(func() {
 		tracked := &trackingListener{Listener: listener, tracker: connections}
 		if serveErr := server.Serve(tracked); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			logMu.Lock()
 			_, _ = fmt.Fprintf(cfg.LogWriter, "launcher: proxy stopped: %v\n", serveErr)
 			logMu.Unlock()
 		}
-	}()
-	go func() {
+	})
+	instance.background.Go(func() {
 		<-state.done
 		_ = server.Close()
-	}()
+		connections.closeAll()
+		transport.CloseIdleConnections()
+	})
 	return instance, nil
 }
 
@@ -220,6 +242,7 @@ func (i *Instance) Close(ctx context.Context) error {
 			serverErr = nil
 		}
 		processErr := terminate(i.process, i.shutdownTimeout, i.processState)
+		i.background.Wait()
 		i.closeErr = errors.Join(serverErr, processErr)
 	})
 	return i.closeErr
@@ -324,13 +347,14 @@ func (i *Instance) Wait() error {
 	return i.processState.result()
 }
 
-func newProxy(target *url.URL, token string) http.Handler {
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	director := proxy.Director
-	proxy.Director = func(request *http.Request) {
-		originalHost := request.Host
-		director(request)
-		request.Host = originalHost
+func newProxy(target *url.URL, token string) *httputil.ReverseProxy {
+	proxy := &httputil.ReverseProxy{}
+	proxy.Rewrite = func(outbound *httputil.ProxyRequest) {
+		outbound.SetURL(target)
+		request := outbound.Out
+		request.Host = outbound.In.Host
+		// Query interpretation belongs to DSH, not this opaque proxy.
+		request.URL.RawQuery = outbound.In.URL.RawQuery
 		request.Header.Del("Authorization")
 		request.Header.Del("Proxy-Authorization")
 		for _, name := range []string{

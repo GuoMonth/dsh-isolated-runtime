@@ -1,6 +1,7 @@
 # Design documents
 
 - [Current alpha MVP direction and acceptance](./alpha-mvp.md)
+- [Go toolchain, lifecycle checks and leak diagnostics](./go-development.md)
 - [Local installation](./quickstart.md)
 - [AI installation runbook](./ai/local-run.md)
 - [Alpha distribution](./distribution.md)
