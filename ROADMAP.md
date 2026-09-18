@@ -3,6 +3,15 @@
 The roadmap advances in vertical milestones. Each major milestone ends with a
 review gate before the next one starts.
 
+## Next: self-hosted alpha MVP
+
+Enterprise self-hosting is the long-term direction; current requirements remain
+alpha-sized. Prioritize administrator-managed cluster deployment, standard OIDC
+individual authorization, a persistent Cell user journey and kind reproduction.
+Helm is the preferred planned entry, not yet delivered. Scope, ownership,
+deferred work and acceptance are defined in [alpha MVP](docs/alpha-mvp.md).
+Prior milestones below record completed work, not production certification.
+
 ## Phase 0 — Cell contract reset and DSH evidence
 
 Complete in this delivery:

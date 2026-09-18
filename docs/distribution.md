@@ -1,8 +1,13 @@
 # Alpha Distribution
 
-Target: v0.2.0-alpha.1. This PR prepares the delivery; it does not itself publish
-a GitHub Release, npm package or third-party mirror. The existing v0.1.2 stays
-available unchanged. Do not interpret a completed PR as Mac acceptance.
+The next development priority is the [self-hosted alpha MVP](alpha-mvp.md).
+Helm delivery is planned and not yet available; the existing-cluster entry is
+still Kustomize. Do not expand npm or host-managed installation as product work.
+Preserve published artifacts, recovery instructions and useful regression tests.
+
+The distribution below describes the published v0.2.0-alpha.1 local alpha.
+Earlier releases remain unchanged. This direction change publishes no artifacts
+and provides no new Mac or live-model acceptance evidence.
 
 ## One Runtime, Multiple Entrances
 

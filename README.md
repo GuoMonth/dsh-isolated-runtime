@@ -13,7 +13,13 @@ project fleet inventory, scheduler, namespace policy engine, or backup service.
 
 [中文](./README.zh-CN.md)
 
-**Local installation alpha: v0.2.0-alpha.1 is in preparation.**
+**Product stage: alpha; enterprise self-hosting is the long-term goal.**
+The next MVP targets administrator-managed Kubernetes deployment, standard OIDC
+individual access and persistent Cells, with a kind technical-validation path.
+Helm is the preferred planned delivery, not an available installation command.
+See the [alpha MVP scope and acceptance](docs/alpha-mvp.md).
+
+**Published local installation alpha: v0.2.0-alpha.1.**
 Start with the [Quickstart](docs/quickstart.md), or give your AI assistant the
 [AI installation runbook](docs/ai/local-run.md). The npm launcher and direct
 [GitHub Release](https://github.com/GuoMonth/dsh-isolated-runtime/releases)
