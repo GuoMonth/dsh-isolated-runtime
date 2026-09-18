@@ -4,6 +4,8 @@
 set -Eeuo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=hack/lib/kubernetes-test.sh
+source "$repo_root/hack/lib/kubernetes-test.sh"
 cluster_name="dsh-phase2-${RANDOM}"
 registry_name="dsh-phase2-registry-${RANDOM}"
 registry_port="$((30000 + RANDOM % 10000))"
@@ -243,18 +245,16 @@ browser_eventually() {
   return 1
 }
 
-sed \
-  -e "s/REGISTRY_PORT/${registry_port}/g" \
-  -e "s/REGISTRY_NAME/${registry_name}/g" \
-  "$repo_root/test/e2e/phase2/kind-template.yaml" >"$kind_config"
+cp "$repo_root/test/e2e/phase2/kind-template.yaml" "$kind_config"
 
 docker run --detach --restart=always --name "$registry_name" \
   --publish "127.0.0.1:${registry_port}:5000" \
   registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373 >/dev/null
 kind create cluster --name "$cluster_name" --kubeconfig "$kubeconfig" \
-  --image kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a \
+  --image "$kind_node_image" \
   --config "$kind_config" --wait 60s
 docker network connect kind "$registry_name"
+configure_test_registry "${cluster_name}-control-plane" "$registry_port" "$registry_name"
 
 install_reference_network
 revision="$(git -C "$repo_root" rev-parse HEAD)"

@@ -9,7 +9,8 @@ make verify-kind-phase4
 The runner extends the Phase 3 kind environment and fixes the following
 development baseline:
 
-- one Kubernetes 1.34 kind control-plane node;
+- one Kubernetes 1.37.0 kind control-plane node (see the
+  [Kubernetes baseline](../../../docs/kubernetes-baseline.md) for pinned alternatives);
 - 10 tenant namespaces and 50 initial Cells;
 - two exact `dsh-v0.1.5-rc.2` Cell images and 48 lightweight workload
   fixtures;

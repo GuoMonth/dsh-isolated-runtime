@@ -2,7 +2,7 @@
 // resources and reports topology-free observed state.
 package controller
 
-//go:generate go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0 rbac:roleName=cell-operator paths=../../... output:rbac:artifacts:config=../../config/rbac
+//go:generate go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.22.0 rbac:roleName=cell-operator paths=../../... output:rbac:artifacts:config=../../config/rbac
 
 import (
 	"context"
@@ -22,12 +22,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	controlleroptions "sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/recorder"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	dshv1alpha1 "github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
@@ -63,7 +63,7 @@ type CellReconciler struct {
 	SystemNamespace         string
 	SandboxedRuntimeClass   string
 	RouteConfig             RouteConfig
-	Recorder                record.EventRecorder
+	Recorder                recorder.EventRecorder
 	routeAPIAvailable       bool
 	SnapshotEnabled         bool
 	MaxConcurrentReconciles int
@@ -82,6 +82,7 @@ type CellReconciler struct {
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 // SetupWithManager registers owned-resource and ready-endpoint watches.
 func (r *CellReconciler) SetupWithManager(manager ctrl.Manager) error {

@@ -114,8 +114,8 @@ jobs:
         with:
           go-version: "1.27.1"
           cache: true
-      - name: Install kind
-        run: go install sigs.k8s.io/kind@v0.32.0
+      - name: Install Kubernetes test tools
+        run: bash hack/install-kubernetes-test-tools.sh
       - name: Verify code and generated surfaces
         run: make verify test-envtest verify-cell && node hack/verify-release-contract.mjs
 
@@ -197,7 +197,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - run: go install sigs.k8s.io/kind@v0.32.0
+      - run: bash hack/install-kubernetes-test-tools.sh
       - name: Run exact candidates
         env:
           CELL_IMAGE: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}
@@ -225,7 +225,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - run: go install sigs.k8s.io/kind@v0.32.0
+      - run: bash hack/install-kubernetes-test-tools.sh
       - name: Run exact candidates
         env:
           CELL_IMAGE: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}
@@ -253,7 +253,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - run: go install sigs.k8s.io/kind@v0.32.0
+      - run: bash hack/install-kubernetes-test-tools.sh
       - name: Run exact candidates
         env:
           CELL_IMAGE: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}
@@ -281,7 +281,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - run: go install sigs.k8s.io/kind@v0.32.0
+      - run: bash hack/install-kubernetes-test-tools.sh
       - name: Run exact candidates
         env:
           CELL_IMAGE: ${{ env.CELL_REPOSITORY }}@${{ needs.candidate.outputs.cell-digest }}

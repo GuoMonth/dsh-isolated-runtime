@@ -99,7 +99,7 @@ func main() {
 			BaseDomain:        baseDomain,
 			ExternalHTTPSPort: externalHTTPSPort,
 		},
-		Recorder:                manager.GetEventRecorderFor("cell-operator"),
+		Recorder:                manager.GetEventRecorder("cell-operator"),
 		SnapshotEnabled:         enableSnapshots,
 		MaxConcurrentReconciles: cellConcurrency,
 	}
