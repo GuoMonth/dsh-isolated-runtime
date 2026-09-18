@@ -3,6 +3,13 @@
 This is a Kubernetes isolation runtime, not an npm implementation of DSH.
 For helping a user install a release, read docs/ai/local-run.md first.
 
+Product direction and next-milestone acceptance live in docs/alpha-mvp.md
+(Chinese: docs/alpha-mvp.zh-CN.md). Enterprise self-hosting is the long-term
+goal; current work is alpha MVP. Helm is planned, not delivered. Prioritize
+administrator-managed Kubernetes, standard OIDC individual access and kind
+validation; do not expand npm/host-managed installation as product scope.
+Preserve published-release behavior and existing regression coverage.
+
 - Preserve the Cell/CellSnapshot ownership boundaries and exact DSH baseline.
 - The formal local command is dsh-runtime. Legacy demo names may remain in
   internal fixtures and state identities to avoid breaking ownership checks.

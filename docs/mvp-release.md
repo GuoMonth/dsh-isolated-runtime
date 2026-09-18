@@ -1,5 +1,10 @@
 # MVP delivery ledger
 
+This ledger records the historical local-installation MVP. The next milestone
+and current product scope are defined in [self-hosted alpha MVP](alpha-mvp.md).
+Historical baseline and distribution statements below are not current install
+instructions; see [distribution](distribution.md) for the published alpha.
+
 Current target: Linux x86_64 and Apple Silicon macOS local kind experience, one
 current DSH baseline, existing Cell/CellSnapshot v1alpha1 APIs. No fleet platform
 or historical compatibility. v0.1.0 and milestone 7 are complete; v0.1.1 adds the
