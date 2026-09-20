@@ -9,5 +9,7 @@ coverage.out
 bin/
 !packages/cli/bin/
 !packages/cli/bin/cli.mjs
+!packages/cell-cli/bin/
+!packages/cell-cli/bin/cli.mjs
 *.test
 *.out
