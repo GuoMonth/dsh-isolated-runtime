@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cell-operator
+spec:
+  template:
+    spec:
+      containers:
+        - name: manager
+          args:
+            - --access-mode=platform
+            - --base-domain=cells.example.com
+            - --external-https-port=443
+            - --cell-concurrency=1

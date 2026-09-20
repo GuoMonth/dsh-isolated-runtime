@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	dshv1alpha1 "github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
+	"github.com/GuoMonth/dsh-isolated-runtime/internal/accesscontract"
 	"github.com/GuoMonth/dsh-isolated-runtime/internal/cellcontract"
 )
 
@@ -181,6 +182,12 @@ func (r *CellReconciler) reconcileStatefulSet(
 	names := cellcontract.ResourceNames(string(cell.UID))
 	workload := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: names.Base, Namespace: cell.Namespace}}
 	err := r.ensureManaged(ctx, cell, workload, true, func(created bool) error {
+		if r.RouteConfig.Mode == accesscontract.ModePlatform {
+			if workload.Annotations == nil {
+				workload.Annotations = map[string]string{}
+			}
+			workload.Annotations[accessModeAnnotation] = string(accesscontract.ModePlatform)
+		}
 		selector := workloadSelector(cell)
 		if !created && !reflect.DeepEqual(workload.Spec.Selector.MatchLabels, selector) {
 			return errors.New("managed StatefulSet selector drifted")
@@ -226,7 +233,7 @@ func (r *CellReconciler) reconcileNetworkPolicy(ctx context.Context, cell *dshv1
 						corev1.LabelMetadataName: r.SystemNamespace,
 					}},
 					PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
-						cellcontract.AccessLabel: cellcontract.AccessValue,
+						cellcontract.AccessLabel: r.accessPodLabel(),
 					}},
 				}},
 				Ports: []networkingv1.NetworkPolicyPort{{

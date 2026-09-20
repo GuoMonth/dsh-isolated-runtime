@@ -17,12 +17,14 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	dshv1alpha1 "github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
+	"github.com/GuoMonth/dsh-isolated-runtime/internal/accesscontract"
 	cellcontroller "github.com/GuoMonth/dsh-isolated-runtime/internal/controller"
 )
 
 func main() {
 	var systemNamespace string
 	var sandboxedRuntimeClass string
+	var accessMode string
 	var gatewayName string
 	var gatewayNamespace string
 	var gatewaySection string
@@ -36,6 +38,7 @@ func main() {
 	var snapshotConcurrency int
 	flag.StringVar(&systemNamespace, "system-namespace", "", "namespace whose labelled access Pods may reach Cells (defaults to POD_NAMESPACE)")
 	flag.StringVar(&sandboxedRuntimeClass, "sandboxed-runtime-class", "", "cluster-owned RuntimeClass used for sandboxed Cells")
+	flag.StringVar(&accessMode, "access-mode", "standalone", "Cell access: standalone direct routing or platform-owned ingress")
 	flag.StringVar(&gatewayName, "gateway-name", "", "Gateway used for derived Cell HTTPRoutes; empty disables public routing")
 	flag.StringVar(&gatewayNamespace, "gateway-namespace", "dsh-system", "namespace containing the public Gateway")
 	flag.StringVar(&gatewaySection, "gateway-section-name", "https", "Gateway HTTPS listener section name")
@@ -60,6 +63,18 @@ func main() {
 	}
 	if cellConcurrency < 1 || snapshotConcurrency < 1 {
 		fatal(fmt.Errorf("controller concurrency must be at least 1"))
+	}
+
+	accessConfig := cellcontroller.RouteConfig{
+		Mode:              accesscontract.Mode(accessMode),
+		GatewayName:       gatewayName,
+		GatewayNamespace:  gatewayNamespace,
+		GatewaySection:    gatewaySection,
+		BaseDomain:        baseDomain,
+		ExternalHTTPSPort: externalHTTPSPort,
+	}
+	if err := accessConfig.Validate(); err != nil {
+		fatal(err)
 	}
 
 	scheme := runtime.NewScheme()
@@ -87,18 +102,12 @@ func main() {
 		fatal(err)
 	}
 	reconciler := &cellcontroller.CellReconciler{
-		Client:                manager.GetClient(),
-		APIReader:             manager.GetAPIReader(),
-		Scheme:                manager.GetScheme(),
-		SystemNamespace:       systemNamespace,
-		SandboxedRuntimeClass: sandboxedRuntimeClass,
-		RouteConfig: cellcontroller.RouteConfig{
-			GatewayName:       gatewayName,
-			GatewayNamespace:  gatewayNamespace,
-			GatewaySection:    gatewaySection,
-			BaseDomain:        baseDomain,
-			ExternalHTTPSPort: externalHTTPSPort,
-		},
+		Client:                  manager.GetClient(),
+		APIReader:               manager.GetAPIReader(),
+		Scheme:                  manager.GetScheme(),
+		SystemNamespace:         systemNamespace,
+		SandboxedRuntimeClass:   sandboxedRuntimeClass,
+		RouteConfig:             accessConfig,
 		Recorder:                manager.GetEventRecorder("cell-operator"),
 		SnapshotEnabled:         enableSnapshots,
 		MaxConcurrentReconciles: cellConcurrency,
