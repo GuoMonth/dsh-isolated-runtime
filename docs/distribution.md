@@ -1,6 +1,6 @@
 # Distribution: Cell integration and historical standalone
 
-Current integration: administrators deploy the platform-mode Operator and runtime-owned Cell images; the platform repository supplies the OIDC npm CLI/container. See [platform startup](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md) and [release coordination](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/release.md). Both repositories use npm **latest** for future authorized releases; alpha maturity remains explicit. This PR does not publish or move any registry tag.
+Current integration: administrators deploy the platform-mode Operator and runtime-owned Cell images; the platform repository supplies the OIDC npm CLI/container. See [platform startup](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md) and [release coordination](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/release.md). Both repositories use npm **latest** for future authorized releases; alpha maturity remains explicit. The exact tested Cell/Operator images are now public in v0.3.0-alpha.1; runtime standalone npm tags are unchanged.
 
 The runtime npm launcher remains the standalone local-cluster experience. It is not required to start the integrated platform and must not install a competing standalone authorizer. Public Cell/Operator digests must match the fixed source and DSH recorded by the platform. The existing `config/platform` overlay is packaged with runtime releases; its source `main` image placeholder must be replaced with the accepted digest.
 
@@ -145,12 +145,13 @@ image's repository/digest syntax, and refuses to overwrite its output. It does
 not prove provenance, anonymous availability or acceptance; those require the
 actual build records and the fixed integration test evidence. Do not stamp
 arbitrary public images as accepted. Current tested runtime source is `3bcf68855bf16bcc5043058fa8133d2d2368efac`;
-local-registry digests in the shared report are not public release artifacts.
+those exact local-registry OCI index digests have now been published under the runtime-owned GHCR repositories, without rebuilding.
 
 For an authorized publication, create a GitHub prerelease at the tested source
 with this `release.json`, the fixed regression evidence and release notes;
-verify the downloaded manifest and anonymous image pulls. No automatic workflow
-is added for this step. Then pass its tag and both digests to the platform's
+verify the downloaded manifest and anonymous image pulls. The manual [Publish accepted Cell images](../.github/workflows/cell-publish.yml) Pipeline performs this step using the reviewed archive SHA-256 and image pins in [cell-alpha.json](../release/cell-alpha.json). It preserves OCI indexes and attestations, verifies source/DSH labels, and requires anonymous pulls before making the release public. It has no push/PR publication trigger. Then pass its tag and both digests to the platform's
 manual release workflow. This path deliberately does not call `mvp-publish.yml`
 or `npm-publish.yml`, whose archives belong to the standalone product. A changed
 source/image combination needs relevant acceptance and an updated platform pin.
+
+Actual publication: [successful Pipeline](https://github.com/GuoMonth/dsh-isolated-runtime/actions/runs/35509346160), [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1). Both public image index digests equal the original regression digests. No new platform/architecture or recovery claim is implied.
