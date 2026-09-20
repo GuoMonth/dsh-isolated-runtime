@@ -1,14 +1,8 @@
 name: Publish npm latest
 on:
   workflow_dispatch:
-    inputs:
-      publication_run:
-        description: Successful Publish accepted alpha run ID (not the candidate run)
-        type: string
-        required: true
 permissions:
-  contents: read
-  actions: read
+  contents: write
 concurrency:
   group: npm-alpha-publication
   cancel-in-progress: false
@@ -18,83 +12,83 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Validate the publication workflow identity
-        id: publication
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PUBLICATION_RUN: ${{ inputs.publication_run }}
-        run: |
-          [[ "$PUBLICATION_RUN" =~ ^[0-9]+$ ]]
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_RUN" > run.json
-          jq -e --arg repo "$GITHUB_REPOSITORY" '
-            .path == ".github/workflows/mvp-publish.yml" and
-            .head_branch == "main" and .event == "workflow_dispatch" and
-            .head_repository.full_name == $repo and .conclusion == "success"
-          ' run.json > /dev/null
-          echo "sha=$(jq -r .head_sha run.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
-          ref: ${{ steps.publication.outputs.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
-      - name: Verify the original npm tarball against the public release
+      - name: Verify fixed public Cell release and pack
         id: package
         env:
           GH_TOKEN: ${{ github.token }}
-          PUBLICATION_RUN: ${{ inputs.publication_run }}
         run: |
-          version="$(jq -r .version packages/cli/package.json)"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]
-          test "v$version" = "$(cat VERSION)"
-          test "$(jq -r .name packages/cli/package.json)" = dsh-isolated-runtime
-          gh release view "v$version" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease |
-            jq -e '.isDraft == false and .isPrerelease == true'
-          gh run download "$PUBLICATION_RUN" --repo "$GITHUB_REPOSITORY" \
-            --name npm-alpha-package --dir original
-          mkdir public
-          for file in release.json SHA256SUMS release-acceptance.json macos-host.json \
-            release-linux-amd64.json release-darwin-arm64.json \
-            deterministic-linux-amd64.json deterministic-darwin-arm64.json \
-            "dsh-isolated-runtime-v$version-linux-amd64.tar.gz" \
-            "dsh-isolated-runtime-v$version-darwin-arm64.tar.gz"; do
-            curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 --max-time 120 \
-              "https://github.com/$GITHUB_REPOSITORY/releases/download/v$version/$file" \
-              --output "public/$file"
-          done
-          node hack/package-npm.mjs public expected
-          archive="dsh-isolated-runtime-$version.tgz"
-          cmp "original/$archive" "expected/$archive"
-          npm publish "./original/$archive" --dry-run --ignore-scripts --access public --tag latest
-          echo "archive=./original/$archive" >> "$GITHUB_OUTPUT"
+          version="$(jq -r .version packages/cell-cli/package.json)"
+          test "v$version" = "$(jq -r .version packages/cell-cli/release.json)"
+          gh release view "v$version" --json isDraft | jq -e '.isDraft == false'
+          gh release download "v$version" --pattern release.json --dir public
+          cmp public/release.json packages/cell-cli/release.json
+          node packages/cell-cli/bin/cli.mjs --verify-release
+          npm test --prefix packages/cell-cli
+          mkdir -p npm-dist
+          npm pack ./packages/cell-cli --ignore-scripts --pack-destination npm-dist
+          archive="$GITHUB_WORKSPACE/npm-dist/dsh-isolated-runtime-$version.tgz"
+          mkdir consumer
+          npm install --prefix consumer --ignore-scripts --no-audit --no-fund "$archive"
+          node consumer/node_modules/dsh-isolated-runtime/bin/cli.mjs --verify-release
+          npm publish "$archive" --dry-run --ignore-scripts --access public --tag latest
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Publish the verified tarball to npm latest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cell-npm-package
+          path: npm-dist/*.tgz
+          retention-days: 30
+      - name: Publish original tarball and verify registry
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           ARCHIVE: ${{ steps.package.outputs.archive }}
-        run: |
-          if [[ -z "$NODE_AUTH_TOKEN" ]]; then
-            echo '::error::Configure the repository Actions secret NPM_TOKEN with npm publish permission.'
-            exit 1
-          fi
-          npm whoami --registry https://registry.npmjs.org
-          npm publish "$ARCHIVE" --ignore-scripts --access public --tag latest --registry https://registry.npmjs.org
-      - name: Verify anonymous registry integrity and dist-tag
-        env:
-          ARCHIVE: ${{ steps.package.outputs.archive }}
           VERSION: ${{ steps.package.outputs.version }}
         run: |
+          test -n "$NODE_AUTH_TOKEN"
+          npm whoami --registry https://registry.npmjs.org
           expected="sha512-$(openssl dgst -sha512 -binary "$ARCHIVE" | openssl base64 -A)"
-          for _attempt in {1..12}; do
-            if actual="$(npm view "dsh-isolated-runtime@$VERSION" dist.integrity --registry https://registry.npmjs.org)" &&
-              tag="$(npm view dsh-isolated-runtime dist-tags.latest --registry https://registry.npmjs.org)" &&
-              [[ "$actual" == "$expected" && "$tag" == "$VERSION" ]]; then
+          if npm view "dsh-isolated-runtime@$VERSION" dist.integrity --json > existing.json 2> registry-error.txt; then
+            test "$(jq -r . existing.json)" = "$expected"
+            echo 'Exact version already exists; skipping upload.'
+          else
+            # Only a definite registry 404 permits publication; auth/network failures stop.
+            grep -q 'E404' registry-error.txt
+            npm publish "$ARCHIVE" --ignore-scripts --access public --tag latest --registry https://registry.npmjs.org
+          fi
+          for _attempt in {1..40}; do
+            actual="$(timeout 20s npm view "dsh-isolated-runtime@$VERSION" dist.integrity --registry https://registry.npmjs.org 2>/dev/null || true)"
+            tag="$(timeout 20s npm view dsh-isolated-runtime dist-tags.latest --registry https://registry.npmjs.org 2>/dev/null || true)"
+            if [[ "$actual" == "$expected" && "$tag" == "$VERSION" ]]; then
               echo "Published dsh-isolated-runtime@$VERSION to latest" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
-            sleep 5
+            sleep 10
           done
-          echo '::error::Anonymous npm integrity/dist-tag verification failed; inspect the existing version before retrying.'
+          echo '::error::Registry did not converge; inspect before retrying. Do not republish changed bytes.'
           exit 1
+      - name: Attach npm artifact and package source to the existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          jq -n --arg version "$VERSION" --arg source "$GITHUB_SHA" \
+            --arg integrity "sha512-$(openssl dgst -sha512 -binary "$ARCHIVE" | openssl base64 -A)" \
+            '{package:"dsh-isolated-runtime",version:$version,packageSourceSHA:$source,integrity:$integrity,channel:"latest",runtimeManifest:"release.json"}' > npm-publication.json
+          for file in "$ARCHIVE" npm-publication.json; do
+            name="$(basename "$file")"
+            if gh release view "v$VERSION" --json assets --jq '.assets[].name' | grep -Fxq "$name"; then
+              mkdir -p existing-assets
+              gh release download "v$VERSION" --pattern "$name" --dir existing-assets
+              cmp "$file" "existing-assets/$name"
+            else
+              gh release upload "v$VERSION" "$file"
+            fi
+          done

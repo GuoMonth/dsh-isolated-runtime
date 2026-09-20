@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "distribution": "existing-kubernetes-cell",
+  "version": "v0.3.0-alpha.1",
+  "sourceSHA": "3bcf68855bf16bcc5043058fa8133d2d2368efac",
+  "baseline": {
+    "schemaVersion": 1,
+    "source": {
+      "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+      "tag": "dsh-v0.1.5-rc.2",
+      "commit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
+      "version": "0.1.5-rc.2"
+    },
+    "toolchain": {
+      "packageManager": "pnpm@11.7.0",
+      "lockfileSHA256": "a6515566578a26c29b5faddaf94abb5ec452ce6e533f8957e813328ebd4b3c27"
+    },
+    "distribution": {
+      "mode": "source-deploy",
+      "package": "@deepseek-ai/dsh",
+      "version": "0.1.5-rc.2",
+      "archive": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/fb2c4b9e698e30edb738bca4cf0618587db7d203",
+      "sha256": "60038295d9ea8849dc50a9d77dfcbed6c14397f0d54fadb035f768841415a3bd",
+      "build": "build:official",
+      "deployRoot": "dsh-python-runtime-closure",
+      "patches": [
+        {
+          "file": "patches/cell-settings.patch",
+          "sha256": "574d6b24960968c5d8474a9b0499cd3fc253e9e2be29efc9111bac702446ab4b",
+          "reason": "Native settings persistence at authenticated Cell authorities; HTTP proxy and server authorization unchanged"
+        }
+      ]
+    },
+    "transport": {
+      "unaryPrefix": "/api/",
+      "remoteMux": "/api/remote.mux",
+      "launchTokenLocation": "process-memory-and-readiness-url",
+      "cookieAuthorityBound": true,
+      "standardCLIListen": "127.0.0.1"
+    },
+    "shutdown": {
+      "signal": "SIGTERM",
+      "exitCode": 0,
+      "flushAcknowledgement": false,
+      "reason": "success, disposer rejection, and timeout are externally indistinguishable"
+    },
+    "state": [
+      {
+        "class": "sessions",
+        "location": "$DSH_HOME/sessions",
+        "snapshot": true
+      },
+      {
+        "class": "attachments",
+        "location": "$DSH_HOME/attachments/v1",
+        "snapshot": true
+      },
+      {
+        "class": "storage-domains",
+        "location": "$DSH_HOME/storages",
+        "snapshot": true
+      },
+      {
+        "class": "workspace",
+        "location": "process.cwd()",
+        "snapshot": true
+      },
+      {
+        "class": "configuration",
+        "location": "$DSH_HOME excluding .credentials.yaml and .env",
+        "snapshot": true
+      },
+      {
+        "class": "provider-credentials",
+        "location": "same-namespace Secret and /var/lib/dsh-private/.credentials.yaml",
+        "snapshot": false
+      },
+      {
+        "class": "browser-signing-records",
+        "location": "/var/lib/dsh-private/.credentials.yaml records",
+        "snapshot": false
+      }
+    ],
+    "constraints": [
+      "ApiProxy is absent",
+      "the standard web CLI rejects --host 0.0.0.0",
+      "the launch token has no supported external injection interface",
+      "project restore rejects other DSH versions; upstream owns session format migration"
+    ],
+    "upstreamTests": [
+      "packages/session/session-format-v2-to-v3/tests/combined-migration.spec.ts",
+      "packages/session/session-persistence-jsonl/tests/v2-system-migration.spec.ts",
+      "packages/session/session-persistence-jsonl/tests/v2-ptc-migration.spec.ts",
+      "apps/cli/tests/web-auth.e2e.ts",
+      "apps/cli/tests/process-shutdown.spec.ts",
+      "apps/cli/tests/headless-shutdown.e2e.ts",
+      "apps/cli/tests/profiles/headless/tests/session-format-guard.expected.e2e.ts",
+      "packages/api/gateway/tests/gateway-stream.host.spec.ts",
+      "packages/bundle/web-app/tests/startup.spec.ts",
+      "packages/client/connection/tests/browser-auth.host.spec.ts",
+      "packages/client/connection/tests/fetch-routes.host.spec.ts"
+    ]
+  },
+  "images": {
+    "cell": "ghcr.io/guomonth/dsh-isolated-runtime-cell@sha256:a69ec44549e60d10718d6db0b12866059e78a67d0d4701f38042acf9d2dea321",
+    "operator": "ghcr.io/guomonth/dsh-isolated-runtime-operator@sha256:48a7068c5e0765db5e4aeafc7aa2eb15553ce73df7c4b71e1e15021966b88deb"
+  }
+}

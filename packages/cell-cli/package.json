@@ -1,0 +1,13 @@
+{
+  "name": "dsh-isolated-runtime",
+  "version": "0.3.0-alpha.1",
+  "description": "Pinned Kubernetes Cell runtime manifests for the DSH multi-tenant platform",
+  "type": "module",
+  "bin": { "dsh-runtime": "bin/cli.mjs" },
+  "files": ["bin", "release.json", "operator.yaml", "deployment-source.json", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/GuoMonth/dsh-isolated-runtime.git", "directory": "packages/cell-cli" },
+  "publishConfig": { "access": "public", "tag": "latest" },
+  "scripts": { "test": "node --test test/*.test.mjs", "prepublishOnly": "node bin/cli.mjs --verify-release" }
+}

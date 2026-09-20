@@ -15,22 +15,24 @@
 
 ## 与平台配合
 
-管理员准备 K8s、执行 NetworkPolicy 的 CNI、存储、租户 namespace、Gateway API 和 DNS/TLS。渲染已有平台配置，替换域名并固定 Operator 镜像 digest，再审阅部署：
+管理员准备 K8s、执行 NetworkPolicy 的 CNI、存储、租户 namespace、Gateway API 和 DNS/TLS。新版 npm 提供已固定公开镜像的部署清单，审阅并设置环境域名后部署：
 
 ```bash
-kubectl kustomize config/platform > /private/operator-rendered.yaml
-# 应用前必须替换示例域名及可变镜像占位符。
+npx dsh-isolated-runtime@latest release
+npx dsh-isolated-runtime@latest manifests > /private/operator-rendered.yaml
+# 审阅并替换示例域名；Operator 镜像已固定为公开 digest。
+kubectl apply --server-side -f /private/operator-rendered.yaml
 ```
 
 `--access-mode=platform` 不创建 standalone 用户认证器或直达 Cell 的 HTTPRoute。授权由平台执行，再通过 Connector 访问已校验的具体实例。见[平台接入配置](docs/platform-access.md)及联动的[内测启动指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md)。
 
-平台新 alpha 发布后，Node 24+ 的入口是：
+平台 npm 已发布，Node 24+ 的入口是：
 
 ```bash
 npx dsh-multi-tenant@latest start --config /private/config.json
 ```
 
-进程必须能直达 API 和 Pod IP，推荐在集群内运行；它不自动建集群。**不需要同时执行 `npx dsh-isolated-runtime start`**，后者是另一套 standalone 本地安装入口，不负责此平台的资源控制。
+进程必须能直达 API 和 Pod IP，推荐在集群内运行；它不自动建集群。运行时 npm `0.3.0-alpha.1` 只交付 Cell 版本和部署清单；旧 standalone `start/up/stop/uninstall` 已移除，不会自动创建本地集群。
 
 | 层 | 权威边界 |
 | --- | --- |
@@ -52,6 +54,6 @@ npx dsh-multi-tenant@latest start --config /private/config.json
 
 ## 历史 standalone 发行
 
-已发布 `v0.2.0-alpha.1` 是 standalone 本地启动器，不是本次集成 alpha。请使用它的[版本化说明](https://github.com/GuoMonth/dsh-isolated-runtime/tree/v0.2.0-alpha.1)。之后授权发布的 npm 版本统一使用 latest；通道选择不表示稳定承诺。启动器仍绑定不可变发行身份，不在每次启动选择新的运行时镜像。
+已发布 `v0.2.0-alpha.1` 是 standalone 本地启动器，不是本次集成 alpha。请使用它的[版本化说明](https://github.com/GuoMonth/dsh-isolated-runtime/tree/v0.2.0-alpha.1)。当前 npm `0.3.0-alpha.1` 在 `latest` 通道，以 Cell 清单入口替代旧启动器，属于破坏性更新；不提供自动迁移。
 
 [文档索引](docs/README.md) · [DSH 精确基线](compat/dsh/README.md) · [架构](docs/specs/architecture.md)。许可证见 [LICENSE](LICENSE)。

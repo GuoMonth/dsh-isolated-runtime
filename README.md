@@ -15,22 +15,24 @@ Breaking updates are allowed: publish a new explicit combination, update configu
 
 ## Integrate with the platform
 
-Administrators supply Kubernetes, enforced CNI policies, storage, tenant namespaces, Gateway API and DNS/TLS. Render the existing platform overlay, then replace its domain and mutable image placeholder with the accepted immutable digest before deployment:
+Administrators supply Kubernetes, enforced CNI policies, storage, tenant namespaces, Gateway API and DNS/TLS. The new npm package supplies deployment YAML with the accepted public image already pinned. Review it and set the environment domain before deployment:
 
 ```bash
-kubectl kustomize config/platform > /private/operator-rendered.yaml
-# Review/edit domain and image digest before applying the rendered manifest.
+npx dsh-isolated-runtime@latest release
+npx dsh-isolated-runtime@latest manifests > /private/operator-rendered.yaml
+# Review/edit the example domain; the public Operator digest is already pinned.
+kubectl apply --server-side -f /private/operator-rendered.yaml
 ```
 
 `--access-mode=platform` creates no standalone user authorizer or direct Cell HTTPRoute. The platform handles authorization and proxies to the verified instance. See [platform access](docs/platform-access.md) and the coordinated [startup guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md).
 
-Once the platform alpha is published, its Node 24+ entry is:
+The published platform npm entry requires Node 24+:
 
 ```bash
 npx dsh-multi-tenant@latest start --config /private/config.json
 ```
 
-Run it with direct API and Pod-IP reachability, normally inside the cluster. This command does not create a cluster. You do **not** also run `npx dsh-isolated-runtime start`: that launcher belongs to the separate standalone local installation, not this platform's resource controller.
+Run it with direct API and Pod-IP reachability, normally inside the cluster. This command does not create a cluster. Runtime npm `0.3.0-alpha.1` delivers Cell metadata and deployment YAML only. The old standalone `start/up/stop/uninstall` commands are removed; no local cluster is created.
 
 | Layer | Authority |
 | --- | --- |
@@ -52,6 +54,6 @@ Native DSH behind platform OIDC and a runtime-owned Cell; deepseek-flash wrote/r
 
 ## Historical standalone distribution
 
-Published `v0.2.0-alpha.1` is the local standalone launcher, not this integrated alpha. Use its [versioned instructions](https://github.com/GuoMonth/dsh-isolated-runtime/tree/v0.2.0-alpha.1) for that artifact. Future authorized npm releases use `latest`; this is a channel choice, not a stability promise. The launcher embeds immutable release identities and does not discover a moving runtime image at startup.
+Published `v0.2.0-alpha.1` is the local standalone launcher, not this integrated alpha. Use its [versioned instructions](https://github.com/GuoMonth/dsh-isolated-runtime/tree/v0.2.0-alpha.1) for that artifact. Current npm `0.3.0-alpha.1` uses `latest` and replaces the old launcher with Cell manifests. This is a breaking change with no automatic migration.
 
 [Documentation map](docs/README.md) · [Exact DSH baseline](compat/dsh/README.md) · [Architecture](docs/specs/architecture.md). License: [LICENSE](LICENSE).
