@@ -1,6 +1,6 @@
 # 隔离运行时项目宪法入口
 
-本仓库与 dsh-multi-tenant 共用 [DSH 平台与运行时项目宪法](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/CONSTITUTION.md)。首次落地与 [平台 PR #83](https://github.com/GuoMonth/dsh-multi-tenant/pull/83) 配套，先合入平台宪法；审阅期间可从该 PR 查看正文。共享原则只在该来源维护；本文件记录运行时的适用边界，不复制一份通用契约。
+本仓库与 dsh-multi-tenant 共用 [DSH 平台与运行时项目宪法](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/CONSTITUTION.md)。共享原则只在该来源维护；本文件记录运行时的适用边界，不复制一份通用契约。
 
 - 当前实现范围是 Kubernetes Cell；平台通过中立内部接口消费，不向上层暴露 Kubernetes 资源操作。正式多后端兼容等待第二个真实需求。
 - 固定当前验证的 DSH/镜像/源码组合；可随时破坏 API、配置或状态格式，不承诺历史兼容、升级、迁移或无感恢复。已发布产物不被本次文档修改。

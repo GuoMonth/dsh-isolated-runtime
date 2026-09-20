@@ -1,5 +1,7 @@
-# Design documents
+# Documentation map
 
+- [Shared constitution](../CONSTITUTION.md)
+- [Internal RuntimePort](design/runtime-port.zh-CN.md) / [Cell adapter](design/cell-adapter.zh-CN.md) — planned integration, not implementation evidence.
 - [Current alpha MVP direction and acceptance](./alpha-mvp.md)
 - [Go toolchain, lifecycle checks and leak diagnostics](./go-development.md)
 - [Local installation](./quickstart.md)
@@ -11,7 +13,9 @@
 - [Namespace contract](./specs/namespace-contract.md) — native capability and policy boundaries.
 - [Metrics contract](./specs/metrics.md) — bounded aggregate observability surface.
 - [DSH compatibility](../compat/dsh/README.md) — exact upstream evidence and launcher decision.
-- [Roadmap](../ROADMAP.md) — milestone sequence and review gates.
+- [Roadmap](../ROADMAP.md) — current integration sequence.
 
 Executable API details belong in Go types, generated CRDs, and tests rather
 than duplicated prose.
+
+Read by task. `archive/`, release ledgers and old acceptance snapshots are historical evidence, not current requirements. For an installed release, use its bundled documentation.
