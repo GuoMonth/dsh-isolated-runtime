@@ -1,0 +1,13 @@
+{
+  "version": "v0.3.0-alpha.1",
+  "sourceSHA": "3bcf68855bf16bcc5043058fa8133d2d2368efac",
+  "platform": "linux/amd64",
+  "archive": "accepted-images.tar.gz",
+  "archiveSHA256": "07f08fb0cf2cc6f2a1d75b6ea5090c01121d407cc2f2e0eb297b00f1ea455251",
+  "images": {
+    "cell": { "local": "localhost:30482/dsh-cell:regression", "digest": "sha256:a69ec44549e60d10718d6db0b12866059e78a67d0d4701f38042acf9d2dea321" },
+    "operator": { "local": "localhost:30482/dsh-operator:regression", "digest": "sha256:48a7068c5e0765db5e4aeafc7aa2eb15553ce73df7c4b71e1e15021966b88deb" }
+  },
+  "dsh": { "version": "0.1.5-rc.2", "commit": "fb2c4b9e698e30edb738bca4cf0618587db7d203" },
+  "evidence": "https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md"
+}

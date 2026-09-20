@@ -1,0 +1,71 @@
+name: Publish accepted Cell images
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+  packages: write
+concurrency:
+  group: cell-alpha-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+      # Preserve the tested OCI index and attestations when loading/pushing.
+      - uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4
+        with:
+          daemon-config: |
+            { "features": { "containerd-snapshotter": true } }
+      - name: Load only the reviewed accepted archive
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version release/cell-alpha.json)
+          gh release view "$version" --json isDraft | jq -e '.isDraft == true'
+          mkdir -p accepted
+          gh release download "$version" --pattern accepted-images.tar.gz --dir accepted
+          expected=$(jq -r .archiveSHA256 release/cell-alpha.json)
+          printf '%s  accepted/accepted-images.tar.gz\n' "$expected" | sha256sum -c -
+          docker load --input accepted/accepted-images.tar.gz
+          node hack/verify-accepted-cell-images.mjs
+      - name: Publish exact tested digests
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          version=$(jq -r .version release/cell-alpha.json)
+          for kind in cell operator; do
+            local_image=$(jq -r --arg kind "$kind" '.images[$kind].local' release/cell-alpha.json)
+            digest=$(jq -r --arg kind "$kind" '.images[$kind].digest' release/cell-alpha.json)
+            repository="ghcr.io/guomonth/dsh-isolated-runtime-$kind"
+            docker tag "$local_image" "$repository:$version"
+            docker push "$repository:$version"
+            actual=$(docker image inspect "$repository:$version" --format '{{.Id}}')
+            test "$actual" = "$digest"
+          done
+          docker logout ghcr.io
+      - name: Verify anonymous pulls and create fixed release metadata
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version release/cell-alpha.json)
+          source_sha=$(jq -r .sourceSHA release/cell-alpha.json)
+          cell="ghcr.io/guomonth/dsh-isolated-runtime-cell@$(jq -r .images.cell.digest release/cell-alpha.json)"
+          operator="ghcr.io/guomonth/dsh-isolated-runtime-operator@$(jq -r .images.operator.digest release/cell-alpha.json)"
+          docker pull "$cell"
+          docker pull "$operator"
+          docker run --rm "$operator" --help >/dev/null
+          docker run --rm --entrypoint node "$cell" -e 'if(require("/opt/dsh/node_modules/@deepseek-ai/dsh/package.json").version!=="0.1.5-rc.2")process.exit(1)'
+          node hack/cell-release-manifest.mjs "$version" "$source_sha" "$cell" "$operator" accepted/release.json
+          gh release upload "$version" accepted/release.json
+          gh release edit "$version" --draft=false --prerelease --latest=false
+          curl -fsSL --retry 5 --retry-all-errors "https://github.com/$GITHUB_REPOSITORY/releases/download/$version/release.json" -o accepted/public-release.json
+          cmp accepted/release.json accepted/public-release.json
+          printf 'Published %s\n\nCell: %s\n\nOperator: %s\n' "$version" "$cell" "$operator" >> "$GITHUB_STEP_SUMMARY"
