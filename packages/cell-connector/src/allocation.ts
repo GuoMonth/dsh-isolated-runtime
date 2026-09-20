@@ -155,6 +155,30 @@ export function createCellAllocationRuntime(
       origin,
       template: intent.template,
     };
+    const substitute = (value: unknown): unknown =>
+      typeof value === "string"
+        ? value
+            .replaceAll("${INSTANCE_ID}", identity)
+            .replaceAll("${ORIGIN_HOST}", new URL(origin).host)
+        : Array.isArray(value)
+          ? value.map(substitute)
+          : value && typeof value === "object"
+            ? Object.fromEntries(
+                Object.entries(value).map(([k, v]) => [k, substitute(v)]),
+              )
+            : value;
+    bindings.set(intent.allocationKey, {
+      ref: base.ref,
+      namespace,
+      name,
+      origin,
+      template: intent.template,
+      expectedSpec: spec,
+      expectedPodSpec: substitute(profile.expectedPodSpec) as Record<
+        string,
+        unknown
+      >,
+    });
     if (cell.metadata.deletionTimestamp)
       return { ...base, state: "Deleting", reason: "DeletionRequested" };
     if (
@@ -188,30 +212,6 @@ export function createCellAllocationRuntime(
       condition?.status !== "True"
     )
       return { ...base, state: "Pending", reason: "AwaitingCurrentReady" };
-    const substitute = (value: unknown): unknown =>
-      typeof value === "string"
-        ? value
-            .replaceAll("${INSTANCE_ID}", identity)
-            .replaceAll("${ORIGIN_HOST}", new URL(origin).host)
-        : Array.isArray(value)
-          ? value.map(substitute)
-          : value && typeof value === "object"
-            ? Object.fromEntries(
-                Object.entries(value).map(([k, v]) => [k, substitute(v)]),
-              )
-            : value;
-    bindings.set(intent.allocationKey, {
-      ref: base.ref,
-      namespace,
-      name,
-      origin,
-      template: intent.template,
-      expectedSpec: spec,
-      expectedPodSpec: substitute(profile.expectedPodSpec) as Record<
-        string,
-        unknown
-      >,
-    });
     try {
       return await access.inspect(base.ref, context);
     } catch (error) {

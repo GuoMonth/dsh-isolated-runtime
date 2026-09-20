@@ -167,17 +167,18 @@ export function createCellRuntime(
     );
     if (!alive(cell) || cell.metadata?.uid !== ref.identity)
       throw fail("StaleInstance");
-    if (
-      !isDeepStrictEqual(cell.spec, b.expectedSpec) ||
-      cell.status?.dshVersion !== "0.1.5-rc.2" ||
-      cell.status?.imageDigest !== String(b.expectedSpec.image).split("@")[1]
-    )
+    if (!isDeepStrictEqual(cell.spec, b.expectedSpec))
       throw fail("TemplateMismatch");
     if (
       !ready(cell) ||
       cell.status?.observedGeneration !== cell.metadata?.generation
     )
       throw fail("NotReady");
+    if (
+      cell.status?.dshVersion !== "0.1.5-rc.2" ||
+      cell.status?.imageDigest !== String(b.expectedSpec.image).split("@")[1]
+    )
+      throw fail("TemplateMismatch");
     const [workload, service, pod] = await Promise.all([
       get(`/apis/apps/v1/namespaces/${ns}/statefulsets/${base}`),
       get(`${core}/services/${base}`),
