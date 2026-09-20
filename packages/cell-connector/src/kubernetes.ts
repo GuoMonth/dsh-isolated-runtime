@@ -194,3 +194,92 @@ export async function createResource<T>(
     throw fail(dispatched ? "CreateOutcomeUnknown" : "CreateRejected");
   }
 }
+
+/** One UID/resourceVersion-conditional DELETE. Accepted is never writer-stop evidence. */
+export async function deleteResource(
+  options: KubernetesOptions,
+  path: string,
+  uid: string,
+  resourceVersion: string,
+  signal: AbortSignal,
+  correlationId: string,
+): Promise<"accepted" | "missing"> {
+  let dispatched = false;
+  const fail = (
+    code:
+      | "DeleteRejected"
+      | "DeleteOutcomeUnknown"
+      | "Forbidden"
+      | "StaleInstance",
+  ) =>
+    new RuntimeAccessError(
+      code,
+      correlationId,
+      "Inspect the original instance; never delete a replacement or assume the writer stopped",
+      {},
+      {
+        stage: "delete",
+        effect: code === "DeleteOutcomeUnknown" ? "unknown" : "not-submitted",
+      },
+    );
+  try {
+    const [ca, raw] = await Promise.all([
+      readFile(options.caFile),
+      readFile(options.tokenFile, "utf8"),
+    ]);
+    const token = raw.trim();
+    if (!token || /[\r\n]/.test(token)) throw fail("DeleteRejected");
+    signal.throwIfAborted();
+    const body = JSON.stringify({
+      apiVersion: "v1",
+      kind: "DeleteOptions",
+      preconditions: { uid, resourceVersion },
+      propagationPolicy: "Foreground",
+    });
+    return await new Promise((resolve, reject) => {
+      const req = request(
+        new URL(path, options.server),
+        {
+          method: "DELETE",
+          ca,
+          rejectUnauthorized: true,
+          signal,
+          headers: {
+            authorization: `Bearer ${token}`,
+            accept: "application/json",
+            "content-type": "application/json",
+            "content-length": Buffer.byteLength(body),
+          },
+        },
+        (res) => {
+          // Status is authoritative for acceptance; do not expose or buffer API payloads.
+          res.on("error", () => reject(fail("DeleteOutcomeUnknown")));
+          res.resume();
+          if (res.statusCode === 200 || res.statusCode === 202)
+            resolve("accepted");
+          else if (res.statusCode === 404) resolve("missing");
+          else
+            reject(
+              fail(
+                res.statusCode === 409
+                  ? "StaleInstance"
+                  : res.statusCode === 401 || res.statusCode === 403
+                    ? "Forbidden"
+                    : [400, 405, 415, 422].includes(res.statusCode ?? 0)
+                      ? "DeleteRejected"
+                      : "DeleteOutcomeUnknown",
+              ),
+            );
+        },
+      );
+      req.on("error", () =>
+        reject(fail(dispatched ? "DeleteOutcomeUnknown" : "DeleteRejected")),
+      );
+      dispatched = true;
+      req.end(body);
+    });
+  } catch (error) {
+    if (error instanceof RuntimeAccessError) throw error;
+    throw fail(dispatched ? "DeleteOutcomeUnknown" : "DeleteRejected");
+  }
+}

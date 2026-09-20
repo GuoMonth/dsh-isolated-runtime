@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import {
   KubernetesReader,
   createResource,
+  deleteResource,
   type KubernetesOptions,
 } from "./kubernetes.js";
 import { createCellRuntime, type CellBinding } from "./cell.js";
@@ -39,6 +40,7 @@ const uidPattern =
 interface Cell {
   metadata?: {
     uid?: string;
+    resourceVersion?: string;
     name?: string;
     namespace?: string;
     generation?: number;
@@ -120,12 +122,12 @@ export function createCellAllocationRuntime(
     const path = `/apis/dsh.isolated.io/v1alpha1/namespaces/${encodeURIComponent(namespace)}/cells`;
     return { namespace, profile, name, spec, path };
   }
-  async function view(
+  function verifyCell(
     intent: AllocationIntent,
     cell: Cell,
     expected: string | undefined,
     context: AccessContext,
-  ): Promise<InstanceView> {
+  ) {
     const { namespace, profile, name, spec } = resolve(intent, context);
     const fail = (
       code: "StaleInstance" | "IntentConflict" | "TemplateMismatch",
@@ -149,6 +151,20 @@ export function createCellAllocationRuntime(
     if (!isDeepStrictEqual(cell.spec?.allocation, spec.allocation))
       throw fail("IntentConflict");
     if (!isDeepStrictEqual(cell.spec, spec)) throw fail("TemplateMismatch");
+    return { namespace, profile, name, spec, identity };
+  }
+  async function view(
+    intent: AllocationIntent,
+    cell: Cell,
+    expected: string | undefined,
+    context: AccessContext,
+  ): Promise<InstanceView> {
+    const { namespace, profile, name, spec, identity } = verifyCell(
+      intent,
+      cell,
+      expected,
+      context,
+    );
     const origin = `https://cell-${identity}.${options.domain}`;
     const base = {
       ref: { allocationKey: intent.allocationKey, identity },
@@ -179,7 +195,7 @@ export function createCellAllocationRuntime(
         unknown
       >,
     });
-    if (cell.metadata.deletionTimestamp)
+    if (cell.metadata?.deletionTimestamp)
       return { ...base, state: "Deleting", reason: "DeletionRequested" };
     if (
       (cell.status?.dshVersion && cell.status.dshVersion !== "0.1.5-rc.2") ||
@@ -187,7 +203,12 @@ export function createCellAllocationRuntime(
         cell.status.imageDigest !==
           String(profile.expectedSpec.image).split("@")[1])
     )
-      throw fail("TemplateMismatch");
+      throw new RuntimeAccessError(
+        "TemplateMismatch",
+        context.correlationId,
+        "Check the pinned DSH/image version",
+        { allocationKey: intent.allocationKey },
+      );
     const failureReasons = new Set([
       "OwnershipConflict",
       "ReconcileFailed",
@@ -208,7 +229,7 @@ export function createCellAllocationRuntime(
         c.observedGeneration === cell.metadata?.generation,
     );
     if (
-      cell.status?.observedGeneration !== cell.metadata.generation ||
+      cell.status?.observedGeneration !== cell.metadata?.generation ||
       condition?.status !== "True"
     )
       return { ...base, state: "Pending", reason: "AwaitingCurrentReady" };
@@ -229,6 +250,94 @@ export function createCellAllocationRuntime(
   }
   return {
     ...access,
+    async requestDelete(raw, expectedIdentity, context) {
+      const intent = structuredClone(raw);
+      const resolved = resolve(intent, context);
+      const signal = AbortSignal.any([
+        context.signal,
+        AbortSignal.timeout(10000),
+      ]);
+      const ref = {
+        allocationKey: intent.allocationKey,
+        identity: expectedIdentity,
+      };
+      const missing = {
+        ref,
+        effect: "not-submitted" as const,
+        observedState: "Missing" as const,
+        writerState: "unverified" as const,
+      };
+      if (!uidPattern.test(expectedIdentity))
+        throw new RuntimeAccessError(
+          "StaleInstance",
+          context.correlationId,
+          "Supply the persisted exact instance identity",
+          { allocationKey: intent.allocationKey },
+          { stage: "delete" },
+        );
+      try {
+        let cell: Cell;
+        try {
+          cell = await reader.get<Cell>(
+            resolved.path + "/" + resolved.name,
+            signal,
+            context.correlationId,
+          );
+        } catch (error) {
+          if (
+            error instanceof RuntimeAccessError &&
+            error.code === "RecordMissing"
+          )
+            return missing;
+          throw error;
+        }
+        // Deletion validates authority and intent, never workload readiness.
+        verifyCell(intent, cell, expectedIdentity, context);
+        if (cell.metadata?.deletionTimestamp)
+          return {
+            ref,
+            effect: "accepted",
+            observedState: "Deleting",
+            writerState: "unverified",
+          };
+        if (!cell.metadata?.resourceVersion)
+          throw new RuntimeAccessError(
+            "DeleteRejected",
+            context.correlationId,
+            "Inspect the original Cell resource version",
+          );
+        const result = await deleteResource(
+          kubernetes,
+          resolved.path + "/" + resolved.name,
+          expectedIdentity,
+          cell.metadata.resourceVersion,
+          signal,
+          context.correlationId,
+        );
+        return result === "missing"
+          ? missing
+          : {
+              ref,
+              effect: "accepted",
+              observedState: "Deleting",
+              writerState: "unverified",
+            };
+      } catch (error) {
+        throw new RuntimeAccessError(
+          error instanceof RuntimeAccessError
+            ? error.code
+            : "DeleteOutcomeUnknown",
+          context.correlationId,
+          "Inspect the original instance; do not replay deletion, reopen access or reuse its storage",
+          { allocationKey: intent.allocationKey },
+          {
+            stage: "delete",
+            effect:
+              error instanceof RuntimeAccessError ? error.effect : "unknown",
+          },
+        );
+      }
+    },
     async inspectAllocation(raw, expected, context) {
       const intent = structuredClone(raw),
         resolved = resolve(intent, context);
