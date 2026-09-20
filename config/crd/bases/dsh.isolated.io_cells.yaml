@@ -55,6 +55,31 @@ spec:
               CellSpec is intentionally smaller than PodSpec. Every field represents Cell
               intent; Kubernetes retains ownership of placement and workload mechanics.
             properties:
+              allocation:
+                description: Allocation is creation-only platform intent. Runtime
+                  admission rejects spec drift.
+                properties:
+                  key:
+                    maxLength: 128
+                    minLength: 1
+                    type: string
+                  principal:
+                    maxLength: 256
+                    minLength: 1
+                    type: string
+                  profileDigest:
+                    pattern: ^[a-f0-9]{64}$
+                    type: string
+                  template:
+                    maxLength: 128
+                    minLength: 1
+                    type: string
+                required:
+                - key
+                - principal
+                - profileDigest
+                - template
+                type: object
               credentialsRef:
                 description: |-
                   CredentialsRef names a Secret in the Cell namespace whose keys are
@@ -162,6 +187,11 @@ spec:
             - image
             - storage
             type: object
+            x-kubernetes-validations:
+            - message: allocation presence is immutable
+              rule: has(self.allocation) == has(oldSelf.allocation)
+            - message: allocation intent is immutable
+              rule: '!has(oldSelf.allocation) || self.allocation == oldSelf.allocation'
           status:
             description: |-
               CellStatus is topology-free observed state. It never exposes Pod, Service,

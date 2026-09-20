@@ -10,3 +10,6 @@ export type {
   Connector,
   ErrorCode,
 } from "./port.js";
+export { createCellAllocationRuntime } from "./allocation.js";
+export type { CellProfile, CellAllocationOptions } from "./allocation.js";
+export type { AllocationIntent, AllocationRuntime } from "./port.js";

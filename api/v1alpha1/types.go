@@ -84,9 +84,31 @@ type LocalSecretReference struct {
 	Name string `json:"name"`
 }
 
+// CellAllocation binds one platform allocation to a principal and pinned profile.
+// Tenant identity remains the namespace; no tenant field is duplicated here.
+type CellAllocation struct {
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	Key string `json:"key"`
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=256
+	Principal string `json:"principal"`
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	Template string `json:"template"`
+	// +kubebuilder:validation:Pattern=`^[a-f0-9]{64}$`
+	ProfileDigest string `json:"profileDigest"`
+}
+
 // CellSpec is intentionally smaller than PodSpec. Every field represents Cell
 // intent; Kubernetes retains ownership of placement and workload mechanics.
+// +kubebuilder:validation:XValidation:rule="has(self.allocation) == has(oldSelf.allocation)",message="allocation presence is immutable"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.allocation) || self.allocation == oldSelf.allocation",message="allocation intent is immutable"
 type CellSpec struct {
+	// Allocation is creation-only platform intent. Runtime admission rejects spec drift.
+	// +optional
+	Allocation *CellAllocation `json:"allocation,omitempty"`
+
 	// Image is an OCI content reference pinned by digest, never a floating tag.
 	// +kubebuilder:validation:Pattern=`^[^\s@]+@sha256:[a-f0-9]{64}$`
 	Image string `json:"image"`

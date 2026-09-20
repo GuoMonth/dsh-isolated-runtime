@@ -1,7 +1,8 @@
 # R2 internal Cell Connector
 
 `packages/cell-connector` is a private TypeScript module, owned by this runtime
-repository and loaded in the platform's Node process. It has no write operations,
+repository and loaded in the platform's Node process. R5 adds a bounded Cell
+create operation through [AllocationRuntime](design/r5-allocation.md). There is no
 independent service, public package release or Go FFI. Node 24 is the current
 integration build/runtime requirement.
 
@@ -19,8 +20,9 @@ bindings. `expectedSpec` is the complete defaulted Cell spec from the pinned
 fixture; `expectedPodSpec` is the exact defaulted StatefulSet Pod template spec.
 Both desired workload and running Pod must match these pinned fields, including
 resources/security/storage mounts, not merely the image string. Do not invent partial templates or take this configuration from a browser.
-R5 owns create-time immutable owner/template fields. Runtime currently refuses
-not-Ready instances instead of maintaining a lifecycle cache.
+R5 implements create-time immutable allocation/principal/template fields. Access
+still refuses not-Ready instances; allocation queries return current Pending or
+Unavailable without maintaining a lifecycle cache.
 
 The proxy preserves the configured application Host/Origin and only DSH auth
 cookies; platform/identity headers and credentials do not reach the Cell. It passes

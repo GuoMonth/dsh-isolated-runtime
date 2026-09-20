@@ -117,29 +117,33 @@ const ready = (r: Resource) =>
 
 export function createCellRuntime(
   options: KubernetesOptions,
-  input: readonly CellBinding[],
+  input: readonly CellBinding[] | (() => readonly CellBinding[]),
 ): RuntimeAccess {
   const reader = new KubernetesReader(options);
-  const bindings = new Map<string, CellBinding>();
-  for (const raw of input) {
-    const b: CellBinding = structuredClone(raw);
-    const url = new URL(b.origin);
-    if (
-      !b.ref.allocationKey ||
-      !uidPattern.test(b.ref.identity) ||
-      !namePattern.test(b.namespace) ||
-      !namePattern.test(b.name) ||
-      url.protocol !== "https:" ||
-      url.origin !== b.origin ||
-      !url.hostname.startsWith(`cell-${b.ref.identity}.`) ||
-      !b.template ||
-      !/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(String(b.expectedSpec.image)) ||
-      !b.expectedPodSpec ||
-      bindings.has(b.ref.allocationKey)
-    )
-      throw new Error("Invalid or duplicate prebuilt Cell binding");
-    bindings.set(b.ref.allocationKey, b);
+  function loadBindings() {
+    const bindings = new Map<string, CellBinding>();
+    for (const raw of typeof input === "function" ? input() : input) {
+      const b: CellBinding = structuredClone(raw);
+      const url = new URL(b.origin);
+      if (
+        !b.ref.allocationKey ||
+        !uidPattern.test(b.ref.identity) ||
+        !namePattern.test(b.namespace) ||
+        !namePattern.test(b.name) ||
+        url.protocol !== "https:" ||
+        url.origin !== b.origin ||
+        !url.hostname.startsWith(`cell-${b.ref.identity}.`) ||
+        !b.template ||
+        !/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(String(b.expectedSpec.image)) ||
+        !b.expectedPodSpec ||
+        bindings.has(b.ref.allocationKey)
+      )
+        throw new Error("Invalid or duplicate prebuilt Cell binding");
+      bindings.set(b.ref.allocationKey, b);
+    }
+    return bindings;
   }
+  loadBindings();
   async function verify(ref: InstanceRef, context: AccessContext) {
     ref = { ...ref };
     const fail = (code: ConstructorParameters<typeof RuntimeAccessError>[0]) =>
@@ -150,7 +154,7 @@ export function createCellRuntime(
         { allocationKey: ref.allocationKey },
       );
     context.signal.throwIfAborted();
-    const b = bindings.get(ref.allocationKey);
+    const b = loadBindings().get(ref.allocationKey);
     if (!b || b.ref.identity !== ref.identity) throw fail("StaleInstance");
     const signal = AbortSignal.any([context.signal, AbortSignal.timeout(5000)]);
     const get = (path: string) =>
