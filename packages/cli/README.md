@@ -20,7 +20,9 @@ runtime entry as a direct release download. `stop` retains data. Uninstall
 deletes all local cluster data. Never uninstall merely to retry a failed start.
 
 The npm package embeds release checksums; it never resolves a moving `latest`
-runtime. Releases use the `alpha` npm dist-tag. The source package deliberately
+runtime. Future authorized releases use the `latest` npm dist-tag; alpha is maturity, not the channel. The source package deliberately
 cannot be published until `hack/package-npm.mjs` binds accepted artifacts.
 
 [AI installation guide](https://github.com/GuoMonth/dsh-isolated-runtime/blob/main/docs/ai/local-run.md)
+
+For the OIDC + Cell integration, administrators deploy `config/platform` and use the [multi-tenant platform CLI](https://github.com/GuoMonth/dsh-multi-tenant#readme). Do not run this standalone installer alongside it. The existing 0.2.0-alpha.1 release is historical; changed source is not a republished artifact.

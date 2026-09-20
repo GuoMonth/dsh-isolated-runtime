@@ -38,7 +38,7 @@ all other fields must match API defaulted values for the fixed deployment.
 No restoreFrom is supported in allocation profiles; new allocations must not
 implicitly reuse old writer data. Profiles cannot include `spec.allocation`.
 
-## Deferred regression
+## Regression inventory
 
 - Real CRD admission rejects adding/removing/changing allocation intent; same key
   and same intent deduplicate, different principal/template/profile reject.
@@ -49,5 +49,5 @@ implicitly reuse old writer data. Profiles cannot include `spec.allocation`.
 - Namespace mapping remains distinct; Gateway/TLS wildcard origin and CNI enforce
   the same platform-only path for newly created Cells.
 
-Type/build/generated checks are separate from these deferred cluster proofs.
+The fixed combination passed core cluster regression; see the [shared regression report](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md) for actual coverage and limitations. The inventory above is not an exhaustive pass claim.
 Precise deletion is described in [R6](r6-deletion.md); allocation itself never deletes or recycles data.

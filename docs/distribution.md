@@ -1,20 +1,17 @@
-# Alpha Distribution
+# Distribution: Cell integration and historical standalone
 
-The next development priority is the [self-hosted alpha MVP](alpha-mvp.md).
-Helm delivery is planned and not yet available; the existing-cluster entry is
-still Kustomize. Do not expand npm or host-managed installation as product work.
-Preserve published artifacts, recovery instructions and useful regression tests.
+Current integration: administrators deploy the platform-mode Operator and runtime-owned Cell images; the platform repository supplies the OIDC npm CLI/container. See [platform startup](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md) and [release coordination](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/release.md). Both repositories use npm **latest** for future authorized releases; alpha maturity remains explicit. This PR does not publish or move any registry tag.
 
-The distribution below describes the published v0.2.0-alpha.1 local alpha.
-Earlier releases remain unchanged. This direction change publishes no artifacts
-and provides no new Mac or live-model acceptance evidence.
+The runtime npm launcher remains the standalone local-cluster experience. It is not required to start the integrated platform and must not install a competing standalone authorizer. Public Cell/Operator digests must match the fixed source and DSH recorded by the platform. The existing `config/platform` overlay is packaged with runtime releases; its source `main` image placeholder must be replaced with the accepted digest.
+
+The archive/host workflow below describes the historical standalone distribution. It is not a new macOS, snapshot or multi-environment gate for the existing-K8s Cell MVP. No Helm or automatic kind setup is introduced. New standalone publication requires a new version and that path's actual artifact acceptance; never republish the existing 0.2.0-alpha.1 bytes with changed docs/code.
 
 ## One Runtime, Multiple Entrances
 
 - GitHub Releases: native host archives, SHA256SUMS, source/image metadata and
   acceptance evidence. Direct downloads do not require host Node or npm.
 - GHCR: public Cell and Operator multi-architecture indexes, pinned by digest.
-- npm: thin launcher, explicit version, alpha dist-tag, no install/postinstall
+- npm: thin launcher, explicit version, latest dist-tag, no install/postinstall
   hooks. Requires Node 22+. Embeds accepted release identities and archive
   checksums; rejects checksum mismatches, unsafe archives and inner mismatch.
 - Existing Kubernetes: administrator-managed Kustomize installation, not the
@@ -69,14 +66,12 @@ Do not install unverified public mirror shortcuts into users' Docker settings.
    publishes original archives and image identities as a GitHub pre-release.
    It also creates a version-bound npm tarball artifact via
    node hack/package-npm.mjs dist npm-dist, without publishing it to npm.
-4. Run Publish npm alpha with the successful Publish accepted alpha run ID.
+4. Run Publish npm latest with the successful Publish accepted alpha run ID.
    It checks that run's identity, anonymously downloads and verifies the public
    release, and reproduces the npm tarball from the publication's exact source.
-   Only a byte-identical original artifact is published, with the alpha tag.
-   The maintainer has explicitly selected 0.2.0-alpha.1 as latest too: after
-   registry integrity verification, the workflow adds latest to that same
-   version and verifies anonymous resolution. Other alpha versions do not
-   automatically move latest. Do not publish packages/cli directly.
+   Only a byte-identical original artifact is published, with the latest tag.
+   Verify anonymous version/integrity/latest resolution. The old alpha tag is
+   historical, not the current release channel. Do not publish packages/cli directly.
 5. The maintainer downloads on Mac, configures a real model privately and records
    file write/read plus stop/resume results. Fix failures in a new alpha. Until
    then, evidence must continue to say Docker Desktop/live-model not-run.
@@ -117,10 +112,41 @@ gh workflow run npm-publish.yml --ref main -f publication_run=RUN_ID
 Missing credentials stop publication. A failed or wrong workflow, unpublished
 GitHub release, invalid evidence, or changed tarball also stops publication.
 The action never overwrites an npm version or changes package ownership.
-For this first alpha, both `alpha` and `latest` point to `0.2.0-alpha.1`; the
+Historically both `alpha` and `latest` selected `0.2.0-alpha.1`; the
 version remains a prerelease and the GitHub pre-release status is unchanged.
 After successful publication, the default entry is `npx dsh-isolated-runtime start`.
 If publication succeeds but the final registry check fails,
 inspect `npm view dsh-isolated-runtime@0.2.0-alpha.1 dist.integrity` and the run
 logs before retrying; npm versions are immutable. Expired Actions artifacts
 require a reviewed recovery, not republishing an unverified source checkout.
+
+## Existing-cluster Cell release (current platform alpha)
+
+This path releases only the fixed Cell/Operator pair and `release.json`; it does
+not create host archives, run the standalone installer or publish the runtime
+npm launcher. The platform npm release consumes this manifest. A distinct,
+unused alpha tag can be used without changing the historical launcher version.
+
+After the exact source and immutable public images have been accepted:
+
+```bash
+node hack/cell-release-manifest.mjs vX.Y.Z-alpha.N EXACT_TESTED_SOURCE_SHA \
+  ghcr.io/guomonth/dsh-isolated-runtime-cell@sha256:CELL_DIGEST \
+  ghcr.io/guomonth/dsh-isolated-runtime-operator@sha256:OPERATOR_DIGEST \
+  /private/release.json
+```
+
+The generator resolves the DSH baseline from that exact source, validates each
+image's repository/digest syntax, and refuses to overwrite its output. It does
+not prove provenance, anonymous availability or acceptance; those require the
+actual build records and the fixed integration test evidence. Do not stamp
+arbitrary public images as accepted. Current tested runtime source is `3bcf68855bf16bcc5043058fa8133d2d2368efac`;
+local-registry digests in the shared report are not public release artifacts.
+
+For an authorized publication, create a GitHub prerelease at the tested source
+with this `release.json`, the fixed regression evidence and release notes;
+verify the downloaded manifest and anonymous image pulls. No automatic workflow
+is added for this step. Then pass its tag and both digests to the platform's
+manual release workflow. This path deliberately does not call `mvp-publish.yml`
+or `npm-publish.yml`, whose archives belong to the standalone product. A changed
+source/image combination needs relevant acceptance and an updated platform pin.

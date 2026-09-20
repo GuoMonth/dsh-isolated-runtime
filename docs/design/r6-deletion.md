@@ -41,8 +41,7 @@ leaves the platform deletion barrier closed.
   garbage collection. R6 adds no resource finalizer, force-delete, purge, fencing,
   snapshot import or old-volume reuse path.
 
-Normal Pod replacement persistence must still be verified in the current image /
-CSI combination. Node loss, forced deletion or API object absence does not prove
+Normal Pod replacement persistence passed in the fixed image/storage combination in the [shared regression report](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). Node loss, forced deletion or API object absence does not prove
 physical writer termination. Unverified cleanup remains manual and never opens a
 new writer on old storage.
 
@@ -57,4 +56,4 @@ private PVC and external Secret ownership in the actual cluster.
 TypeScript build/static checks and three local TLS API regression cases pass
 (`npm test --prefix packages/cell-connector`; requires openssl). The API fixture
 proves request/precondition/error handling, not Kubernetes admission/GC. Real
-cluster deletion/data behavior is not yet verified. This document is not authorization to delete data.
+cluster Retain/Delete/private PVC results are in the [shared regression report](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md); external credentialsRef Secret deletion was not additionally exercised. This document is not authorization to delete data.

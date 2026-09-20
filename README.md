@@ -1,102 +1,50 @@
 # dsh-isolated-runtime
 
-Kubernetes-native isolation for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).
-The project defines one durable boundary—`Cell`—and lets Kubernetes, Gateway
-API, and CSI keep ownership of the infrastructure they already model.
+Kubernetes Cell lifecycle and isolation for native DeepSeek Harness. The [multi-tenant platform](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/README.md) owns OIDC, membership, user protocols and sessions; this repository owns Cell resources, images, exact-instance validation and the restricted internal Connector. DSH owns its native Web and tools.
 
-**Current state: Phase 4 fleet operations are complete.** The same narrow Cell
-and CellSnapshot APIs now converge across namespaces under native Kubernetes
-quota and admission policy. Controllers use bounded workers, object watches,
-deadline wakeups, and Kubernetes error backoff; optional metrics expose only
-aggregate controller and closed authorization outcomes. There is still no
-project fleet inventory, scheduler, namespace policy engine, or backup service.
+[中文](README.zh-CN.md)
 
-[中文](./README.zh-CN.md)
+**Current scope: Cell MVP alpha.** The fixed two-user OIDC + Cell flow and real-model file operations passed [integration regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). This is source/combination evidence, not a newly published integrated release. Public artifact binding and installation verification remain separate. Breaking changes are allowed; no historical compatibility, upgrade, HA or seamless recovery promise.
 
-**Product stage: fast-iteration MVP.** The current goal is multi-tenant OIDC + Cell behind a neutral internal interface. Validate pinned versions; breaking changes are allowed without historical compatibility, upgrade or seamless recovery promises. Fail fast with AI-readable diagnostics. See the [project constitution](CONSTITUTION.md) and [current MVP acceptance](docs/alpha-mvp.md). Helm and a broad installation matrix do not block the first flow.
-The next cluster baseline and infrastructure prerequisites are documented in
-[Kubernetes alpha baseline](docs/kubernetes-baseline.md).
+## Integrate with the platform
 
-**Published local installation alpha: v0.2.0-alpha.1.**
-Start with the [Quickstart](docs/quickstart.md), or give your AI assistant the
-[AI installation runbook](docs/ai/local-run.md). The npm launcher and direct
-[GitHub Release](https://github.com/GuoMonth/dsh-isolated-runtime/releases)
-download use the same immutable installation bundle and public GHCR images.
-See [distribution and release gates](docs/distribution.md).
-
-## Cell contract
-
-```yaml
-apiVersion: dsh.isolated.io/v1alpha1
-kind: Cell
-metadata:
-  name: assistant
-  namespace: tenant-alice
-spec:
-  image: ghcr.io/example/dsh-cell@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-  storage:
-    size: 20Gi
-```
-
-The namespace is the tenant boundary. Images are digest-pinned, storage may
-grow but not shrink, and `storageClassName`, `retentionPolicy`, and
-`restoreFrom` are immutable. The API does not
-expose sessions, Pod or Node addresses, `RuntimeClass`, revisions, scheduling,
-checkpoints, profiles, or hostnames. See the complete
-[sample](./config/samples/dsh_v1alpha1_cell.yaml) and
-[generated CRD](./config/crd/bases/dsh.isolated.io_cells.yaml).
-
-## Evidence
+Administrators supply Kubernetes, enforced CNI policies, storage, tenant namespaces, Gateway API and DNS/TLS. Render the existing platform overlay, then replace its domain and mutable image placeholder with the accepted immutable digest before deployment:
 
 ```bash
-make verify             # formatting, generation, vet, race tests, build
-make test-envtest        # controller reconciliation against a real API server
-make verify-cell        # CRD behavior in a disposable kind cluster
-make verify-images      # production images and real DSH persistence smoke test
-make verify-kind        # complete Phase 1 vertical slice in kind
-make verify-kind-phase2 # HTTPS/OIDC/RBAC browser proof with Envoy, Dex, Chromium
-make verify-kind-phase3 # writer-stop/CSI restore/rollout/fresh rollback proof
-make verify-kind-phase4 # 10-namespace/50-Cell quota, pressure and recovery proof
-make verify-dsh         # exact upstream DSH compatibility suite
-make lint
+kubectl kustomize config/platform > /private/operator-rendered.yaml
+# Review/edit domain and image digest before applying the rendered manifest.
 ```
 
-The supported DSH baseline is exactly `dsh-v0.1.5-rc.2` at commit
-`fb2c4b9e698e30edb738bca4cf0618587db7d203`; it is not a semver range. The
-[compatibility record](./compat/dsh/README.md) explains why the selected access
-seam is a Cell-local launcher that owns the DSH child process.
+`--access-mode=platform` creates no standalone user authorizer or direct Cell HTTPRoute. The platform handles authorization and proxies to the verified instance. See [platform access](docs/platform-access.md) and the coordinated [startup guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md).
 
-`kubectl apply -k config/default` installs the Phase 1 surface without any
-Gateway API dependency. After installing Envoy Gateway and supplying wildcard
-DNS/TLS plus OIDC provider settings, `config/browser` adds the reference Gateway,
-authorizer, and routing mode. Administrators grant access with ordinary
-RoleBindings; the operator intentionally never manages them. The Envoy Gateway
-installation must use the adjacent `envoy-gateway.yaml` configuration so its
-data plane runs in the Gateway namespace and the Backend extension is enabled.
+Once the platform alpha is published, its Node 24+ entry is:
 
-After a CSI snapshot controller and compatible driver are installed,
-`kubectl apply -k config/snapshots` enables `CellSnapshot`. The project does not
-install production CSI components. See the executable
-[snapshot/restore sample](./config/samples/dsh_v1alpha1_cellsnapshot.yaml).
+```bash
+npx dsh-multi-tenant@latest start --config /private/config.json
+```
 
-`config/metrics` is an optional Kustomize component for browser/snapshot installs. It enables
-bounded controller concurrency and private metrics listeners without creating
-a metrics Service or scraper. Namespace labels, ResourceQuota, LimitRange,
-StorageClass, RuntimeClass, Gateway route eligibility and CSI capabilities stay
-administrator-owned; see the [namespace contract](./docs/specs/namespace-contract.md)
-and [metrics contract](./docs/specs/metrics.md).
+Run it with direct API and Pod-IP reachability, normally inside the cluster. This command does not create a cluster. You do **not** also run `npx dsh-isolated-runtime start`: that launcher belongs to the separate standalone local installation, not this platform's resource controller.
 
-Release candidates are built once, tested by immutable Cell and Operator
-digests across every gate, and only then promoted to `main`/`sha-*` GHCR tags.
-The promoted manifests retain the candidate SBOM and provenance; promotion does
-not rebuild them.
+| Layer | Authority |
+| --- | --- |
+| multi-tenant | OIDC, trusted members, parent/child sessions, allocation intent and protocol admission |
+| isolated-runtime | Cell Operator, images, resource lifecycle/ownership, verified transport |
+| DSH | Native application sessions, tools, model calls and private application state |
 
-## Design
+One cluster, one platform replica, fixed versions. The neutral internal contract does not promise interchangeable Process/Docker backends. Unknown writes require original-key inspection; delete acceptance does not prove writer cessation. See [constitution](CONSTITUTION.md), [RuntimePort](docs/design/runtime-port.zh-CN.md) and [MVP boundaries](docs/alpha-mvp.md).
 
-- [Architecture](./docs/specs/architecture.md)
-- [Threat model](./docs/specs/threat-model.md)
-- [Roadmap](./ROADMAP.md)
-- [Contributing](./CONTRIBUTING.md)
+## Real integrated session
 
-Apache-2.0 licensed. No removed pre-Cell API or deployment carries a
-compatibility promise.
+Native DSH behind platform OIDC and a runtime-owned Cell; deepseek-flash wrote/read a file and read an attachment. No model credentials are included.
+
+![Real model and native file tools in a Cell](docs/images/cell-native.png)
+
+![Expanded native tool operations](docs/images/cell-tools.png)
+
+[Full evidence and limits](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md) · [Distribution boundaries](docs/distribution.md) · [Contributing](CONTRIBUTING.md).
+
+## Historical standalone distribution
+
+Published `v0.2.0-alpha.1` is the local standalone launcher, not this integrated alpha. Use its [versioned instructions](https://github.com/GuoMonth/dsh-isolated-runtime/tree/v0.2.0-alpha.1) for that artifact. Future authorized npm releases use `latest`; this is a channel choice, not a stability promise. The launcher embeds immutable release identities and does not discover a moving runtime image at startup.
+
+[Documentation map](docs/README.md) · [Exact DSH baseline](compat/dsh/README.md) · [Architecture](docs/specs/architecture.md). License: [LICENSE](LICENSE).

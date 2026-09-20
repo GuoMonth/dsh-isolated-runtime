@@ -42,15 +42,13 @@ The packer installs the locked build dependencies, builds declarations/JS, inclu
 the repository LICENSE and source.json with the exact commit, and emits a local
 `.tgz`. It refuses uncommitted connector/packer/license inputs. The platform commits
 that generated artifact and its SHA-256 as a pinned build input; maintain source
-here, never edit extracted/copied code there. Nothing is published to npm.
+here, never edit extracted/copied code there. The Connector is not published independently; its fixed implementation and license are bundled into the platform npm CLI.
 
 The platform requires a service-account token file and CA, configured HTTPS API
 server, and namespace-scoped GET access to Cells, StatefulSets, Services and Pods,
-plus LIST EndpointSlices. Keep credentials outside Cell storage. Binding namespaces
-are administrator-managed; do not give the platform write credentials for R2.
+plus LIST EndpointSlices. Keep credentials outside Cell storage. Binding namespaces are administrator-managed. Current allocation/deletion adds namespace-scoped Cell create/delete permissions; no Pod/PVC writes. See R5/R6 and the platform RBAC reference.
 
-This code is an implementation slice, not a native acceptance result. Deferred
-regression includes malformed/stale API objects, token rotation and TLS rejection,
+Current native results are in the [shared regression report](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). The broader risk inventory includes malformed/stale API objects, token rotation and TLS rejection,
 blocked reads, incorrect owners/template/ports/endpoints, auth during admission,
 stream/WS cancellation, bootstrap cookies, raw query/redirect behavior and actual
-CNI/Gateway network isolation. See the current Issue #82 regression checklist.
+CNI/Gateway network isolation. Do not treat this inventory as an all-pass claim.

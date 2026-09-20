@@ -1,8 +1,7 @@
-# Platform access: R1 development configuration
+# Platform access: integrated Cell alpha
 
 This configuration separates the launcher's public authority from runtime-owned
-HTTPRoutes. It is the first implementation slice of [S1 #85](https://github.com/GuoMonth/dsh-multi-tenant/issues/85),
-not a working OIDC/platform deployment or a validated cluster reference.
+HTTPRoutes. The fixed integration setup passed [S1 regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md); the overlay alone is not a complete platform deployment.
 
 Use `--access-mode=platform --base-domain=<domain>` with no `--gateway-name`.
 The operator gives each Cell `cell-<UID>.<domain>[:port]` as its authority but
@@ -46,6 +45,4 @@ claim that old direct access was revoked. Administrators still own arbitrary
 cross-namespace routes, out-of-band writes and additional network policies;
 this preflight is not a cluster-wide route admission controller.
 
-R2 adds the platform Connector and validates target identity on every admission.
-R3 must prove real browser/cookie/stream behavior and network bypass rejection.
-No claims about those checks follow from R1 configuration/unit tests.
+The Connector validates target identity on every admission. Current browser, revocation and network-bypass results are in the [shared report](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md); local socket and fixture evidence remain explicitly distinguished. Public release and startup instructions are owned by the [platform delivery guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md).

@@ -1,10 +1,12 @@
 # Documentation map
 
-- [R2 internal Cell Connector](cell-connector.md) — source/artifact boundary; regression pending.
+Current entry: [integrated platform startup](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md), [shared regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). Published standalone instructions describe only their own release.
 
-- [Platform access configuration (R1)](platform-access.md) — implementation slice; cluster proof pending.
+- [R2 internal Cell Connector](cell-connector.md) — source/artifact boundary; current results in the shared regression report.
+
+- [Platform access configuration (R1)](platform-access.md) — platform mode and verified integration reference.
 - [Shared constitution](../CONSTITUTION.md)
-- [Internal RuntimePort](design/runtime-port.zh-CN.md) / [Cell adapter](design/cell-adapter.zh-CN.md) — planned integration, not implementation evidence.
+- [Internal RuntimePort](design/runtime-port.zh-CN.md) / [Cell adapter](design/cell-adapter.zh-CN.md) — contract; see shared regression for implementation evidence.
 - [Current alpha MVP direction and acceptance](./alpha-mvp.md)
 - [Go toolchain, lifecycle checks and leak diagnostics](./go-development.md)
 - [Local installation](./quickstart.md)
