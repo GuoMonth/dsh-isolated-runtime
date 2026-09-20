@@ -49,5 +49,7 @@ and after dispatch, API 5xx and loss of the response. Verify no repeated DELETE,
 no replacement deletion, and no writer-stopped claim. Verify real Retain/Delete,
 private PVC and external Secret ownership in the actual cluster.
 
-Current checks are TypeScript build/static checks; real cluster deletion/data
-behavior is not yet verified. This document is not authorization to delete data.
+TypeScript build/static checks and three local TLS API regression cases pass
+(`npm test --prefix packages/cell-connector`; requires openssl). The API fixture
+proves request/precondition/error handling, not Kubernetes admission/GC. Real
+cluster deletion/data behavior is not yet verified. This document is not authorization to delete data.
