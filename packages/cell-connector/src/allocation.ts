@@ -236,12 +236,29 @@ export function createCellAllocationRuntime(
         ...context,
         signal: AbortSignal.any([context.signal, AbortSignal.timeout(5000)]),
       };
-      const cell = await reader.get<Cell>(
-        resolved.path + "/" + resolved.name,
-        bounded.signal,
-        context.correlationId,
-      );
-      return view(intent, cell, expected, bounded);
+      try {
+        const cell = await reader.get<Cell>(
+          resolved.path + "/" + resolved.name,
+          bounded.signal,
+          context.correlationId,
+        );
+        return await view(intent, cell, expected, bounded);
+      } catch (error) {
+        throw new RuntimeAccessError(
+          error instanceof RuntimeAccessError ? error.code : "ReadUnavailable",
+          context.correlationId,
+          "Query this original allocation only; missing or changed records must not be recreated or adopted",
+          { allocationKey: intent.allocationKey },
+          {
+            stage: "inspect",
+            observedState:
+              error instanceof RuntimeAccessError &&
+              error.code === "RecordMissing"
+                ? "missing"
+                : "unverified",
+          },
+        );
+      }
     },
     async create(raw, context) {
       const intent = structuredClone(raw),

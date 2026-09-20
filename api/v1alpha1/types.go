@@ -97,6 +97,7 @@ type CellAllocation struct {
 	// +kubebuilder:validation:MaxLength=128
 	Template string `json:"template"`
 	// +kubebuilder:validation:Pattern=`^[a-f0-9]{64}$`
+	// +kubebuilder:validation:MaxLength=64
 	ProfileDigest string `json:"profileDigest"`
 }
 
