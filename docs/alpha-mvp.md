@@ -1,6 +1,6 @@
 # OIDC + Cell integration MVP
 
-Updated 2026-09-20 under the [project constitution](../CONSTITUTION.md). The core fixed-version integration passed regression; public integrated delivery remains pending. Enterprise self-hosting is a direction, not a production-readiness claim.
+Updated 2026-09-20 under the [project constitution](../CONSTITUTION.md). The core fixed-version integration passed regression; the accepted Cell/Operator pair is public as v0.3.0-alpha.1 (Linux/amd64). Enterprise self-hosting is a direction, not a production-readiness claim.
 
 ## Goal and ownership
 

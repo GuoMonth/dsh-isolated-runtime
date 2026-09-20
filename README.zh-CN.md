@@ -4,13 +4,13 @@
 
 [English](README.md)
 
-**当前是 Cell MVP alpha。** 固定版本下的双用户 OIDC + Cell、真实模型文件操作已通过[集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。这是源码组合证据，不表示已发布新的集成制品；公开镜像绑定与发行安装验证分别记录。允许破坏性变更，不承诺历史兼容、升级、HA 或无感恢复。
+**当前是 Cell MVP alpha。** 固定版本下的双用户 OIDC + Cell、真实模型文件操作已通过[集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。这批已验收的 Linux/amd64 Cell/Operator 镜像已按相同 digest 公开于 [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1)；平台 npm 独立发行。允许破坏性变更，不承诺历史兼容、升级、HA 或无感恢复。
 
 ## 固定发行边界
 
 依赖的 DSH 明确为 **0.1.5-rc.2**，源码 **`fb2c4b9e698e30edb738bca4cf0618587db7d203`**。每次发行锁定可公开拉取的 Cell、Operator 镜像 `@sha256` digest，并在平台 `cell-release.json` / runtime `release.json` 中记录匹配的运行时源码与 DSH 身份；实际部署的平台镜像也固定 digest。npm `latest` 只用于安装时选择包，不让运行中的镜像标签或 DSH 版本范围漂移。
 
-允许破坏性更新：新迭代明确新的固定组合，按需修改配置/状态要求并验证受影响链路，不要求兼容层、历史升级或迁移承诺。已发布制品身份不改写。当前源码候选尚未绑定公开镜像，空 digest 会阻止发布，不自动选择旧镜像或虚构 digest。
+允许破坏性更新：新迭代明确新的固定组合，按需修改配置/状态要求并验证受影响链路，不要求兼容层、历史升级或迁移承诺。已发布制品身份不改写。公开的 [v0.3.0-alpha.1 清单](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.3.0-alpha.1/release.json) 已记录本次 Linux/amd64 的 Cell/Operator 组合。空值或不匹配 digest 仍会阻止平台发行。
 
 
 ## 与平台配合
