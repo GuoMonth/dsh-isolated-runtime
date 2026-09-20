@@ -6,6 +6,13 @@ Kubernetes Cell lifecycle and isolation for native DeepSeek Harness. The [multi-
 
 **Current scope: Cell MVP alpha.** The fixed two-user OIDC + Cell flow and real-model file operations passed [integration regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). This is source/combination evidence, not a newly published integrated release. Public artifact binding and installation verification remain separate. Breaking changes are allowed; no historical compatibility, upgrade, HA or seamless recovery promise.
 
+## Fixed release boundary
+
+DSH is exactly **0.1.5-rc.2**, source **`fb2c4b9e698e30edb738bca4cf0618587db7d203`**. Each release locks the publicly pullable Cell and Operator images by `@sha256` digest, with matching runtime source and DSH identity in `cell-release.json` (platform) / `release.json` (runtime). Pin the deployed platform image by digest too. npm `latest` selects a package at installation; it does not authorize moving image tags or a DSH version range at runtime.
+
+Breaking updates are allowed: publish a new explicit combination, update configuration/state expectations as needed and validate the affected flow. No compatibility shim, historical upgrade or migration promise is required. Published artifact identities stay immutable. The current source candidate has no public image binding yet; null digests block publication rather than selecting an old image or inventing one.
+
+
 ## Integrate with the platform
 
 Administrators supply Kubernetes, enforced CNI policies, storage, tenant namespaces, Gateway API and DNS/TLS. Render the existing platform overlay, then replace its domain and mutable image placeholder with the accepted immutable digest before deployment:

@@ -120,6 +120,10 @@ inspect `npm view dsh-isolated-runtime@0.2.0-alpha.1 dist.integrity` and the run
 logs before retrying; npm versions are immutable. Expired Actions artifacts
 require a reviewed recovery, not republishing an unverified source checkout.
 
+## Fixed current dependency
+
+DSH is exactly `0.1.5-rc.2` / `fb2c4b9e698e30edb738bca4cf0618587db7d203`. Public Cell/Operator digest pins and their matching source form the release boundary. The deployed platform image is also digest-pinned. A newer iteration may break APIs, configuration and state formats; declare and validate the new combination, with no historical compatibility/upgrade obligation. Do not overwrite published artifacts or use mutable image tags to hide the change.
+
 ## Existing-cluster Cell release (current platform alpha)
 
 This path releases only the fixed Cell/Operator pair and `release.json`; it does
