@@ -24,3 +24,5 @@ than duplicated prose.
 Read by task. `archive/`, release ledgers and old acceptance snapshots are historical evidence, not current requirements. For an installed release, use its bundled documentation.
 
 - [R5 allocation implementation](design/r5-allocation.md): create/inspect, immutable intent and deferred checks.
+
+- [R6 exact deletion request](design/r6-deletion.md): identity preconditions and actual data ownership.

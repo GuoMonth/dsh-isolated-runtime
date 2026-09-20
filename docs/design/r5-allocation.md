@@ -50,4 +50,4 @@ implicitly reuse old writer data. Profiles cannot include `spec.allocation`.
   the same platform-only path for newly created Cells.
 
 Type/build/generated checks are separate from these deferred cluster proofs.
-Precise deletion remains R6; this implementation does not delete or recycle data.
+Precise deletion is described in [R6](r6-deletion.md); allocation itself never deletes or recycles data.

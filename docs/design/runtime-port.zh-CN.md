@@ -1,6 +1,6 @@
 # RuntimePort：Cell MVP 的中立内部契约
 
-2026-09-20 修订；设计边界；R2/R5 内部实现见 [R5](r5-allocation.md)，删除仍待 R6，真实闭环未验收。原则见[项目宪法](../../CONSTITUTION.md)，映射见 [Cell adapter](cell-adapter.zh-CN.md)，需求见 [Issue #82](https://github.com/GuoMonth/dsh-multi-tenant/issues/82)。
+2026-09-20 修订；设计边界；R2/R5 内部实现见 [R5](r5-allocation.md)，删除主路径见 [R6](r6-deletion.md)，真实闭环未验收。原则见[项目宪法](../../CONSTITUTION.md)，映射见 [Cell adapter](cell-adapter.zh-CN.md)，需求见 [Issue #82](https://github.com/GuoMonth/dsh-multi-tenant/issues/82)。
 
 本稿替代公共 v1alpha1 提案。这里只约束当前验证组合的内部调用；类型、错误码与状态格式均可破坏性变化，不是网络协议或未来三后端兼容标准。
 
