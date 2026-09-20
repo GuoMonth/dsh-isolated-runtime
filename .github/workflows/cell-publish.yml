@@ -65,7 +65,7 @@ jobs:
           docker run --rm --entrypoint node "$cell" -e 'if(require("/opt/dsh/node_modules/@deepseek-ai/dsh/package.json").version!=="0.1.5-rc.2")process.exit(1)'
           node hack/cell-release-manifest.mjs "$version" "$source_sha" "$cell" "$operator" accepted/release.json
           gh release upload "$version" accepted/release.json
-          gh release edit "$version" --draft=false --prerelease --latest=false
+          gh release edit "$version" --draft=false --prerelease=false --latest
           curl -fsSL --retry 5 --retry-all-errors "https://github.com/$GITHUB_REPOSITORY/releases/download/$version/release.json" -o accepted/public-release.json
           cmp accepted/release.json accepted/public-release.json
           printf 'Published %s\n\nCell: %s\n\nOperator: %s\n' "$version" "$cell" "$operator" >> "$GITHUB_STEP_SUMMARY"

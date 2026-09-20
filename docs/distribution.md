@@ -63,7 +63,7 @@ Do not install unverified public mirror shortcuts into users' Docker settings.
    run through deterministic model/browser, random identity, stop/resume and
    snapshot acceptance. macOS host evidence remains distinct from Docker Desktop.
 3. The explicit Publish accepted alpha workflow consumes that candidate and
-   publishes original archives and image identities as a GitHub pre-release.
+   publishes original archives and image identities as a GitHub Release marked Latest.
    It also creates a version-bound npm tarball artifact via
    node hack/package-npm.mjs dist npm-dist, without publishing it to npm.
 4. Run Publish npm latest with the successful Publish accepted alpha run ID.
@@ -113,7 +113,8 @@ Missing credentials stop publication. A failed or wrong workflow, unpublished
 GitHub release, invalid evidence, or changed tarball also stops publication.
 The action never overwrites an npm version or changes package ownership.
 Historically both `alpha` and `latest` selected `0.2.0-alpha.1`; the
-version remains a prerelease and the GitHub pre-release status is unchanged.
+version name identifies Alpha maturity. New publications use ordinary GitHub
+Releases marked Latest, without the Pre-release flag.
 After successful publication, the default entry is `npx dsh-isolated-runtime start`.
 If publication succeeds but the final registry check fails,
 inspect `npm view dsh-isolated-runtime@0.2.0-alpha.1 dist.integrity` and the run
@@ -147,7 +148,7 @@ actual build records and the fixed integration test evidence. Do not stamp
 arbitrary public images as accepted. Current tested runtime source is `3bcf68855bf16bcc5043058fa8133d2d2368efac`;
 those exact local-registry OCI index digests have now been published under the runtime-owned GHCR repositories, without rebuilding.
 
-For an authorized publication, create a GitHub prerelease at the tested source
+For an authorized publication, create a GitHub Release marked Latest at the tested source
 with this `release.json`, the fixed regression evidence and release notes;
 verify the downloaded manifest and anonymous image pulls. The manual [Publish accepted Cell images](../.github/workflows/cell-publish.yml) Pipeline performs this step using the reviewed archive SHA-256 and image pins in [cell-alpha.json](../release/cell-alpha.json). It preserves OCI indexes and attestations, verifies source/DSH labels, and requires anonymous pulls before making the release public. It has no push/PR publication trigger. Then pass its tag and both digests to the platform's
 manual release workflow. This path deliberately does not call `mvp-publish.yml`
