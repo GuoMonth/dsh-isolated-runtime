@@ -97,8 +97,8 @@ func (r *CellReconciler) SetupWithManager(manager ctrl.Manager) error {
 		Kind:  "HTTPRoute",
 	}, gatewayv1.GroupVersion.Version)
 	r.routeAPIAvailable = routeErr == nil
-	if r.RouteConfig.Enabled() && routeErr != nil {
-		return fmt.Errorf("gateway routing requires the HTTPRoute CRD: %w", routeErr)
+	if r.RouteConfig.HasPublicAuthority() && routeErr != nil {
+		return fmt.Errorf("public access configuration requires the HTTPRoute CRD: %w", routeErr)
 	}
 
 	builder := ctrl.NewControllerManagedBy(manager).
@@ -143,6 +143,15 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 	}
 
 	state := pendingState()
+	if err := r.checkAccessMode(ctx, &cell); err != nil {
+		state.Access = falseCondition("AccessModeConflict", err.Error())
+		var conflict *accessModeConflict
+		if errors.As(err, &conflict) {
+			return r.finish(ctx, &cell, state, nil)
+		}
+		state.Access = falseCondition("AccessCheckFailed", "cannot verify access mode; check operator logs")
+		return r.finish(ctx, &cell, state, err)
+	}
 	restore, restoreState, err := r.resolveRestore(ctx, &cell)
 	if err != nil {
 		state.Storage = failedCondition(err, "restore source reconciliation failed")

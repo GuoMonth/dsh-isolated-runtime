@@ -21,7 +21,7 @@ import (
 type RouteConfig = accesscontract.Config
 
 func (r *CellReconciler) cellAuthority(cell *dshv1alpha1.Cell) string {
-	if r.RouteConfig.Enabled() {
+	if r.RouteConfig.HasPublicAuthority() {
 		return r.RouteConfig.Authority(string(cell.UID))
 	}
 	return cellcontract.Authority(cell.Namespace, string(cell.UID))
@@ -37,11 +37,18 @@ func (r *CellReconciler) mapDerivedAccessObject(ctx context.Context, object clie
 		cell := &cells.Items[i]
 		names := cellcontract.ResourceNames(string(cell.UID))
 		matched := false
-		switch object.(type) {
+		switch typed := object.(type) {
 		case *rbacv1.Role:
 			matched = object.GetName() == names.Base+"-access"
 		case *gatewayv1.HTTPRoute:
 			matched = object.GetName() == names.Base
+			for _, rule := range typed.Spec.Rules {
+				for _, backend := range rule.BackendRefs {
+					if targetsCellService(backend.BackendObjectReference, cell.Namespace, names.Base) {
+						matched = true
+					}
+				}
+			}
 		}
 		if matched {
 			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cell)})
@@ -51,6 +58,9 @@ func (r *CellReconciler) mapDerivedAccessObject(ctx context.Context, object clie
 }
 
 func (r *CellReconciler) reconcilePublicAccess(ctx context.Context, cell *dshv1alpha1.Cell) error {
+	if r.RouteConfig.Mode == accesscontract.ModePlatform {
+		return nil
+	}
 	var err error
 	if r.RouteConfig.Enabled() {
 		err = errors.Join(r.reconcileAccessRole(ctx, cell), r.reconcileHTTPRoute(ctx, cell))

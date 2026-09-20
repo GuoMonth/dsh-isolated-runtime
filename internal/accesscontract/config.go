@@ -59,7 +59,16 @@ func hasEnvoyCookieSuffix(name, base string) bool {
 	return true
 }
 
+// Mode separates a platform-owned ingress from runtime-owned direct routes.
+type Mode string
+
+const (
+	ModeStandalone Mode = "standalone"
+	ModePlatform   Mode = "platform"
+)
+
 type Config struct {
+	Mode              Mode
 	GatewayName       string
 	GatewayNamespace  string
 	GatewaySection    string
@@ -68,11 +77,21 @@ type Config struct {
 }
 
 func (c Config) Enabled() bool {
-	return strings.TrimSpace(c.GatewayName) != ""
+	return c.Mode != ModePlatform && strings.TrimSpace(c.GatewayName) != ""
+}
+
+func (c Config) HasPublicAuthority() bool {
+	return c.Mode == ModePlatform || c.Enabled()
 }
 
 func (c Config) Validate() error {
-	if !c.Enabled() {
+	if c.Mode != "" && c.Mode != ModeStandalone && c.Mode != ModePlatform {
+		return fmt.Errorf("invalid access mode %q: use standalone or platform", c.Mode)
+	}
+	if c.Mode == ModePlatform && strings.TrimSpace(c.GatewayName) != "" {
+		return errors.New("platform access conflicts with gateway-name: configure platform routing separately")
+	}
+	if !c.HasPublicAuthority() {
 		if strings.TrimSpace(c.BaseDomain) != "" {
 			return errors.New("gateway name is required when base domain is configured")
 		}
@@ -84,18 +103,20 @@ func (c Config) Validate() error {
 		"gateway section":   c.GatewaySection,
 		"base domain":       c.BaseDomain,
 	} {
-		if strings.TrimSpace(value) == "" {
+		if c.Mode != ModePlatform && strings.TrimSpace(value) == "" {
 			return fmt.Errorf("%s is required when Gateway routing is enabled", field)
 		}
 	}
-	if problems := validation.IsDNS1123Subdomain(c.GatewayName); len(problems) != 0 {
-		return fmt.Errorf("invalid gateway name: %s", strings.Join(problems, "; "))
-	}
-	if problems := validation.IsDNS1123Subdomain(c.GatewayNamespace); len(problems) != 0 {
-		return fmt.Errorf("invalid gateway namespace: %s", strings.Join(problems, "; "))
-	}
-	if problems := validation.IsDNS1123Label(c.GatewaySection); len(problems) != 0 {
-		return fmt.Errorf("invalid gateway section: %s", strings.Join(problems, "; "))
+	if c.Mode != ModePlatform {
+		if problems := validation.IsDNS1123Subdomain(c.GatewayName); len(problems) != 0 {
+			return fmt.Errorf("invalid gateway name: %s", strings.Join(problems, "; "))
+		}
+		if problems := validation.IsDNS1123Subdomain(c.GatewayNamespace); len(problems) != 0 {
+			return fmt.Errorf("invalid gateway namespace: %s", strings.Join(problems, "; "))
+		}
+		if problems := validation.IsDNS1123Label(c.GatewaySection); len(problems) != 0 {
+			return fmt.Errorf("invalid gateway section: %s", strings.Join(problems, "; "))
+		}
 	}
 	if strings.HasSuffix(c.BaseDomain, ".") {
 		return errors.New("base domain must not have a trailing dot")

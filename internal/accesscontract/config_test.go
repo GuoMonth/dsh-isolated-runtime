@@ -74,3 +74,29 @@ func TestEnvoyOAuthCookieContract(t *testing.T) {
 		}
 	}
 }
+
+func TestPlatformAuthorityWithoutDirectRouting(t *testing.T) {
+	t.Parallel()
+	c := Config{Mode: ModePlatform, BaseDomain: "cells.test", ExternalHTTPSPort: 18443}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if c.Enabled() || !c.HasPublicAuthority() {
+		t.Fatal("platform authority enabled direct routing")
+	}
+	if got := c.Authority("uid"); got != "cell-uid.cells.test:18443" {
+		t.Fatal(got)
+	}
+	for name, bad := range map[string]Config{
+		"direct gateway": {Mode: ModePlatform, BaseDomain: "cells.test", GatewayName: "dsh"},
+		"missing domain": {Mode: ModePlatform},
+		"unknown mode":   {Mode: "automatic"},
+		"bad port":       {Mode: ModePlatform, BaseDomain: "cells.test", ExternalHTTPSPort: -1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if bad.Validate() == nil {
+				t.Fatal("invalid configuration accepted")
+			}
+		})
+	}
+}
