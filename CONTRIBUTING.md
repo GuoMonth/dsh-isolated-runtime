@@ -17,24 +17,27 @@ commit, commands, results and relevant artifact digests in the PR. Heavy GitHub
 workflows remain manual diagnostic/release tools; do not dispatch them for
 routine PR acceptance. Local success is sufficient for behavioral acceptance.
 
-```bash
-make verify
-make lint
-make vuln
+| Changed surface | Relevant local checks |
+| --- | --- |
+| Documentation | Links, referenced commands, `git diff --check`, Source standards |
+| Go behavior | Affected tests; `make verify` for a broad change; lint/vuln when relevant |
+| API / CRD | `make verify-cell`, generated-artifact drift checks |
+| DSH / image / access seam | `make verify-dsh` (downloads exact upstream source) |
+| Cluster behavior | Relevant `make verify-kind` / `verify-kind-phase2` / `verify-kind-phase3` / `verify-kind-phase4` |
+| CLI / installation | Focused checks below; public installation changes also need `hack/verify-mvp.sh` |
+| Release inputs | `node hack/verify-release-contract.mjs` after committing inputs; exact-archive acceptance |
+
+Use [Go development](docs/go-development.md) for toolchain pins and lifecycle diagnostics. Select checks for the changed behavior; documentation alone does not require cluster or release acceptance. Once checks pass, broaden or repeat for new changes or unresolved concerns.
+
+Installation-focused commands, only when that surface changes:
+
+```sh
+npm ci --ignore-scripts --prefix packages/cli
+npm test --prefix packages/cli
+npm ci --ignore-scripts --prefix runtime-files
+node --test test/local-runtime.test.cjs
+shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh demo-files/forward.sh
 ```
-
-Toolchain pins, lifecycle rules and leak diagnostics are documented in
-[Go development](docs/go-development.md). Keep these checks local; this does not
-expand automatic CI beyond Source standards.
-
-Run `make verify-cell` for API/CRD changes and `make verify-dsh` for changes
-under `compat/dsh`, `internal/dshcompat`, or the Cell image/access seam. The full
-DSH check downloads and tests the exact pinned upstream tree.
-
-For cluster changes, run the relevant `make verify-kind`, `make verify-kind-phase2`,
-`make verify-kind-phase3` or `make verify-kind-phase4` locally. Installation and
-release changes also need the focused checks in AGENTS.md and exact-archive
-acceptance in `hack/verify-mvp.sh`. Do not relabel local evidence as CI evidence.
 
 ## Design rules
 
@@ -46,6 +49,6 @@ acceptance in `hack/verify-mvp.sh`. Do not relabel local evidence as CI evidence
 - State security assumptions explicitly and fail closed at trust boundaries.
 - Generated API and CRD artifacts are committed and must have zero drift.
 
-Large milestones end with an issue-based review and a GO/CONDITIONAL GO record.
+Current acceptance is recorded in the active Issue; historical milestone GO gates do not apply to every change.
 Apache-2.0 contributions require the usual Developer Certificate of Origin
 sign-off (`git commit -s`).

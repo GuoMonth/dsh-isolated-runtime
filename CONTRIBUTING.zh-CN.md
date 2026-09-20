@@ -1,29 +1,7 @@
 # 贡献指南
 
-先读[项目宪法](CONSTITUTION.md)。当前聚焦 Cell MVP 和中立内部契约；固定验证版本，允许随时破坏 API/配置/状态格式，不承诺历史兼容、升级或无感恢复。快速失败并给出结构化诊断，优先验证核心链路，不建设无限重试/永久终态系统。
+产品边界见[宪法入口](CONSTITUTION.md)。[英文贡献指南](CONTRIBUTING.md) 维护检查命令与资源设计约束，避免维护两套不一致门禁。
 
-本项目追求小而可执行的契约。变更应减少歧义，不应增加兼容层。
+按改动选择验证：文档检查链接与 Source standards；Go 修改验证相关行为；API/CRD 检查生成漂移；镜像/访问和集群行为按对应原生验收。安装与发行仅在修改对应流程时验证，不阻塞普通文档或 Cell MVP 开发。
 
-## 提交 PR 前
-
-```bash
-make verify
-make lint
-make vuln
-```
-
-API/CRD 变更运行 `make verify-cell`；`compat/dsh`、`internal/dshcompat` 或 Cell
-镜像/access seam 变更运行 `make verify-dsh`。完整 DSH 门会下载并测试精确固定的上游源码树。
-
-## 设计规则
-
-- namespace 是 tenant boundary，不增加第二个 tenant identifier；
-- Cell 不包含 topology、route、scheduler 或 session 状态；
-- 复用 Kubernetes、Gateway API 与 CSI 原生资源，不建立影子 API；
-- 镜像与 DSH 行为必须按 content/version 固定；
-- launcher 不解析 DSH 协议；
-- 显式陈述安全假设，信任边界 fail closed；
-- 生成的 API/CRD 产物必须提交且保持零漂移。
-
-大里程碑以 issue 复盘，并记录 GO / CONDITIONAL GO。Apache-2.0 贡献需按 DCO 使用
-`git commit -s` 签名。
+自动 CI 仅 Source standards，其他检查本地按需运行。验收记录在当前 Issue，不沿用旧里程碑的通用 GO 门禁。贡献需 DCO（`git commit -s`）；PR 写明实际命令、结果与未覆盖项。

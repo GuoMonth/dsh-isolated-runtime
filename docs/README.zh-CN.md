@@ -1,5 +1,7 @@
-# 设计文档
+# 文档索引
 
+- [共享宪法入口](../CONSTITUTION.md)
+- [内部 RuntimePort](design/runtime-port.zh-CN.md) / [Cell adapter](design/cell-adapter.zh-CN.md) —— 待实现设计。
 - [当前 alpha MVP 方向与验收](./alpha-mvp.zh-CN.md)
 - [Go 工具链、生命周期检查与泄漏诊断](./go-development.md)
 - [本地安装](./quickstart.zh-CN.md)
@@ -11,6 +13,8 @@
 - [Namespace 契约](./specs/namespace-contract.zh-CN.md) —— 原生能力与策略边界。
 - [指标契约](./specs/metrics.zh-CN.md) —— 有界聚合观测面。
 - [DSH 兼容性](../compat/dsh/README.zh-CN.md) —— 精确上游实证与 launcher 决策。
-- [Roadmap](../ROADMAP.zh-CN.md) —— 里程碑顺序与复盘门禁。
+- [Roadmap](../ROADMAP.zh-CN.md) —— 当前集成顺序。
 
 可执行 API 细节以 Go 类型、生成的 CRD 和测试为准，不在文档中复制维护。
+
+按任务读取。archive/、旧发行记录与验收快照是历史证据，不是当前需求；安装现有版本时以其随包文档为准。
