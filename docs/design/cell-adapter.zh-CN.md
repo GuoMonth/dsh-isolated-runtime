@@ -1,6 +1,6 @@
 # Cell adapter：当前内部端口的实现方案
 
-2026-09-20 修订；尚未实现。规范：[RuntimePort](runtime-port.zh-CN.md)，原则：[项目宪法](../../CONSTITUTION.md)。本稿替代永久退役及公共 v1alpha1 Cell 映射提案。
+2026-09-20 修订；创建/查询实现见 [R5](r5-allocation.md)，删除仍待 R6，真实闭环未验收。规范：[RuntimePort](runtime-port.zh-CN.md)，原则：[项目宪法](../../CONSTITUTION.md)。本稿替代永久退役及公共 v1alpha1 Cell 映射提案。
 
 ## 1. 尽量复用当前实现
 

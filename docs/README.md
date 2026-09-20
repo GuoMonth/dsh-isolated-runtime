@@ -22,3 +22,5 @@ Executable API details belong in Go types, generated CRDs, and tests rather
 than duplicated prose.
 
 Read by task. `archive/`, release ledgers and old acceptance snapshots are historical evidence, not current requirements. For an installed release, use its bundled documentation.
+
+- [R5 allocation implementation](design/r5-allocation.md): create/inspect, immutable intent and deferred checks.
