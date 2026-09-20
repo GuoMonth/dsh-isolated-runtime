@@ -20,6 +20,11 @@ logout and session expiry still never invoke resource deletion. The private
 platform administrative socket is the supported R6 caller; regular OIDC member
 permissions do not grant deletion.
 
+Before deployment, add namespace-scoped `delete` on `cells` to the platform
+service account. Keep child-resource/Secret deletion and patch permissions absent.
+Verify this RBAC before issuing an administrator request; a rejected request still
+leaves the platform deletion barrier closed.
+
 ## Actual ownership and data
 
 - Data PVC: `reconcileDataPVC` in `internal/controller/resources.go` attaches a
