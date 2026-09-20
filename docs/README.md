@@ -1,5 +1,7 @@
 # Documentation map
 
+- [R2 internal Cell Connector](cell-connector.md) — source/artifact boundary; regression pending.
+
 - [Platform access configuration (R1)](platform-access.md) — implementation slice; cluster proof pending.
 - [Shared constitution](../CONSTITUTION.md)
 - [Internal RuntimePort](design/runtime-port.zh-CN.md) / [Cell adapter](design/cell-adapter.zh-CN.md) — planned integration, not implementation evidence.
