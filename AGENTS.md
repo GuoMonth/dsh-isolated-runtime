@@ -1,6 +1,6 @@
 # Repository Instructions
 
-This is a Kubernetes isolation runtime, not an npm implementation of DSH.
+Read [the project constitution](CONSTITUTION.md) first. This is a Kubernetes isolation runtime, not an npm implementation of DSH.
 For helping a user install a release, read docs/ai/local-run.md first.
 
 Product direction and next-milestone acceptance live in docs/alpha-mvp.md
@@ -8,9 +8,10 @@ Product direction and next-milestone acceptance live in docs/alpha-mvp.md
 goal; current work is alpha MVP. Helm is planned, not delivered. Prioritize
 administrator-managed Kubernetes, standard OIDC individual access and kind
 validation; do not expand npm/host-managed installation as product scope.
-Preserve published-release behavior and existing regression coverage.
+Current development permits breaking APIs, configuration and state formats without historical compatibility, upgrade or seamless recovery promises. Published artifacts remain immutable historical releases. Keep regression coverage for current ownership and isolation guarantees, updating obsolete expectations with explicit changes.
 
-- Preserve the Cell/CellSnapshot ownership boundaries and exact DSH baseline.
+- Preserve current resource ownership and pin the exact DSH baseline for each validation. Cell APIs may change; do not build historical compatibility layers.
+- Fail fast with structured, redacted, AI-readable errors and bounded waits. Unknown write results are not cancellation or cleanup success; do not add permanent tombstones, generic retirement or recovery engines.
 - The formal local command is dsh-runtime. Legacy demo names may remain in
   internal fixtures and state identities to avoid breaking ownership checks.
 - Never erase state merely to make a test pass. Use isolated DSH_RUNTIME_HOME

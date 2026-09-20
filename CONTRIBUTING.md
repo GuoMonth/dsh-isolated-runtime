@@ -1,5 +1,7 @@
 # Contributing
 
+Read the [project constitution](CONSTITUTION.md). Focus on the Cell MVP and a neutral internal boundary. Pin each validation version; breaking API/configuration/state changes are allowed, with no historical compatibility, upgrade or seamless recovery promise. Fail fast with structured diagnostics and validate the core flow before adding infrastructure.
+
 This project optimizes for a small executable contract. Changes should remove
 ambiguity rather than add compatibility layers.
 

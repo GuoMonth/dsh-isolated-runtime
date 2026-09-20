@@ -1,107 +1,39 @@
-# Self-hosted alpha MVP
+# OIDC + Cell integration MVP
 
-Status: agreed product direction; implementation and acceptance are pending.
-Enterprise self-hosting is the long-term goal, not a claim of current
-production readiness. This scope supersedes local desktop installation as the
-next development priority. It does not change the published v0.2.0-alpha.1
-artifacts, the exact DSH baseline, or the Cell/CellSnapshot contracts.
+Updated 2026-09-20 under the [project constitution](../CONSTITUTION.md). Direction is confirmed; implementation and integration acceptance are pending. Enterprise self-hosting is a direction, not a production-readiness claim.
+
+## Goal and ownership
+
+Two users sign in through multi-tenant OIDC, create their own Cells and use native DSH; cross-user access is denied. The platform owns user protocols, identity/membership, authorization and sessions. This repository owns Cells, resource lifecycle and restricted application transport. DSH owns application protocols, sessions and tools.
+
+Administrators configure the cluster, namespaces, CNI, storage, DNS/TLS and service permissions. The platform consumes a neutral internal interface, not a second Pod/PVC controller. Formal multi-backend compatibility waits for a second real requirement.
+
+## Minimal deployment and limits
+
+- One cluster with Linux worker nodes, one platform replica, one OIDC provider and a pinned template. Validate one explicit reference setup; kind is sufficient for the first flow.
+- Reuse existing Kustomize/test deployment and Gateway capabilities. Helm, two-cluster installation acceptance and broad infrastructure matrices do not block the first integrated flow.
+- Pin each source/DSH/image combination. Breaking API, configuration and state-format changes are allowed at any time, with no historical compatibility, upgrade, migration or seamless recovery promise.
+- Fail fast on invalid configuration, permissions, templates or versions. Bound readiness waits. Errors include stage, redacted target, observed state, write outcome, retry/check advice and a correlation ID; never secrets.
+- Timeouts are not cancellation; missing records are not proof of stopped execution. Inspect the original identity after unknown writes. Do not create a new key automatically or build permanent tombstones, unbounded retries or automatic repair.
+- Defer HA, multi-cluster, autoscaling, disaster recovery, generic runtime services, new Process/Docker backends and distribution expansion. Existing features are not compatibility obligations; keep ownership/isolation checks relevant to the current flow.
+
+## Current acceptance
+
+Record both source commits, image digests, exact DSH, CNI/storage/CPU architecture, commands and redacted results for the current combination only.
+
+1. Two OIDC identities and their Cells: create/read and native HTTP/WS/stream/Fetch work; unauthenticated, cross-user and ingress-bypass requests fail.
+2. Parent-session invalidation also invalidates derived environment sessions, closes existing connections and denies new ones. Logout/platform restart does not delete Cells; it does not promise to cancel DSH background tasks.
+3. Duplicate create reuses the allocation while its resource exists. Unknown writes, version mismatches and permission failures yield AI-readable diagnostics. Old-UID deletion cannot affect a new instance.
+4. Normal Pod recreation preserves current-version files/sessions. This is not historical upgrade, disaster recovery or node-partition fencing evidence.
+5. One real model request and unique file write/read, with privately configured credentials. Deterministic fixtures remain regression evidence, not a substitute.
+6. Administrator deletion/test-reset instructions distinguish data, private-state and external Secrets. Operate only on explicitly authorized resources; do not silently erase old data.
+
+When cleanup cannot be proven, reject old-data reuse and hand off to an administrator. Missing control objects are not proof that a physical writer stopped. Do not expand this into a generic recovery/migration system.
+
+## Historical behavior and distribution
+
+Published artifacts and the standalone OIDC/RBAC path describe their own versions; they do not promise compatibility with new code. This documentation changes policy and planning, not installed artifacts or existing environments. Chart, uninstall/reinstall and multi-environment installation goals may be scheduled for a real requirement; they are not implicit gates for this integration MVP.
+
+Actual installation/release changes still require verification of their current artifacts and flow. Automatic CI remains Source standards only. Publication, deployment and data deletion follow existing user authorization.
 
 [中文](alpha-mvp.zh-CN.md)
-
-## Users and responsibilities
-
-An organization deploys the runtime centrally and provides browser-accessible
-DSH environments to its users. Installers and maintainers must have Kubernetes
-cluster administration permissions. End users need an authorized identity,
-not Kubernetes access. Organization developers can reproduce the core flow
-locally on a cluster they prepare themselves.
-
-Administrators own cluster lifecycle, networking, storage, DNS/TLS, the OIDC
-provider, namespaces and access grants. This project owns its runtime
-components and Cell reconciliation. DSH owns sessions, tools and model use.
-Keep the existing namespace and resource ownership boundaries.
-
-## Next milestone
-
-- One cluster and one documented reference deployment topology.
-- Prefer a versioned Helm chart with accepted, digest-pinned images as the
-  installation entry. Helm is planned, not available in the current release.
-  Define resource ownership and CRD installation/upgrade ordering before
-  implementing the chart; Helm rollback is not a DSH data rollback.
-- Use the existing Envoy Gateway access chain with explicit prerequisites.
-  Do not promise arbitrary Ingress or Gateway implementation compatibility.
-- Standard OIDC for individual identity, with one tested provider configuration
-  and a documented stable identity-to-RBAC mapping. Administrators explicitly
-  grant Cell access using RoleBindings; successful login alone grants no access.
-  No new account service, organization directory sync or group provisioning.
-- Administrators create Cells declaratively and distribute access URLs. A
-  per-person Cell is a reference flow, not a new one-user/one-Cell API invariant.
-  No management portal or self-service provisioning in this milestone.
-- Require an explicit usable StorageClass and verify persistence through Pod
-  recreation. Keep snapshots optional; do not expand them into a backup service.
-- Provide one kind reference path using the same chart and images. Developers
-  prepare and own the cluster; document test networking, storage, identity and
-  access setup. Do not rebuild host tool, browser or cluster lifecycle management.
-- Provide basic readiness/status, logs and troubleshooting. Installation success
-  must not be described as proof that the user journey works.
-
-Current existing-cluster installation remains Kustomize under config/default,
-config/browser and config/snapshots. Keep it available while the Helm path is
-implemented and validated. k3s and other configurations are not newly certified
-by this decision; expand documented support only with evidence.
-
-## Alpha boundaries
-
-Defer production availability and capacity SLOs, HA work, automatic scaling,
-multi-cluster management, comprehensive auditing, complete disaster recovery,
-offline distribution, broad infrastructure compatibility and automatic data
-migration. Existing capabilities and regression tests are retained; deferral
-does not require removing implemented functionality.
-
-The following remain mandatory even in alpha:
-
-- Reject unauthenticated, unauthorized and cross-Cell access. Keep fail-closed
-  authorization and state the required NetworkPolicy enforcement assumptions.
-- State the ordinary-container security boundary honestly. This milestone does
-  not certify hostile-code containment or an unverified sandbox runtime.
-- Do not silently delete data. Document destructive operations and what survives
-  runtime uninstall/reinstall. User Cells, tenant namespaces and business data
-  should not be deleted as an incidental effect of runtime chart removal.
-- Keep credentials out of logs and evidence, preserve artifact identity checks,
-  and state unsupported upgrade/restore operations explicitly.
-- Do not equate request-time revocation with termination of existing connections
-  or running tasks, or local fixture success with production acceptance.
-
-## Acceptance
-
-Record versions, image digests, cluster prerequisites, commands and redacted
-results. The next milestone is complete only when both a freshly prepared kind
-reference environment and a representative existing cluster demonstrate:
-
-1. Installation from the documented artifacts without project-specific manual
-   code changes; actionable errors for unmet documented prerequisites.
-2. Two OIDC identities and two Cells with explicit access grants: each identity
-   can use its authorized environment, while unauthenticated and cross-Cell
-   requests are rejected. Removing a grant denies the next authorized request.
-3. A real model request and unique file write/read in DSH, with credentials
-   entered privately. Deterministic model tests remain useful regression evidence
-   but do not substitute for this recorded live-model check.
-4. Pod recreation followed by access to the retained file and session.
-5. A documented runtime uninstall/reinstall exercise on test-owned resources,
-   with retained Cell data and successful reconciliation after reinstall.
-
-Snapshot acceptance is separate when enabled. Record failures and not-run
-checks honestly. Local kind evidence does not certify other CNI/CSI/IdP
-combinations, production scale, or Mac Docker Desktop.
-
-## Distribution transition
-
-Stop expanding npm and host-managed local installation as product work. Preserve
-published artifacts, version-specific recovery instructions and useful local
-and kind regression tests. Do not remove or silently migrate existing state.
-The published release's installation instructions still apply to that release;
-this document does not introduce working Helm commands or a new release.
-
-Automatic CI remains Source standards only. Run appropriate behavioral checks
-locally for implementation changes and record evidence in the PR. Publishing
-charts, images, npm packages or release tags still requires release authorization.

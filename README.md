@@ -13,11 +13,7 @@ project fleet inventory, scheduler, namespace policy engine, or backup service.
 
 [中文](./README.zh-CN.md)
 
-**Product stage: alpha; enterprise self-hosting is the long-term goal.**
-The next MVP targets administrator-managed Kubernetes deployment, standard OIDC
-individual access and persistent Cells, with a kind technical-validation path.
-Helm is the preferred planned delivery, not an available installation command.
-See the [alpha MVP scope and acceptance](docs/alpha-mvp.md).
+**Product stage: fast-iteration MVP.** The current goal is multi-tenant OIDC + Cell behind a neutral internal interface. Validate pinned versions; breaking changes are allowed without historical compatibility, upgrade or seamless recovery promises. Fail fast with AI-readable diagnostics. See the [project constitution](CONSTITUTION.md) and [current MVP acceptance](docs/alpha-mvp.md). Helm and a broad installation matrix do not block the first flow.
 The next cluster baseline and infrastructure prerequisites are documented in
 [Kubernetes alpha baseline](docs/kubernetes-baseline.md).
 
