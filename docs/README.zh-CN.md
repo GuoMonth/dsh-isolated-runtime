@@ -1,5 +1,7 @@
 # 文档索引
 
+- [R2 internal Cell Connector](cell-connector.md) — source/artifact boundary; regression pending.
+
 - [平台接入配置（R1）](platform-access.md) —— 首个实现切片，集群验证待完成。
 - [共享宪法入口](../CONSTITUTION.md)
 - [内部 RuntimePort](design/runtime-port.zh-CN.md) / [Cell adapter](design/cell-adapter.zh-CN.md) —— 待实现设计。
