@@ -1,6 +1,6 @@
 # OIDC + Cell integration MVP
 
-Updated 2026-09-20 under the [project constitution](../CONSTITUTION.md). Direction is confirmed; implementation and integration acceptance are pending. Enterprise self-hosting is a direction, not a production-readiness claim.
+Updated 2026-09-20 under the [project constitution](../CONSTITUTION.md). The core fixed-version integration passed regression; public integrated delivery remains pending. Enterprise self-hosting is a direction, not a production-readiness claim.
 
 ## Goal and ownership
 
@@ -15,7 +15,7 @@ Administrators configure the cluster, namespaces, CNI, storage, DNS/TLS and serv
 - Pin each source/DSH/image combination. Breaking API, configuration and state-format changes are allowed at any time, with no historical compatibility, upgrade, migration or seamless recovery promise.
 - Fail fast on invalid configuration, permissions, templates or versions. Bound readiness waits. Errors include stage, redacted target, observed state, write outcome, retry/check advice and a correlation ID; never secrets.
 - Timeouts are not cancellation; missing records are not proof of stopped execution. Inspect the original identity after unknown writes. Do not create a new key automatically or build permanent tombstones, unbounded retries or automatic repair.
-- Defer HA, multi-cluster, autoscaling, disaster recovery, generic runtime services, new Process/Docker backends and distribution expansion. Existing features are not compatibility obligations; keep ownership/isolation checks relevant to the current flow.
+- Defer HA, multi-cluster, autoscaling, disaster recovery, generic runtime services and new Process/Docker backends. Current delivery is the platform npm CLI for an administrator-configured cluster; no new cluster installer. Existing features are not compatibility obligations; keep ownership/isolation checks relevant to the current flow.
 
 ## Current acceptance
 
@@ -37,3 +37,5 @@ Published artifacts and the standalone OIDC/RBAC path describe their own version
 Actual installation/release changes still require verification of their current artifacts and flow. Automatic CI remains Source standards only. Publication, deployment and data deletion follow existing user authorization.
 
 [中文](alpha-mvp.zh-CN.md)
+
+Actual results and remaining evidence limits: [2026-09-20 integration regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). Do not treat earlier R1–R6 deferred-check lists as current untested status.

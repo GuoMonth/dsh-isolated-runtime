@@ -3,12 +3,34 @@
   "version": "0.2.0-alpha.1",
   "description": "Version-bound launcher for the DSH isolated runtime",
   "type": "module",
-  "bin": {"dsh-runtime": "bin/cli.mjs"},
-  "files": ["bin", "lib", "release.json", "README.md", "LICENSE"],
-  "engines": {"node": ">=22"},
+  "bin": {
+    "dsh-runtime": "bin/cli.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "release.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "license": "Apache-2.0",
-  "repository": {"type": "git", "url": "https://github.com/GuoMonth/dsh-isolated-runtime.git", "directory": "packages/cli"},
-  "publishConfig": {"access": "public", "tag": "alpha"},
-  "scripts": {"test": "node --test test/*.test.mjs", "prepublishOnly": "node bin/cli.mjs --verify-release"},
-  "dependencies": {"tar": "7.5.22"}
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GuoMonth/dsh-isolated-runtime.git",
+    "directory": "packages/cli"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "prepublishOnly": "node bin/cli.mjs --verify-release"
+  },
+  "dependencies": {
+    "tar": "7.5.22"
+  }
 }

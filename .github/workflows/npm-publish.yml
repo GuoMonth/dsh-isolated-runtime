@@ -1,4 +1,4 @@
-name: Publish npm alpha
+name: Publish npm latest
 on:
   workflow_dispatch:
     inputs:
@@ -67,10 +67,10 @@ jobs:
           node hack/package-npm.mjs public expected
           archive="dsh-isolated-runtime-$version.tgz"
           cmp "original/$archive" "expected/$archive"
-          npm publish "./original/$archive" --dry-run --ignore-scripts --access public --tag alpha
+          npm publish "./original/$archive" --dry-run --ignore-scripts --access public --tag latest
           echo "archive=./original/$archive" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Publish the verified tarball to npm alpha
+      - name: Publish the verified tarball to npm latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           ARCHIVE: ${{ steps.package.outputs.archive }}
@@ -80,7 +80,7 @@ jobs:
             exit 1
           fi
           npm whoami --registry https://registry.npmjs.org
-          npm publish "$ARCHIVE" --ignore-scripts --access public --tag alpha --registry https://registry.npmjs.org
+          npm publish "$ARCHIVE" --ignore-scripts --access public --tag latest --registry https://registry.npmjs.org
       - name: Verify anonymous registry integrity and dist-tag
         env:
           ARCHIVE: ${{ steps.package.outputs.archive }}
@@ -89,33 +89,12 @@ jobs:
           expected="sha512-$(openssl dgst -sha512 -binary "$ARCHIVE" | openssl base64 -A)"
           for _attempt in {1..12}; do
             if actual="$(npm view "dsh-isolated-runtime@$VERSION" dist.integrity --registry https://registry.npmjs.org)" &&
-              tag="$(npm view dsh-isolated-runtime dist-tags.alpha --registry https://registry.npmjs.org)" &&
+              tag="$(npm view dsh-isolated-runtime dist-tags.latest --registry https://registry.npmjs.org)" &&
               [[ "$actual" == "$expected" && "$tag" == "$VERSION" ]]; then
-              echo "Published dsh-isolated-runtime@$VERSION to alpha" >> "$GITHUB_STEP_SUMMARY"
+              echo "Published dsh-isolated-runtime@$VERSION to latest" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             sleep 5
           done
           echo '::error::Anonymous npm integrity/dist-tag verification failed; inspect the existing version before retrying.'
-          exit 1
-      - name: Promote the first alpha to latest
-        if: steps.package.outputs.version == '0.2.0-alpha.1'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          VERSION: ${{ steps.package.outputs.version }}
-        run: npm dist-tag add "dsh-isolated-runtime@$VERSION" latest --registry https://registry.npmjs.org
-      - name: Verify anonymous latest resolution
-        if: steps.package.outputs.version == '0.2.0-alpha.1'
-        env:
-          VERSION: ${{ steps.package.outputs.version }}
-        run: |
-          for _attempt in {1..12}; do
-            if latest="$(npm view dsh-isolated-runtime dist-tags.latest --registry https://registry.npmjs.org)" &&
-              [[ "$latest" == "$VERSION" ]]; then
-              echo "latest and alpha both resolve to dsh-isolated-runtime@$VERSION" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo '::error::latest verification failed; the published version and alpha tag remain available.'
           exit 1

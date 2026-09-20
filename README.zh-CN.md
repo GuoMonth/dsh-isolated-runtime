@@ -1,90 +1,57 @@
 # dsh-isolated-runtime
 
-面向 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness)
-的 Kubernetes 原生隔离层。本项目只定义一个持久边界——`Cell`；基础设施能力继续由
-Kubernetes、Gateway API 与 CSI 管理。
+原生 DeepSeek Harness 的 Kubernetes Cell 生命周期与隔离运行时。[多租户平台](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/README.zh-CN.md) 负责 OIDC、成员、用户协议和会话；本仓库负责 Cell 资源、镜像、精确实例校验与受限内部 Connector。DSH 负责原生 Web 和工具。
 
-**当前状态：Phase 4 Fleet 运维已完成。** 同一套窄 `Cell` / `CellSnapshot` API 现在可以在
-多个 namespace 中服从 Kubernetes 原生 quota 与 admission policy 并自动收敛。Controller
-采用有界 worker、对象 watch、deadline 唤醒与 Kubernetes 错误退避；可选指标只暴露聚合的
-controller 和封闭枚举授权结果。本项目仍不维护 fleet inventory、scheduler、namespace
-策略引擎或备份服务。
+[English](README.md)
 
-[English](./README.md)
+**当前是 Cell MVP alpha。** 固定版本下的双用户 OIDC + Cell、真实模型文件操作已通过[集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。这是源码组合证据，不表示已发布新的集成制品；公开镜像绑定与发行安装验证分别记录。允许破坏性变更，不承诺历史兼容、升级、HA 或无感恢复。
 
-**产品阶段：快速迭代的 MVP。** 当前目标是多租户 OIDC + Cell，通过中立内部接口协作。固定验证版本，允许破坏性变更，不承诺历史兼容、升级或无感恢复；快速失败并提供 AI 可解读诊断。见[项目宪法](CONSTITUTION.md)及[当前 MVP 验收](docs/alpha-mvp.zh-CN.md)。Helm 和全面安装矩阵不阻塞首条链路。
-新版集群目标、基础设施前提与验证入口见 [Kubernetes alpha 基线](docs/kubernetes-baseline.md)。
+## 固定发行边界
 
-**已发布的本地安装 alpha：v0.2.0-alpha.1。**
-从[本地安装](docs/quickstart.zh-CN.md)开始，或把 [AI 安装手册](docs/ai/local-run.md)
-交给你的 AI 助手。npm 入口与 [GitHub Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases)
-直接下载复用同一份不可变安装包和公共 GHCR 镜像。
-发行边界见[发行与验收](docs/distribution.md)。
+依赖的 DSH 明确为 **0.1.5-rc.2**，源码 **`fb2c4b9e698e30edb738bca4cf0618587db7d203`**。每次发行锁定可公开拉取的 Cell、Operator 镜像 `@sha256` digest，并在平台 `cell-release.json` / runtime `release.json` 中记录匹配的运行时源码与 DSH 身份；实际部署的平台镜像也固定 digest。npm `latest` 只用于安装时选择包，不让运行中的镜像标签或 DSH 版本范围漂移。
 
-## Cell 契约
+允许破坏性更新：新迭代明确新的固定组合，按需修改配置/状态要求并验证受影响链路，不要求兼容层、历史升级或迁移承诺。已发布制品身份不改写。当前源码候选尚未绑定公开镜像，空 digest 会阻止发布，不自动选择旧镜像或虚构 digest。
 
-```yaml
-apiVersion: dsh.isolated.io/v1alpha1
-kind: Cell
-metadata:
-  name: assistant
-  namespace: tenant-alice
-spec:
-  image: ghcr.io/example/dsh-cell@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-  storage:
-    size: 20Gi
-```
 
-namespace 就是租户边界。镜像必须固定 digest；存储只能扩容，`storageClassName`、
-`retentionPolicy` 与 `restoreFrom` 创建后不可变。
-API 不暴露 session、Pod/Node 地址、`RuntimeClass`、revision、scheduler、checkpoint、
-profile 或 hostname。完整内容见[示例](./config/samples/dsh_v1alpha1_cell.yaml)与
-[生成的 CRD](./config/crd/bases/dsh.isolated.io_cells.yaml)。
+## 与平台配合
 
-## 验证入口
+管理员准备 K8s、执行 NetworkPolicy 的 CNI、存储、租户 namespace、Gateway API 和 DNS/TLS。渲染已有平台配置，替换域名并固定 Operator 镜像 digest，再审阅部署：
 
 ```bash
-make verify             # 格式、生成漂移、vet、race 测试、构建
-make test-envtest        # 使用真实 API server 验证 controller reconcile
-make verify-cell        # 在临时 kind 集群验证 CRD 行为
-make verify-images      # 生产镜像与真实 DSH 持久化 smoke test
-make verify-kind        # 在 kind 完成 Phase 1 垂直实证
-make verify-kind-phase2 # 用 Envoy、Dex、Chromium 实证 HTTPS/OIDC/RBAC
-make verify-kind-phase3 # 实证 writer-stop、CSI restore、rollout 与 fresh rollback
-make verify-kind-phase4 # 实证 10 namespace / 50 Cell 的 quota、压力与恢复
-make verify-dsh         # 运行精确版本的上游 DSH 兼容套件
-make lint
+kubectl kustomize config/platform > /private/operator-rendered.yaml
+# 应用前必须替换示例域名及可变镜像占位符。
 ```
 
-当前支持范围只有 `dsh-v0.1.5-rc.2`，commit
-`fb2c4b9e698e30edb738bca4cf0618587db7d203`，不是 semver 范围。
-[兼容性记录](./compat/dsh/README.zh-CN.md)解释了为什么 access seam 最终选择由
-Cell-local launcher 持有 DSH 子进程。
+`--access-mode=platform` 不创建 standalone 用户认证器或直达 Cell 的 HTTPRoute。授权由平台执行，再通过 Connector 访问已校验的具体实例。见[平台接入配置](docs/platform-access.md)及联动的[内测启动指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md)。
 
-`kubectl apply -k config/default` 安装不依赖 Gateway API 的 Phase 1 surface。安装 Envoy
-Gateway，并提供 wildcard DNS/TLS 与 OIDC provider 配置后，`config/browser` 增加参考
-Gateway、authorizer 和路由模式。管理员使用普通 RoleBinding 授权；Operator 有意不管理它。
-Envoy Gateway 安装必须采用同目录 `envoy-gateway.yaml` 配置，使数据面运行在 Gateway
-namespace 并启用 Backend extension。
+平台新 alpha 发布后，Node 24+ 的入口是：
 
-集群安装 CSI snapshot controller 与兼容 driver 后，`kubectl apply -k config/snapshots` 启用
-`CellSnapshot`；本项目不安装生产 CSI 组件。可执行示例见
-[snapshot/restore sample](./config/samples/dsh_v1alpha1_cellsnapshot.yaml)。
+```bash
+npx dsh-multi-tenant@latest start --config /private/config.json
+```
 
-`config/metrics` 是浏览器/快照安装可选的 Kustomize component：它开启有界 controller 并发与私有 metrics listener，
-但不创建 metrics Service 或 scraper。Namespace label、ResourceQuota、LimitRange、
-StorageClass、RuntimeClass、Gateway 路由资格与 CSI 能力仍由集群管理员持有；详见
-[namespace 契约](./docs/specs/namespace-contract.zh-CN.md)与
-[指标契约](./docs/specs/metrics.zh-CN.md)。
+进程必须能直达 API 和 Pod IP，推荐在集群内运行；它不自动建集群。**不需要同时执行 `npx dsh-isolated-runtime start`**，后者是另一套 standalone 本地安装入口，不负责此平台的资源控制。
 
-发布候选 Cell/Operator 镜像只构建一次；全部门禁按 immutable digest 消费同一产物，成功后才把
-原 digest 晋级为 GHCR `main`/`sha-*` 标签。晋级不重建，SBOM 与 provenance 仍绑定同一 manifest。
+| 层 | 权威边界 |
+| --- | --- |
+| multi-tenant | OIDC、可信成员、父子会话、分配意图与协议准入 |
+| isolated-runtime | Cell Operator、镜像、资源生命周期/归属、已校验访问通道 |
+| DSH | 原生应用会话、工具、模型调用和应用私有状态 |
 
-## 设计
+一个集群、上层单副本、固定版本。中立内部契约不承诺 Process/Docker 可互换。未知写结果查原 key；接受删除不等于 writer 已停止。见[项目宪法](CONSTITUTION.md)、[RuntimePort](docs/design/runtime-port.zh-CN.md)和[MVP 边界](docs/alpha-mvp.zh-CN.md)。
 
-- [架构](./docs/specs/architecture.zh-CN.md)
-- [威胁模型](./docs/specs/threat-model.zh-CN.md)
-- [Roadmap](./ROADMAP.zh-CN.md)
-- [贡献指南](./CONTRIBUTING.zh-CN.md)
+## 真实集成画面
 
-采用 Apache-2.0 许可证。已经删除的 pre-Cell API 和部署不承担兼容承诺。
+平台 OIDC 后的原生 DSH，运行在本仓库管理的 Cell；deepseek-flash 完成文件写入/读取及附件读取。项目不提供模型凭据。
+
+![Cell 中的真实模型及文件验证](docs/images/cell-native.png)
+
+![展开的原生工具调用](docs/images/cell-tools.png)
+
+[完整证据与限制](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md) · [发行分工](docs/distribution.md) · [开发贡献](CONTRIBUTING.md)。
+
+## 历史 standalone 发行
+
+已发布 `v0.2.0-alpha.1` 是 standalone 本地启动器，不是本次集成 alpha。请使用它的[版本化说明](https://github.com/GuoMonth/dsh-isolated-runtime/tree/v0.2.0-alpha.1)。之后授权发布的 npm 版本统一使用 latest；通道选择不表示稳定承诺。启动器仍绑定不可变发行身份，不在每次启动选择新的运行时镜像。
+
+[文档索引](docs/README.md) · [DSH 精确基线](compat/dsh/README.md) · [架构](docs/specs/architecture.md)。许可证见 [LICENSE](LICENSE)。
