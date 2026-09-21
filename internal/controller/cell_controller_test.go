@@ -126,29 +126,22 @@ func TestReconcilePropagatesUpdatesWithoutSecretReads(t *testing.T) {
 	}
 }
 
-func TestSandboxedCellFailsClosedWithoutMapping(t *testing.T) {
+func TestUnsupportedSecurityClassFailsClosed(t *testing.T) {
 	t.Parallel()
 	cell := testCell("sandbox", dshv1alpha1.RetentionRetain)
-	cell.Spec.SecurityClass = dshv1alpha1.SecuritySandboxed
+	cell.Spec.SecurityClass = dshv1alpha1.SecurityClass("sandboxed")
 	reconciler, kube := testReconciler(t, cell)
 	reconcileCell(t, reconciler, cell)
 
 	names := cellcontract.ResourceNames(string(cell.UID))
 	var workload appsv1.StatefulSet
 	if err := kube.Get(context.Background(), client.ObjectKey{Namespace: cell.Namespace, Name: names.Base}, &workload); err == nil {
-		t.Fatal("sandboxed StatefulSet exists without an operator mapping")
+		t.Fatal("unsupported securityClass created a StatefulSet")
 	}
 	observed := get[*dshv1alpha1.Cell](t, kube, cell.Namespace, cell.Name)
 	condition := meta.FindStatusCondition(observed.Status.Conditions, dshv1alpha1.ConditionWorkloadReady)
-	if condition == nil || condition.Status != metav1.ConditionFalse || condition.Reason != reasonSandboxRuntimeClassUnconfigured {
-		t.Fatalf("unexpected sandbox condition: %#v", condition)
-	}
-
-	reconciler.SandboxedRuntimeClass = "gvisor"
-	reconcileCell(t, reconciler, cell)
-	workload = *get[*appsv1.StatefulSet](t, kube, cell.Namespace, names.Base)
-	if workload.Spec.Template.Spec.RuntimeClassName == nil || *workload.Spec.Template.Spec.RuntimeClassName != "gvisor" {
-		t.Fatalf("RuntimeClass mapping missing: %#v", workload.Spec.Template.Spec.RuntimeClassName)
+	if condition == nil || condition.Status != metav1.ConditionFalse || condition.Reason != reasonUnsupportedSecurityClass {
+		t.Fatalf("unexpected unsupported securityClass condition: %#v", condition)
 	}
 }
 

@@ -6,14 +6,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// SecurityClass selects an operator-defined isolation posture. It deliberately
-// does not expose RuntimeClass or arbitrary Pod security knobs.
-// +kubebuilder:validation:Enum=standard;sandboxed
+// SecurityClass selects the POC's supported Kubernetes Pod boundary. Unsupported
+// values are rejected by schema and fail closed by the controller.
+// +kubebuilder:validation:Enum=standard
 type SecurityClass string
 
 const (
-	SecurityStandard  SecurityClass = "standard"
-	SecuritySandboxed SecurityClass = "sandboxed"
+	SecurityStandard SecurityClass = "standard"
 )
 
 // RetentionPolicy controls what happens to Cell data after Cell deletion.
@@ -113,8 +112,7 @@ type CellSpec struct {
 	// Image is an OCI content reference pinned by digest, never a floating tag.
 	// +kubebuilder:validation:Pattern=`^[^\s@]+@sha256:[a-f0-9]{64}$`
 	Image string `json:"image"`
-	// SecurityClass selects standard containers or an operator-configured
-	// sandboxed RuntimeClass.
+	// SecurityClass must be standard; unsupported values fail closed.
 	// +kubebuilder:default=standard
 	SecurityClass SecurityClass `json:"securityClass,omitempty"`
 	// Resources are the standard Kubernetes requests and limits for DSH.

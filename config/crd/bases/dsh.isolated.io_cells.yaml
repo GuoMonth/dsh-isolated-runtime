@@ -125,12 +125,10 @@ spec:
                 type: object
               securityClass:
                 default: standard
-                description: |-
-                  SecurityClass selects standard containers or an operator-configured
-                  sandboxed RuntimeClass.
+                description: SecurityClass must be standard; unsupported values fail
+                  closed.
                 enum:
                 - standard
-                - sandboxed
                 type: string
               storage:
                 description: Storage is durable DSH and workspace data.

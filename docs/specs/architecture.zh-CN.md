@@ -112,7 +112,7 @@ exact-image 首个 reader 继续启动。之后才可显式 rollout 到同一 DS
 
 Fleet scale 只是同一个 namespaced 资源图的重复，而不是新的对象或控制面。Namespace 独立提供
 capability：核心 Cell 资源只要求普通 namespaced workload 与 PVC admission；公网访问还要求
-Gateway route eligibility；snapshot 要求 CSI class/API；sandboxing 要求配置好的 RuntimeClass。
+Gateway route eligibility；snapshot 要求 CSI class/API；POC 使用标准 Kubernetes Pod 边界。
 Operator 不 list、watch、持有或解释 Namespace、ResourceQuota、LimitRange、PriorityClass 或
 API Priority and Fairness 对象。
 

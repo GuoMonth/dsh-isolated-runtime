@@ -141,7 +141,7 @@ Fleet scale is repetition of the same namespaced graph, not a new object or
 control plane. A namespace supplies capabilities independently: core Cell
 resources require ordinary namespaced workload and PVC admission; public
 access additionally requires Gateway route eligibility; snapshots require CSI
-classes and APIs; sandboxing requires the configured RuntimeClass. The operator
+classes and APIs. The POC uses the standard Kubernetes Pod boundary. The operator
 does not list, watch, own, or interpret Namespace, ResourceQuota, LimitRange,
 PriorityClass, or API Priority and Fairness objects.
 

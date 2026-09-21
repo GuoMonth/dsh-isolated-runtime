@@ -3,8 +3,8 @@
 ## 安全承诺
 
 当 Kubernetes namespace/RBAC、Gateway 授权、CSI 与 NetworkPolicy 按各自契约工作时，
-本项目阻止一个已授权 Cell 用户被路由到、挂载或读取其他 Cell 的资源。`sandboxed` 请求由
-集群定义的更强 runtime；`standard` 只是普通容器边界，不能抵御已失陷的 Node、runtime、
+本项目阻止一个已授权 Cell 用户被路由到、挂载或读取其他 Cell 的资源。POC 使用标准 Kubernetes Pod
+边界，不能抵御已失陷的 Node、runtime、
 kernel、存储驱动、集群管理员或云控制面。
 
 ## 信任假设
@@ -36,7 +36,7 @@ kernel、存储驱动、集群管理员或云控制面。
 | Restore 混淆 | Restore 只允许同 namespace、精确 image、精确 DSH、同 StorageClass 与 fresh Cell；PVC provenance 与 UID finalizer 将首个 Ready reader 固定为记录镜像并保护并发删除。 |
 | 过期或外来格式 | 持久数据绑定精确 DSH 版本；不兼容 session format fail closed。 |
 | 关闭丢数据 | 普通 Pod 终止有界，但精确 DSH 版本 不提供可区分的 flush acknowledgement；snapshot 只明确承诺 Kubernetes writer fencing 后的 crash consistency。 |
-| 绕过 Namespace 策略 | Operator 不持有或镜像 ResourceQuota、LimitRange、route eligibility label、StorageClass、RuntimeClass、PriorityClass 或 APF policy；原生 admission 拒绝保持权威且可恢复。 |
+| 绕过 Namespace 策略 | Operator 不持有或镜像 ResourceQuota、LimitRange、route eligibility label、StorageClass、PriorityClass 或 APF policy；原生 admission 拒绝保持权威且可恢复。 |
 | Reconcile 放大 | worker pool 显式有界；正常进展由 watch 驱动，错误使用指数退避，deadline/fallback 唤醒保持窄范围；参考 scale gate 验证稳定态无 reconcile churn。 |
 | Metric 基数或身份泄漏 | Metrics 默认关闭且不通过 Service 暴露；项目 label 只有封闭 decision 枚举，资源身份、拓扑、authority、user 与 secret 数据留在 Kubernetes 或完全省略。 |
 

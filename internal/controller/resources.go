@@ -337,12 +337,6 @@ func (r *CellReconciler) desiredPodTemplate(cell *dshv1alpha1.Cell) corev1.PodTe
 			},
 		},
 	}
-	if cell.Spec.SecurityClass == dshv1alpha1.SecuritySandboxed {
-		// The reconciler has already rejected an empty mapping. RuntimeClass
-		// remains cluster-owned and outside the Cell API.
-		podSpec.RuntimeClassName = ptr.To(r.SandboxedRuntimeClass)
-	}
-
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{Labels: workloadSelector(cell), Annotations: cellAnnotations(cell)},
 		Spec:       podSpec,

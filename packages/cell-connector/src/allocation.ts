@@ -212,7 +212,7 @@ export function createCellAllocationRuntime(
     const failureReasons = new Set([
       "OwnershipConflict",
       "ReconcileFailed",
-      "SandboxRuntimeClassUnconfigured",
+      "UnsupportedSecurityClass",
       "AccessCheckFailed",
     ]);
     const failed = cell.status?.conditions?.find(

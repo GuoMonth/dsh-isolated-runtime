@@ -16,6 +16,7 @@ Administrators configure the cluster, namespaces, CNI, storage, DNS/TLS and serv
 - Fail fast on invalid configuration, permissions, templates or versions. Bound readiness waits. Errors include stage, redacted target, observed state, write outcome, retry/check advice and a correlation ID; never secrets.
 - Timeouts are not cancellation; missing records are not proof of stopped execution. Inspect the original identity after unknown writes. Do not create a new key automatically or build permanent tombstones, unbounded retries or automatic repair.
 - Defer HA, multi-cluster, autoscaling, disaster recovery, generic runtime services and new Process/Docker backends. Current delivery is the platform npm CLI for an administrator-configured cluster; no new cluster installer. Existing features are not compatibility obligations; keep ownership/isolation checks relevant to the current flow.
+- The POC uses the standard Kubernetes Pod boundary. This source candidate removes the optional RuntimeClass path and fails closed on unsupported `securityClass` values; the published Cell package and its fixed deployment artifacts are unchanged until a release is explicitly cut.
 
 ## Current acceptance
 

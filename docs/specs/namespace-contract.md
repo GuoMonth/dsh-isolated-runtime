@@ -9,9 +9,8 @@ administrators decide whether a namespace has each independent capability.
 | Core Cell | Active Namespace; StorageClass and admission policy that allow two PVCs, one StatefulSet Pod, two Services, one ServiceAccount and one NetworkPolicy per Cell | Cell Conditions, PVC/StatefulSet status and Events |
 | Public browser access | Gateway API and Gateway configuration; namespace selected by the Gateway `allowedRoutes` policy | HTTPRoute parent Conditions |
 | Snapshot and restore | Stable VolumeSnapshot APIs; compatible StorageClass, VolumeSnapshotClass and CSI driver | CellSnapshot Conditions and VolumeSnapshot status |
-| Sandboxed Cell | Cluster-owned RuntimeClass selected by operator configuration | Existing Cell WorkloadReady Condition |
 
-ResourceQuota, LimitRange, Pod Security admission, RuntimeClass, StorageClass,
+ResourceQuota, LimitRange, Pod Security admission, StorageClass,
 Gateway policy and API Priority and Fairness are cluster policy. The operator
 does not create, mutate, list, watch or interpret those policy objects. A native
 admission rejection is not translated by parsing error prose into a new API.
@@ -27,7 +26,7 @@ contains no recommended quota or security values.
 
 - no `NamespaceConformance`, Fleet, placement or policy CRD;
 - no namespace controller, admission webhook or policy engine;
-- no claim that a namespace suitable for a core Cell also supports Gateway,
-  snapshots or sandboxed execution;
+- no claim that a namespace suitable for a core Cell also supports Gateway or
+  snapshots;
 - no security guarantee against a cluster administrator, broken CNI/CSI,
   force deletion, node compromise or a tenant granted policy-management rights.

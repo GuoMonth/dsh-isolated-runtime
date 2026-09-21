@@ -5,8 +5,7 @@
 The project prevents one authorized Cell user from being routed to, mounting,
 or reading another Cell's resources when Kubernetes namespace/RBAC, Gateway
 authorization, CSI, and NetworkPolicy enforce their documented boundaries.
-`sandboxed` requests a cluster-defined stronger runtime; `standard` is an
-ordinary container boundary and does not resist a compromised node, runtime,
+The POC uses the standard Kubernetes Pod boundary and does not resist a compromised node, runtime,
 kernel, storage driver, cluster administrator, or cloud control plane.
 
 ## Assumptions
@@ -41,7 +40,7 @@ kernel, storage driver, cluster administrator, or cloud control plane.
 | Restore confusion | Restore is same-namespace, exact-image, exact-DSH, same-StorageClass and fresh-Cell only. PVC provenance and UID finalizers enforce the recorded image through its first Ready reader and protect concurrent deletion. |
 | Stale or foreign format | Persisted data is tied to an exact DSH version; incompatible session formats fail closed. |
 | Shutdown loss | Ordinary Pod termination is bounded, but exact DSH 0.1.5-rc.2 exposes no distinguishable flush acknowledgement. Snapshots are explicitly crash-consistent after Kubernetes writer fencing. |
-| Namespace policy bypass | The operator never owns or mirrors ResourceQuota, LimitRange, route-eligibility labels, StorageClass, RuntimeClass, PriorityClass, or APF policy. Native admission denial remains authoritative and recoverable. |
+| Namespace policy bypass | The operator never owns or mirrors ResourceQuota, LimitRange, route-eligibility labels, StorageClass, PriorityClass, or APF policy. Native admission denial remains authoritative and recoverable. |
 | Reconcile amplification | Worker pools are explicitly bounded; normal progress is watch-driven, errors use exponential rate limiting, and deadline/fallback wakeups are narrow. The reference scale gate verifies no steady-state reconcile churn. |
 | Metric cardinality or identity leak | Metrics are disabled by default and not exposed through a Service. Project labels use only a closed decision enum; resource identity, topology, authority, user and secret data remain in Kubernetes or are omitted. |
 
