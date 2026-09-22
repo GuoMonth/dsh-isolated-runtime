@@ -26,3 +26,5 @@ namespace 与 Cell UID 定义租户实例边界。NetworkPolicy 将 Cell proxy p
 较早 standalone 发行使用 Envoy OAuth、`cell-authorizer`、SubjectAccessReview 及 snapshot/restore。这些不是当前集成平台请求路径。部分内容仍作为历史源码或已发布制品行为保留；本文档调整并未删除它们。版本历史见[归档的 standalone 文档](../archive/standalone-alpha1/README.md)。
 
 固定版本集成实证及其限制记录于[共享回归报告](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。当前源码使用标准 Pod 边界并拒绝不支持的 `securityClass` 值；这不改变已发布 npm `0.3.0-alpha.1` 包及其固定制品。
+
+不支持的 securityClass 会拒绝就绪与集成准入，但不代表既有 workload 已停止或删除，也不代表历史 standalone 路由已撤销；管理员需检查并明确处置这些资源。不支持从历史 sandboxed 部署原地升级。

@@ -126,6 +126,28 @@ func TestReconcilePropagatesUpdatesWithoutSecretReads(t *testing.T) {
 	}
 }
 
+func TestUnsupportedSecurityClassPreservesExistingWorkload(t *testing.T) {
+	t.Parallel()
+	cell := testCell("unsupported-existing", dshv1alpha1.RetentionRetain)
+	reconciler, kube := testReconciler(t, cell)
+	reconcileCell(t, reconciler, cell)
+	observed := get[*dshv1alpha1.Cell](t, kube, cell.Namespace, cell.Name)
+	observed.Spec.SecurityClass = dshv1alpha1.SecurityClass("sandboxed")
+	if err := kube.Update(context.Background(), observed); err != nil {
+		t.Fatal(err)
+	}
+	reconcileCell(t, reconciler, cell)
+	names := cellcontract.ResourceNames(string(cell.UID))
+	workload := get[*appsv1.StatefulSet](t, kube, cell.Namespace, names.Base)
+	if workload.DeletionTimestamp != nil || workload.Spec.Replicas == nil || *workload.Spec.Replicas != 1 {
+		t.Fatal("unsupported class must not silently delete or stop an existing workload")
+	}
+	observed = get[*dshv1alpha1.Cell](t, kube, cell.Namespace, cell.Name)
+	if condition := meta.FindStatusCondition(observed.Status.Conditions, dshv1alpha1.ConditionReady); condition == nil || condition.Status != metav1.ConditionFalse {
+		t.Fatal("unsupported instance must not report Ready")
+	}
+}
+
 func TestUnsupportedSecurityClassFailsClosed(t *testing.T) {
 	t.Parallel()
 	cell := testCell("sandbox", dshv1alpha1.RetentionRetain)

@@ -38,3 +38,5 @@
 [English](alpha-mvp.md)
 
 实际结果和未覆盖项见 [2026-09-20 集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。当前交付为管理员预配置 K8s 上的平台 npm CLI，不增加集群安装器；历史 R1–R6 待测清单不代表现在仍未测试。
+
+不支持的 securityClass 会拒绝就绪与集成准入，但不代表既有 workload 已停止或删除，也不代表历史 standalone 路由已撤销；管理员需检查并明确处置这些资源。不支持从历史 sandboxed 部署原地升级。
