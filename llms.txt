@@ -1,15 +1,13 @@
 # DSH Isolated Runtime
 
-Kubernetes-native isolated execution for one exact DSH baseline. Not a DSH plugin.
+Current entry: Kubernetes Cell resources for the multi-tenant platform. Use the selected release's fixed package/image identities; source candidates do not change published artifacts.
 
-- [Local installation for AI assistants](docs/ai/local-run.md)
-- [Human quickstart](docs/quickstart.md)
-- [Chinese quickstart](docs/quickstart.zh-CN.md)
-- [Distribution, networks and release gates](docs/distribution.md)
-- [Architecture](docs/specs/architecture.md)
+- [Current package usage](packages/cell-cli/README.md)
+- [Distribution and release](docs/distribution.md)
+- [Architecture and ownership](docs/specs/architecture.md)
 - [Threat model](docs/specs/threat-model.md)
+- [Documentation index](docs/README.md)
+- [Shared POC roadmap](ROADMAP.md)
 - [Contributor instructions](AGENTS.md)
 
-Use the documents shipped with the selected release. Do not treat main as a
-published version. Never delete user data, request model credentials in chat,
-or operate an existing cluster without explicit user direction.
+Historical standalone/local-cluster instructions live under docs/archive/ and do not describe the current npm entry. Platform owns OIDC/user admission; runtime owns Cell identity and resources; DSH owns application protocols. Do not place credentials in docs or logs or silently delete user data.

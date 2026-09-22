@@ -1,49 +1,28 @@
-# 威胁模型
+# Cell 威胁模型
 
-## 安全承诺
+## 范围
 
-当 Kubernetes namespace/RBAC、Gateway 授权、CSI 与 NetworkPolicy 按各自契约工作时，
-本项目阻止一个已授权 Cell 用户被路由到、挂载或读取其他 Cell 的资源。POC 使用标准 Kubernetes Pod
-边界，不能抵御已失陷的 Node、runtime、
-kernel、存储驱动、集群管理员或云控制面。
+集成请求路径使用 multi-tenant 平台处理 OIDC 与用户授权。Gateway 负责 TLS 终止和路由，不代替平台执行 OIDC 或 Cell 授权。Connector 接收平台已授权的内部请求，并在代理前校验目标 Cell/Pod identity。
 
-## 信任假设
+namespace 与 Cell UID 定义租户实例边界。NetworkPolicy 将 Cell proxy port 的访问限制在平台路径内，但实际生效依赖 CNI。DSH 在 Pod 内仍仅监听 loopback。租户数据与私有运行时状态分离；Provider 凭据不得进入租户数据、status 或日志。
 
-- 信任 namespace、ServiceAccount、RBAC、admission 与 Secret 投递；
-- 只有 system namespace 内带标签的 access Pod 可以访问 launcher Service；参考部署只将
-  该标签授予 Envoy。management port 没有 Service，也不被 Pod ingress policy 放行。
-  Envoy OIDC 与 `cell-authorizer` 必须位于 Cell route 之前；
-- 镜像解析到准入的 digest，CSI 保证卷 identity/access mode，DSH 版本匹配兼容记录；
-- DSH 及启用的插件位于 Cell 信任边界内部；任意代码执行可以攻陷该 Cell。
+这是面向普通 Kubernetes Pod 的应用隔离边界，不抵御已失陷的 Node/kernel、集群管理员或受信任的 Kubernetes、CNI、CSI、Gateway、云控制面。DSH 及启用插件位于 Cell 信任边界内。
 
-## 威胁矩阵
+基础边界继续保留：非root、禁止提权、drop capabilities、RuntimeDefault seccomp、不自动挂载ServiceAccount token、不提供宿主目录或Docker socket。资源请求/限额由Cell模板与集群策略提供，不假设任意Pod默认有配额。当前自动策略主要限制Cell ingress；控制面/私网的非必要egress由管理员参考部署配置并实测，不能由Pod存在本身推断已隔离。
 
-| 威胁 | 必需控制 / 保证 |
+## 威胁与控制
+
+| 威胁 | 控制 / 限制 |
 | --- | --- |
-| Namespace 混淆 | namespace 是唯一 tenant key；没有可伪造的 `tenant` 字段，也没有跨 namespace 引用。 |
-| 过宽 RBAC / ServiceAccount | cluster-wide Operator 只获得其 reconcile 原生资源所需权限；Cell workload 永不挂载 API token。 |
-| 网络绕过 | Cell ingress policy 只允许带 access 标签的 Pod 访问 proxy port；management 没有 Service 或 Pod ingress allowance；DSH 保持 loopback。 |
-| 路由 / 身份混淆 | authorizer 重新读取 metadata 选中的 HTTPRoute 与 Cell，并在不缓存 SAR 前校验 owner、UID、hostname、authority、parent 与 backend。 |
-| Host/Origin 伪造 | 保留外部 Host/Origin 给 DSH 校验；拒绝非信任 authority 与跨站请求；不合成身份 header。 |
-| Token/cookie 泄漏 | launch token、身份 header，以及固定 Envoy OAuth 的 access/ID/refresh/nonce/HMAC cookie 在进入 DSH 前剥离且不进入诊断；无关与 DSH cookie 保留。launcher 补 Secure/SameSite=Lax，HttpOnly 由 DSH 提供。 |
-| 过期授权 | authorizer 不缓存 SAR；RoleBinding 增删在下一个 HTTP/WebSocket 请求生效。 |
-| 授权故障 | 身份缺失/无效返回 401，授权拒绝返回 403，OIDC/JWKS/Kubernetes/authorizer 故障返回 503；Envoy 不 fail open。 |
-| Provider 凭据泄漏 | `credentialsRef` 只能同 namespace；值只进环境变量，不进 Cell status、日志或数据快照；DSH 内部 credential/signing store 与 data PVC 分离。 |
-| PVC/snapshot 泄漏 | namespace/RBAC 与 CSI identity 控制访问；snapshot 只含数据；private/provider/signing 状态使用新的 PVC 或 Secret；默认 Retain。 |
-| 镜像替换 | Cell 强制 `name@sha256:<digest>`；admission 与 status 对比解析后的 digest。 |
-| 并发写 | Cell 上 UID/CAS 注解串行化 snapshot；StatefulSet 已观察零副本且该精确 StatefulSet UID 不再拥有 Pod，才能创建 CSI snapshot。 |
-| 快照部分失败 | 源 Cell 恢复前必须删除 owned Kubernetes VolumeSnapshot；`CleanupBlocked` 只描述 API 可见对象，后端处理遵循 CSI 策略。 |
-| Restore 混淆 | Restore 只允许同 namespace、精确 image、精确 DSH、同 StorageClass 与 fresh Cell；PVC provenance 与 UID finalizer 将首个 Ready reader 固定为记录镜像并保护并发删除。 |
-| 过期或外来格式 | 持久数据绑定精确 DSH 版本；不兼容 session format fail closed。 |
-| 关闭丢数据 | 普通 Pod 终止有界，但精确 DSH 版本 不提供可区分的 flush acknowledgement；snapshot 只明确承诺 Kubernetes writer fencing 后的 crash consistency。 |
-| 绕过 Namespace 策略 | Operator 不持有或镜像 ResourceQuota、LimitRange、route eligibility label、StorageClass、PriorityClass 或 APF policy；原生 admission 拒绝保持权威且可恢复。 |
-| Reconcile 放大 | worker pool 显式有界；正常进展由 watch 驱动，错误使用指数退避，deadline/fallback 唤醒保持窄范围；参考 scale gate 验证稳定态无 reconcile churn。 |
-| Metric 基数或身份泄漏 | Metrics 默认关闭且不通过 Service 暴露；项目 label 只有封闭 decision 枚举，资源身份、拓扑、authority、user 与 secret 数据留在 Kubernetes 或完全省略。 |
+| 跨租户目标混淆 | 从平台已授权的 Cell 引用解析目标，并在转发前校验实时 namespace、Cell UID 和其拥有的 Pod identity。 |
+| Pod 过期或重建 | 对比当前 owner/UID 链；目标实例不匹配时 fail closed。 |
+| 网络直连绕过 | DSH 保持 loopback 监听，只允许配置的平台路径进入 proxy port。策略生效要求 CNI 确实执行 NetworkPolicy。 |
+| 凭据泄漏 | launch token 只留在进程内存，诊断脱敏；Provider Secret 在租户数据与 status 之外提供。 |
+| 并发或过期数据访问 | 由 Kubernetes 卷归属和当前 Cell 生命周期定义访问。历史 snapshot/restore 机制不是当前 MVP 验收承诺。 |
+| 工作负载失陷 | 将 DSH 及插件视为该 Cell 内受信任代码；普通 Pod 隔离不能遏制宿主机或 kernel 失陷。 |
 
-## 剩余风险与验证
+## 历史实现与实证
 
-kind 浏览器实证覆盖 HTTPS/OIDC、route 绑定、跨 Cell 拒绝、授权与即时撤权、故障关闭、
-NetworkPolicy、writer-stop fencing、CSI data-only restore、精确版本 rollout 与 fresh-Cell
-rollback。本项目不负责 DNS、证书、IdP 或备份 lifecycle，不提供 WAF，也不承诺抵御已失陷
-的集群管理员、Gateway、Node、runtime、kernel、CSI driver 或云控制面。10 namespace / 50 Cell
-参考实证是有界回归门，不构成生产容量、延迟或可用性 SLO。
+较早 standalone 发行使用 Envoy OAuth、`cell-authorizer`、SubjectAccessReview 及 snapshot/restore。这些不是当前集成平台请求路径。部分内容仍作为历史源码或已发布制品行为保留；本文档调整并未删除它们。版本历史见[归档的 standalone 文档](../archive/standalone-alpha1/README.md)。
+
+固定版本集成实证及其限制记录于[共享回归报告](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。当前源码使用标准 Pod 边界并拒绝不支持的 `securityClass` 值；这不改变已发布 npm `0.3.0-alpha.1` 包及其固定制品。

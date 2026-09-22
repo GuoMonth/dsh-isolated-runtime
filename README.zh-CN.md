@@ -4,7 +4,7 @@
 
 [English](README.md)
 
-**当前是 Cell MVP alpha。** 固定版本下的双用户 OIDC + Cell、真实模型文件操作已通过[集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。这批已验收的 Linux/amd64 Cell/Operator 镜像已按相同 digest 公开于 [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1)；平台 npm 独立发行。允许破坏性变更，不承诺历史兼容、升级、HA 或无感恢复。
+**当前是 Cell MVP alpha。** 固定版本下的双用户 OIDC + Cell、真实模型文件操作已通过[集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。这批已验收的 Linux/amd64 Cell/Operator 镜像已按相同 digest 公开于 [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1)；平台 npm 独立发行。后续迭代允许破坏性变更；已发行制品身份保持不变。
 
 ## 固定发行边界
 
@@ -16,6 +16,8 @@
 ## 与平台配合
 
 管理员准备 K8s、执行 NetworkPolicy 的 CNI、存储、租户 namespace、Gateway API 和 DNS/TLS。新版 npm 提供已固定公开镜像的部署清单，审阅并设置环境域名后部署：
+
+固定 platform 模式部署要求平台 Pod 位于 Operator 的 system namespace（默认 `dsh-system`），并带 `dsh.isolated.io/access: platform` 标签；详见[平台启动指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.zh-CN.md)。使用 `latest` 选择包后，先核对 runtime 发行与平台 `cell-release.json` 匹配，再应用清单。
 
 ```bash
 npx dsh-isolated-runtime@latest release
@@ -32,7 +34,7 @@ kubectl apply --server-side -f /private/operator-rendered.yaml
 npx dsh-multi-tenant@latest start --config /private/config.json
 ```
 
-进程必须能直达 API 和 Pod IP，推荐在集群内运行；它不自动建集群。运行时 npm `0.3.0-alpha.1` 只交付 Cell 版本和部署清单；旧 standalone `start/up/stop/uninstall` 已移除，不会自动创建本地集群。
+进程必须能直达 API 和 Pod IP，推荐在集群内运行；它不自动建集群。运行时 npm `0.3.0-alpha.1` 只交付 Cell 版本和部署清单；已发布 npm 包不提供旧 standalone `start/up/stop/uninstall` 命令，也不创建本地集群；旧实现仍以历史源码保留在 `packages/cli`。
 
 | 层 | 权威边界 |
 | --- | --- |
@@ -40,7 +42,7 @@ npx dsh-multi-tenant@latest start --config /private/config.json
 | isolated-runtime | Cell Operator、镜像、资源生命周期/归属、已校验访问通道 |
 | DSH | 原生应用会话、工具、模型调用和应用私有状态 |
 
-一个集群、上层单副本、固定版本。中立内部契约不承诺 Process/Docker 可互换。未知写结果查原 key；接受删除不等于 writer 已停止。见[项目宪法](CONSTITUTION.md)、[RuntimePort](docs/design/runtime-port.zh-CN.md)和[MVP 边界](docs/alpha-mvp.zh-CN.md)。
+当前回归使用一个集群、上层单副本和固定版本。未知写结果查原 key；接受删除不等于 writer 已停止。见[项目宪法](CONSTITUTION.md)、[RuntimePort](docs/design/runtime-port.zh-CN.md)和[MVP 边界](docs/alpha-mvp.zh-CN.md)。
 
 ## 真实集成画面
 
@@ -54,6 +56,6 @@ npx dsh-multi-tenant@latest start --config /private/config.json
 
 ## 历史 standalone 发行
 
-已发布 `v0.2.0-alpha.1` 是 standalone 本地启动器，不是本次集成 alpha。请使用它的[版本化说明](https://github.com/GuoMonth/dsh-isolated-runtime/tree/v0.2.0-alpha.1)。当前 npm `0.3.0-alpha.1` 在 `latest` 通道，以 Cell 清单入口替代旧启动器，属于破坏性更新；不提供自动迁移。
+已发布 `v0.2.0-alpha.1` 是 standalone 本地启动器，不是本次集成 alpha。请使用它的[版本化说明](https://github.com/GuoMonth/dsh-isolated-runtime/tree/v0.2.0-alpha.1)。当前 npm `0.3.0-alpha.1` 在 `latest` 通道，以 Cell 清单入口替代旧启动器。旧实现仍以历史源码保留在 `packages/cli`；这是破坏性更新，不提供自动迁移。
 
 [文档索引](docs/README.md) · [DSH 精确基线](compat/dsh/README.md) · [架构](docs/specs/architecture.md)。许可证见 [LICENSE](LICENSE)。

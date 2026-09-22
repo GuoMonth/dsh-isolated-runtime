@@ -18,7 +18,7 @@ Correcting quota or another prerequisite is expected to converge through the
 normal Kubernetes control loops and the operator workqueue.
 
 The operator never labels a tenant namespace. The
-[`tenant-namespace.yaml`](../../config/samples/tenant-namespace.yaml) sample
+[`tenant-namespace.yaml`](../../../../config/samples/tenant-namespace.yaml) sample
 shows only the opt-in label used by the reference Gateway. It intentionally
 contains no recommended quota or security values.
 

@@ -15,7 +15,7 @@ ResourceQuota、LimitRange、Pod Security admission、StorageClass、Gateway pol
 前置条件后，系统通过 Kubernetes 原生控制循环与 Operator workqueue 自动收敛。
 
 Operator 永不为租户 Namespace 打标签。
-[`tenant-namespace.yaml`](../../config/samples/tenant-namespace.yaml) 只展示参考 Gateway 所需的
+[`tenant-namespace.yaml`](../../../../config/samples/tenant-namespace.yaml) 只展示参考 Gateway 所需的
 opt-in label，刻意不提供通用 quota 或安全参数。
 
 ## 非目标

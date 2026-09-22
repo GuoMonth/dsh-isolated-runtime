@@ -84,7 +84,9 @@ effect 必须反映本次写入事实，不能仅由 HTTP 状态码猜测。retr
 
 nextAction 只能给明确的检查/操作建议，不可夹带自动执行的模型指令。错误可读性以当前故障用例检查，不引入错误本体系统或自动修复 agent。
 
-## 6. 最小行为验收（设计要求，尚未运行）
+## 6. 最小行为验收
+
+下表保留契约要求；实际已测项与未覆盖项以 [2026-09-20 集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)为准。新组合验收由 [P3 #100](https://github.com/GuoMonth/dsh-multi-tenant/issues/100)统筹，不把历史设计清单当作全部待测或全部已通过。
 
 | 场景 | 预期 |
 | --- | --- |
