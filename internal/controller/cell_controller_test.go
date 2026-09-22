@@ -378,6 +378,15 @@ func assertWorkloadContract(t *testing.T, workload *appsv1.StatefulSet, names ce
 	if container.Image != "example.test/cell@"+testDigest || container.Command[0] != cellcontract.LauncherPath || container.WorkingDir != cellcontract.DataRoot {
 		t.Fatalf("unexpected container contract: %#v", container)
 	}
+	permissionMode := ""
+	for _, variable := range container.Env {
+		if variable.Name == "DSH_PERMISSION_MODE" {
+			permissionMode = variable.Value
+		}
+	}
+	if permissionMode != "danger-full-access" {
+		t.Fatalf("DSH permission mode = %q, want Pod-local danger-full-access", permissionMode)
+	}
 	if container.SecurityContext == nil || container.SecurityContext.ReadOnlyRootFilesystem == nil || !*container.SecurityContext.ReadOnlyRootFilesystem {
 		t.Fatalf("root filesystem is writable: %#v", container.SecurityContext)
 	}

@@ -232,6 +232,13 @@ func (r *CellReconciler) reconcileNetworkPolicy(ctx context.Context, cell *dshv1
 }
 
 func (r *CellReconciler) desiredPodTemplate(cell *dshv1alpha1.Cell) corev1.PodTemplateSpec {
+	return DesiredPodTemplate(cell, r.cellAuthority(cell))
+}
+
+// DesiredPodTemplate is the single runtime-owned renderer for the Cell Pod.
+// The fixed Connector contract is generated from this function; keep it pure
+// so creation and access verification describe the same Pod.
+func DesiredPodTemplate(cell *dshv1alpha1.Cell, authority string) corev1.PodTemplateSpec {
 	names := cellcontract.ResourceNames(string(cell.UID))
 	nonRoot := true
 	allowPrivilegeEscalation := false
@@ -240,10 +247,11 @@ func (r *CellReconciler) desiredPodTemplate(cell *dshv1alpha1.Cell) corev1.PodTe
 	temporarySize := resource.MustParse(cellcontract.TemporarySize)
 
 	environment := []corev1.EnvVar{
-		{Name: "CELL_AUTHORITY", Value: r.cellAuthority(cell)},
+		{Name: "CELL_AUTHORITY", Value: authority},
 		{Name: "HOME", Value: cellcontract.DSHHome},
 		{Name: "DSH_HOME", Value: cellcontract.DSHHome},
 		{Name: "DSH_AGENTS_HOME", Value: cellcontract.AgentsHome},
+		{Name: "DSH_PERMISSION_MODE", Value: "danger-full-access"},
 		{Name: "DSH_TELEMETRY_DISABLED", Value: "1"},
 		{Name: "XDG_CACHE_HOME", Value: cellcontract.TemporaryRoot + "/.cache"},
 	}
@@ -266,6 +274,9 @@ func (r *CellReconciler) desiredPodTemplate(cell *dshv1alpha1.Cell) corev1.PodTe
 		ServiceAccountName:            names.Base,
 		AutomountServiceAccountToken:  ptr.To(false),
 		EnableServiceLinks:            ptr.To(false),
+		RestartPolicy:                 corev1.RestartPolicyAlways,
+		DNSPolicy:                     corev1.DNSClusterFirst,
+		SchedulerName:                 corev1.DefaultSchedulerName,
 		TerminationGracePeriodSeconds: ptr.To[int64](30),
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot:        &nonRoot,
@@ -276,10 +287,12 @@ func (r *CellReconciler) desiredPodTemplate(cell *dshv1alpha1.Cell) corev1.PodTe
 			SeccompProfile:      &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 		},
 		Containers: []corev1.Container{{
-			Name:            cellcontract.ContainerName,
-			Image:           cell.Spec.Image,
-			ImagePullPolicy: corev1.PullIfNotPresent,
-			Command:         []string{cellcontract.LauncherPath},
+			Name:                     cellcontract.ContainerName,
+			Image:                    cell.Spec.Image,
+			ImagePullPolicy:          corev1.PullIfNotPresent,
+			TerminationMessagePath:   corev1.TerminationMessagePathDefault,
+			TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+			Command:                  []string{cellcontract.LauncherPath},
 			// The mounted data root exists before process start. The launcher
 			// creates Workspace and uses it as the DSH child's working directory.
 			WorkingDir: cellcontract.DataRoot,
@@ -429,8 +442,9 @@ func cellAnnotations(cell *dshv1alpha1.Cell) map[string]string {
 func httpProbe(path string, period, failures int32) *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{
-			Path: path,
-			Port: intstr.FromString(cellcontract.ManagementPortName),
+			Path:   path,
+			Port:   intstr.FromString(cellcontract.ManagementPortName),
+			Scheme: corev1.URISchemeHTTP,
 		}},
 		TimeoutSeconds:   1,
 		PeriodSeconds:    period,

@@ -86,27 +86,30 @@ async function fixture(t) {
       tokenFile: token,
     },
     {
+      template: "cell-mvp-v1",
+      image: "example/dsh@sha256:" + "a".repeat(64),
+      storage: { size: "20Gi" },
+      resources: {
+        requests: { cpu: "250m", memory: "512Mi" },
+        limits: { cpu: "1", memory: "1Gi" },
+      },
       namespaces: { tenant: "tenant-a" },
       domain: "dsh.example.com",
-      profiles: [
-        {
-          template: "one",
-          expectedSpec: { image: "example/dsh@sha256:" + "a".repeat(64) },
-          expectedPodSpec: {},
-        },
-      ],
     },
   );
   const intent = {
     allocationKey: randomUUID(),
     owner: { tenantId: "tenant", principalId: "alice" },
-    template: "one",
+    template: "cell-mvp-v1",
   };
   const context = () => ({
     signal: new AbortController().signal,
     correlationId: randomUUID(),
   });
   const view = await runtime.create(intent, context());
+  assert.equal(cell.spec.securityClass, "standard");
+  assert.equal(cell.spec.storage.retentionPolicy, "Retain");
+  assert.equal(cell.spec.allocation.template, "cell-mvp-v1");
   return {
     runtime,
     intent,

@@ -15,11 +15,30 @@ Pod and EndpointSlice. Target addresses come only from the verified API chain.
 This is bounded, GET-only API access (5 seconds per verification, 4 MiB per API
 response); API failures deny access. It is not atomic Kubernetes-to-network fencing.
 
-R2 uses administrator-controlled allocation → namespace/name/UID/origin/template
-bindings. `expectedSpec` is the complete defaulted Cell spec from the pinned
-fixture; `expectedPodSpec` is the exact defaulted StatefulSet Pod template spec.
-Both desired workload and running Pod must match these pinned fields, including
-resources/security/storage mounts, not merely the image string. Do not invent partial templates or take this configuration from a browser.
+R2 binds the fixed `cell-mvp-v1` template to operator inputs: a digest-pinned
+image, durable storage, required CPU/memory requests and limits, optional
+credentials Secret, namespace mapping and domain. The Cell/Pod shape is generated
+from the Go controller's `DesiredPodTemplate` and shipped inside this Connector;
+there are no administrator `expectedSpec` or `expectedPodSpec` objects. Unknown
+configuration keys, old profiles and any other template version are rejected.
+CPU quantities accept positive whole cores or 1–999 milli-cores. Memory and
+storage accept positive binary quantities (`Ki`, `Mi`, `Gi`, `Ti`) whose amount
+does not canonicalize to the next suffix. Requests may not exceed limits.
+
+The Connector compares the complete Cell spec and StatefulSet Pod template,
+including the full PodSpec and template metadata. It compares the complete live
+PodSpec after adding only the known Kubernetes 1.37 Pod defaults and deterministic
+StatefulSet fields; scheduler `nodeName` must be present. UID/owner references,
+Cell annotations, selectors, Service and EndpointSlice identities remain live
+checks; template digests do not prove ownership. Sidecars, extra volumes,
+LimitRange resource mutation and admission webhook changes fail closed.
+
+The generated Pod fixes `DSH_PERMISSION_MODE=danger-full-access` as an explicit
+product choice: the ordinary Pod is the execution boundary, so native DSH tools
+do not apply a second, nested tool sandbox or approval gate. This only changes
+DSH's in-Pod tool permission layer; it does not change the non-root UID,
+read-only root filesystem, dropped capabilities, seccomp profile, absent
+ServiceAccount token, or cluster network policy.
 R5 implements create-time immutable allocation/principal/template fields. Access
 still refuses not-Ready instances; allocation queries return current Pending or
 Unavailable without maintaining a lifecycle cache.
@@ -36,6 +55,15 @@ Commit source inputs, then run:
 
 ```sh
 node hack/pack-cell-connector.mjs /absolute/output/directory
+```
+
+When changing the Go Pod renderer, regenerate its checked-in template and then
+verify it from the runtime repository root:
+
+```sh
+GOTOOLCHAIN=go1.27.1 go run ./internal/controller/cmd/generate-cell-template \
+  > packages/cell-connector/src/templates/cell-mvp-v1.json
+./hack/verify-cell-template.sh
 ```
 
 The packer installs the locked build dependencies, builds declarations/JS, includes

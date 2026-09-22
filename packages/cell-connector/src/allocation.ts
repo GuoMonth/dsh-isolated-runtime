@@ -8,22 +8,30 @@ import {
 } from "./kubernetes.js";
 import { createCellRuntime, type CellBinding } from "./cell.js";
 import {
+  bindCellTemplate,
+  CELL_DSH_VERSION,
+  CELL_TEMPLATE_VERSION,
+  type CellTemplateInputs,
+} from "./cell-template.js";
+import {
   RuntimeAccessError,
   type AllocationIntent,
   type AllocationRuntime,
   type AccessContext,
   type InstanceView,
 } from "./port.js";
-export interface CellProfile {
-  readonly template: string;
-  readonly expectedSpec: Readonly<Record<string, unknown>>;
-  /** Exact defaulted workload spec; only ${INSTANCE_ID} and ${ORIGIN_HOST} substitutions. */
-  readonly expectedPodSpec: Readonly<Record<string, unknown>>;
-}
 export interface CellAllocationOptions {
+  readonly template: typeof CELL_TEMPLATE_VERSION;
+  readonly image: string;
+  readonly storage: {
+    readonly size: string;
+    readonly storageClassName?: string;
+    readonly retentionPolicy?: "Retain" | "Delete";
+  };
+  readonly resources: CellTemplateInputs["resources"];
+  readonly credentialsSecret?: string;
   readonly namespaces: Readonly<Record<string, string>>;
   readonly domain: string;
-  readonly profiles: readonly CellProfile[];
 }
 const canonical = (value: unknown): string =>
   JSON.stringify(value, (_key, item: unknown) =>
@@ -37,6 +45,129 @@ const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 const uidPattern =
   /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const dnsSubdomain = (value: string) =>
+  typeof value === "string" &&
+  value.length <= 253 &&
+  value.split(".").every((label) => label.length <= 63 && dnsLabel.test(label));
+const exactKeys = (
+  value: unknown,
+  required: readonly string[],
+  optional: readonly string[] = [],
+) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  return (
+    required.every((key) => Object.hasOwn(value, key)) &&
+    keys.every((key) => required.includes(key) || optional.includes(key))
+  );
+};
+const maxQuantity = 9_223_372_036_854_775_807n;
+const positiveInt = (value: string) => /^[1-9][0-9]*$/.test(value);
+const cpuMilli = (value: string): bigint | undefined => {
+  if (typeof value !== "string") return undefined;
+  if (positiveInt(value)) {
+    const milli = BigInt(value) * 1000n;
+    return milli <= maxQuantity ? milli : undefined;
+  }
+  const milli = /^([1-9][0-9]{0,2})m$/.exec(value);
+  if (!milli) return undefined;
+  const amount = BigInt(milli[1]!);
+  return amount < 1000n ? amount : undefined;
+};
+const binaryBytes = (value: string): bigint | undefined => {
+  if (typeof value !== "string") return undefined;
+  const match = /^([1-9][0-9]*)(Ki|Mi|Gi|Ti)$/.exec(value);
+  if (!match) return undefined;
+  const amount = BigInt(match[1]!);
+  if (amount % 1024n === 0n) return undefined;
+  const power = { Ki: 1n, Mi: 2n, Gi: 3n, Ti: 4n }[match[2] as "Ki" | "Mi" | "Gi" | "Ti"];
+  const bytes = amount * 1024n ** power;
+  return bytes <= maxQuantity ? bytes : undefined;
+};
+function validateConfiguration(options: CellAllocationOptions) {
+  if (
+    !exactKeys(
+      options,
+      ["template", "image", "storage", "resources", "namespaces", "domain"],
+      ["credentialsSecret"],
+    )
+  )
+    throw new Error(
+      "Invalid allocation fields; use template, image, storage, resources, credentialsSecret, namespaces and domain",
+    );
+  if (options.template !== CELL_TEMPLATE_VERSION)
+    throw new Error("allocation.template: unsupported fixed Cell template version");
+  if (
+    typeof options.image !== "string" ||
+    !/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(options.image)
+  )
+    throw new Error("allocation.image: expected a sha256-pinned image reference");
+  if (
+    typeof options.domain !== "string" ||
+    !options.domain.includes(".") ||
+    !dnsSubdomain(options.domain)
+  )
+    throw new Error("allocation.domain: expected a lowercase DNS domain without a port");
+  if (!exactKeys(options.storage, ["size"], ["storageClassName", "retentionPolicy"]))
+    throw new Error("allocation.storage: invalid or unknown field");
+  if (!binaryBytes(options.storage.size))
+    throw new Error("allocation.storage.size: expected a positive canonical binary quantity");
+  if (
+    options.storage.storageClassName !== undefined &&
+    !dnsSubdomain(options.storage.storageClassName)
+  )
+    throw new Error("allocation.storage.storageClassName: invalid DNS name");
+  if (
+    options.storage.retentionPolicy !== undefined &&
+    options.storage.retentionPolicy !== "Retain" &&
+    options.storage.retentionPolicy !== "Delete"
+  )
+    throw new Error("allocation.storage.retentionPolicy: expected Retain or Delete");
+  if (
+    !exactKeys(options.resources, ["requests", "limits"]) ||
+    !exactKeys(options.resources.requests, ["cpu", "memory"]) ||
+    !exactKeys(options.resources.limits, ["cpu", "memory"])
+  )
+    throw new Error("allocation.resources: requests and limits must each contain only cpu and memory");
+  const requestCPU = cpuMilli(options.resources.requests.cpu);
+  const limitCPU = cpuMilli(options.resources.limits.cpu);
+  const requestMemory = binaryBytes(options.resources.requests.memory);
+  const limitMemory = binaryBytes(options.resources.limits.memory);
+  if (
+    requestCPU === undefined ||
+    limitCPU === undefined ||
+    requestMemory === undefined ||
+    limitMemory === undefined ||
+    requestCPU > limitCPU ||
+    requestMemory > limitMemory
+  )
+    throw new Error(
+      "allocation.resources: quantities must be positive, canonical and requests must not exceed limits",
+    );
+  if (
+    options.credentialsSecret !== undefined &&
+    !dnsSubdomain(options.credentialsSecret)
+  )
+    throw new Error("allocation.credentialsSecret: invalid Secret DNS name");
+  if (
+    !options.namespaces ||
+    typeof options.namespaces !== "object" ||
+    Array.isArray(options.namespaces) ||
+    !Object.keys(options.namespaces).length
+  )
+    throw new Error("allocation.namespaces: expected a non-empty tenant-to-namespace map");
+  const tenantIds = Object.keys(options.namespaces);
+  const namespaces = Object.values(options.namespaces);
+  if (
+    tenantIds.some((id) => !id.trim() || id.length > 128 || /[\u0000-\u001f]/.test(id)) ||
+    new Set(namespaces).size !== namespaces.length ||
+    namespaces.some(
+      (namespace) => typeof namespace !== "string" || !dnsLabel.test(namespace),
+    )
+  )
+    throw new Error("allocation.namespaces: tenant IDs or namespace DNS labels are invalid or duplicated");
+}
 interface Cell {
   metadata?: {
     uid?: string;
@@ -64,41 +195,39 @@ export function createCellAllocationRuntime(
   configuration: CellAllocationOptions,
 ): AllocationRuntime {
   const options = structuredClone(configuration);
-  if (!/^[a-z0-9.-]+\.[a-z0-9-]+$/.test(options.domain))
-    throw new Error("Invalid Cell domain");
-  const namespaces = Object.values(options.namespaces);
-  if (
-    !namespaces.length ||
-    new Set(namespaces).size !== namespaces.length ||
-    namespaces.some((n) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(n))
-  )
-    throw new Error("Invalid tenant namespaces");
-  const profiles = new Map<string, CellProfile>();
-  for (const p of options.profiles) {
-    if (
-      !p.template ||
-      p.template.length > 128 ||
-      profiles.has(p.template) ||
-      !p.expectedPodSpec ||
-      !/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(String(p.expectedSpec.image)) ||
-      "allocation" in p.expectedSpec ||
-      JSON.stringify(p.expectedSpec).includes("${") ||
-      JSON.stringify(p.expectedSpec).includes("restoreFrom")
-    )
-      throw new Error("Invalid allocation profile");
-    profiles.set(p.template, p);
-  }
+  validateConfiguration(options);
+  const templateInputs: CellTemplateInputs = {
+    image: options.image,
+    storage: {
+      size: options.storage.size,
+      ...(options.storage.storageClassName
+        ? { storageClassName: options.storage.storageClassName }
+        : {}),
+      retentionPolicy: options.storage.retentionPolicy ?? "Retain",
+    },
+    resources: options.resources,
+    ...(options.credentialsSecret
+      ? { credentialsSecret: options.credentialsSecret }
+      : {}),
+  };
+  const boundTemplate = bindCellTemplate(templateInputs);
+  const templateDigest = hash(
+    canonical({
+      template: CELL_TEMPLATE_VERSION,
+      spec: boundTemplate.spec,
+      podTemplate: boundTemplate.podTemplate,
+    }),
+  );
   const reader = new KubernetesReader(kubernetes),
     bindings = new Map<string, CellBinding>();
   const access = createCellRuntime(kubernetes, () => [...bindings.values()]);
   function resolve(intent: AllocationIntent, context: AccessContext) {
     const namespace = Object.hasOwn(options.namespaces, intent.owner.tenantId)
         ? options.namespaces[intent.owner.tenantId]
-        : undefined,
-      profile = profiles.get(intent.template);
+        : undefined;
     if (
       !namespace ||
-      !profile ||
+      intent.template !== CELL_TEMPLATE_VERSION ||
       !uidPattern.test(intent.allocationKey) ||
       !intent.owner.principalId ||
       intent.owner.principalId.length > 256
@@ -106,21 +235,21 @@ export function createCellAllocationRuntime(
       throw new RuntimeAccessError(
         "InvalidConfiguration",
         context.correlationId,
-        "Check authorized owner, allocation key and pinned template",
+        "Check authorized owner, allocation key and fixed Cell template version",
         { allocationKey: intent.allocationKey },
       );
     const name = "allocation-" + hash(intent.allocationKey).slice(0, 48);
     const spec = {
-      ...profile.expectedSpec,
+      ...boundTemplate.spec,
       allocation: {
         key: intent.allocationKey,
         principal: intent.owner.principalId,
         template: intent.template,
-        profileDigest: hash(canonical(profile)),
+        profileDigest: templateDigest,
       },
     };
     const path = `/apis/dsh.isolated.io/v1alpha1/namespaces/${encodeURIComponent(namespace)}/cells`;
-    return { namespace, profile, name, spec, path };
+    return { namespace, name, spec, path };
   }
   function verifyCell(
     intent: AllocationIntent,
@@ -128,7 +257,7 @@ export function createCellAllocationRuntime(
     expected: string | undefined,
     context: AccessContext,
   ) {
-    const { namespace, profile, name, spec } = resolve(intent, context);
+    const { namespace, name, spec } = resolve(intent, context);
     const fail = (
       code: "StaleInstance" | "IntentConflict" | "TemplateMismatch",
     ) =>
@@ -151,7 +280,7 @@ export function createCellAllocationRuntime(
     if (!isDeepStrictEqual(cell.spec?.allocation, spec.allocation))
       throw fail("IntentConflict");
     if (!isDeepStrictEqual(cell.spec, spec)) throw fail("TemplateMismatch");
-    return { namespace, profile, name, spec, identity };
+    return { namespace, name, spec, identity };
   }
   async function view(
     intent: AllocationIntent,
@@ -159,7 +288,7 @@ export function createCellAllocationRuntime(
     expected: string | undefined,
     context: AccessContext,
   ): Promise<InstanceView> {
-    const { namespace, profile, name, spec, identity } = verifyCell(
+    const { namespace, name, spec, identity } = verifyCell(
       intent,
       cell,
       expected,
@@ -171,18 +300,23 @@ export function createCellAllocationRuntime(
       origin,
       template: intent.template,
     };
-    const substitute = (value: unknown): unknown =>
+    const substituteIdentity = (value: unknown): unknown =>
       typeof value === "string"
         ? value
             .replaceAll("${INSTANCE_ID}", identity)
+            .replaceAll("${CELL_NAME}", name)
             .replaceAll("${ORIGIN_HOST}", new URL(origin).host)
         : Array.isArray(value)
-          ? value.map(substitute)
+          ? value.map(substituteIdentity)
           : value && typeof value === "object"
             ? Object.fromEntries(
-                Object.entries(value).map(([k, v]) => [k, substitute(v)]),
+                Object.entries(value).map(([k, v]) => [k, substituteIdentity(v)]),
               )
             : value;
+    const expectedPodTemplate = substituteIdentity(boundTemplate.podTemplate) as {
+      metadata: Record<string, unknown>;
+      spec: Record<string, unknown>;
+    };
     bindings.set(intent.allocationKey, {
       ref: base.ref,
       namespace,
@@ -190,18 +324,16 @@ export function createCellAllocationRuntime(
       origin,
       template: intent.template,
       expectedSpec: spec,
-      expectedPodSpec: substitute(profile.expectedPodSpec) as Record<
-        string,
-        unknown
-      >,
+      expectedPodSpec: expectedPodTemplate.spec,
+      expectedPodTemplateMetadata: expectedPodTemplate.metadata,
     });
     if (cell.metadata?.deletionTimestamp)
       return { ...base, state: "Deleting", reason: "DeletionRequested" };
     if (
-      (cell.status?.dshVersion && cell.status.dshVersion !== "0.1.5-rc.2") ||
+      (cell.status?.dshVersion && cell.status.dshVersion !== CELL_DSH_VERSION) ||
       (cell.status?.imageDigest &&
         cell.status.imageDigest !==
-          String(profile.expectedSpec.image).split("@")[1])
+          String(boundTemplate.spec.image).split("@")[1])
     )
       throw new RuntimeAccessError(
         "TemplateMismatch",
