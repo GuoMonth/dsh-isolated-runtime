@@ -24,12 +24,19 @@ routine PR acceptance. Local success is sufficient for behavioral acceptance.
 | API / CRD | `make verify-cell`, generated-artifact drift checks |
 | DSH / image / access seam | `make verify-dsh` (downloads exact upstream source) |
 | Cluster behavior | Relevant `make verify-kind` / `verify-kind-phase2` / `verify-kind-phase3` / `verify-kind-phase4` |
-| CLI / installation | Focused checks below; public installation changes also need `hack/verify-mvp.sh` |
+| CLI / installation | Cell CLI checks below and a clean consumer install; `hack/verify-mvp.sh` applies only to the legacy standalone installer |
 | Release inputs | `node hack/verify-release-contract.mjs` after committing inputs; exact-archive acceptance |
 
 Use [Go development](docs/go-development.md) for toolchain pins and lifecycle diagnostics. Select checks for the changed behavior; documentation alone does not require cluster or release acceptance. Once checks pass, broaden or repeat for new changes or unresolved concerns.
 
-Installation-focused commands, only when that surface changes:
+Current Cell npm CLI checks, only when that surface changes:
+
+```sh
+npm test --prefix packages/cell-cli
+node packages/cell-cli/bin/cli.mjs --verify-release
+```
+
+Legacy standalone checks apply only when modifying the retained legacy implementation; they are not Cell CLI acceptance:
 
 ```sh
 npm ci --ignore-scripts --prefix packages/cli

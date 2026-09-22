@@ -29,7 +29,7 @@ NetworkPolicy 只允许平台 Connector 路径访问 Cell proxy port。DSH liste
 
 Kubernetes namespace 与不可变 Cell UID 共同标识 Cell 实例。名称相同但 UID 不同的重建资源是不同实例。转发前 Connector 会根据实时 Kubernetes 状态校验 Cell 与其 Pod 的 identity；过期或不匹配的目标 fail closed。
 
-租户数据与私有运行时状态使用不同存储边界。Provider 凭据通过平台配置的 Secret 路径提供，不得写入 Cell status、日志或租户数据。资源状态及隔离是否生效仍以 Kubernetes 对象和已安装的存储/网络提供方为准。
+租户数据与私有运行时状态使用不同存储边界。Provider 凭据属于 Cell 的 DSH 私有状态，或显式配置的同 namespace credentialsRef Secret；平台 OIDC Secret 独立保存，不得挂载进用户 Cell。Provider 凭据不得写入 Cell status、日志或共享租户数据。资源状态及隔离是否生效仍以 Kubernetes 对象和已安装的存储/网络提供方为准。
 
 普通 Pod 不能防御已失陷的 Node、kernel、集群管理员或存储/网络提供方；本 POC 不作此类保证。
 
