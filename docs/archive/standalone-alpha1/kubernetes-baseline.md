@@ -34,8 +34,8 @@ CLI commands remain appropriate for administrator instructions and test orchestr
 - Snapshots are optional. Enabling them requires the snapshot CRDs/controller,
   a compatible CSI driver and VolumeSnapshotClass, and restore provisioning.
   The hostpath CSI fixture is test-only, not a production storage recommendation.
-- Namespace labels, quotas and admission policy remain administrator-owned. A
-  nominally supported cluster can still lack required capabilities.
+- Sandboxed RuntimeClass, namespace labels, quotas and admission policy remain
+  administrator-owned. A nominally supported cluster can still lack required capabilities.
 
 ## Local verification
 
