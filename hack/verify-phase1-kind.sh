@@ -310,26 +310,6 @@ expect_failure k -n dsh-system exec access-client -- node -e "$management_probe"
 egress_probe="const n=require('net').connect(443,'kubernetes.default.svc',()=>process.exit(0));n.on('error',()=>process.exit(2));setTimeout(()=>process.exit(3),3000)"
 k -n tenant-a exec "$main_pod" -- node -e "$egress_probe"
 
-k create namespace sandbox-test
-k apply -f - <<EOF
-apiVersion: dsh.isolated.io/v1alpha1
-kind: Cell
-metadata:
-  name: sandbox
-  namespace: sandbox-test
-spec:
-  image: ${cell_repo}@${cell_digest}
-  securityClass: sandboxed
-  storage:
-    size: 1Gi
-    retentionPolicy: Delete
-EOF
-wait_cell sandbox-test sandbox False
-test "$(k -n sandbox-test get cell sandbox -o json | jq -r '.status.conditions[] | select(.type == "WorkloadReady") | .reason')" = "SandboxRuntimeClassUnconfigured"
-k -n sandbox-test patch cell sandbox --type=merge -p '{"spec":{"securityClass":"standard"}}'
-wait_cell sandbox-test sandbox True
-k -n sandbox-test delete cell sandbox --wait=true
-
 provisioner="$(k get storageclass standard -o jsonpath='{.provisioner}')"
 k create namespace late-storage
 k apply -f - <<EOF

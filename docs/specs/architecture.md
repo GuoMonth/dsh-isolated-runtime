@@ -12,7 +12,7 @@ A `Cell` is a namespaced boundary for one DSH instance and its persistent data. 
 | Pod scheduling, services, network policy and volumes | Kubernetes and its installed providers |
 | TLS termination and ingress routing | Gateway API implementation |
 
-The Cell API does not accept a Pod name, UID, IP, Node, route or session as a user-selected target. The runtime resolves an instance from Kubernetes state and checks its identity before forwarding. The standard Kubernetes Pod is the POC execution boundary. The source-only sandbox reduction in [runtime PR #93](https://github.com/GuoMonth/dsh-isolated-runtime/pull/93) is a candidate change; it is not part of the published npm `0.3.0-alpha.1` package or its fixed manifests.
+The Cell API does not accept a Pod name, UID, IP, Node, route or session as a user-selected target. The runtime resolves an instance from Kubernetes state and checks its identity before forwarding. The POC uses the standard Kubernetes Pod boundary; the current source accepts only `securityClass: standard` and rejects unsupported values. The published npm `0.3.0-alpha.1` package and its fixed manifests remain unchanged by this source change.
 
 ## Request path
 

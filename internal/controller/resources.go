@@ -204,21 +204,6 @@ func (r *CellReconciler) reconcileStatefulSet(
 	return workload, err
 }
 
-func (r *CellReconciler) deleteStatefulSet(ctx context.Context, cell *dshv1alpha1.Cell) error {
-	names := cellcontract.ResourceNames(string(cell.UID))
-	workload := &appsv1.StatefulSet{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: cell.Namespace, Name: names.Base}, workload); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	if err := validateManaged(cell, workload, true); err != nil {
-		return err
-	}
-	if workload.DeletionTimestamp != nil {
-		return nil
-	}
-	return r.Delete(ctx, workload)
-}
-
 func (r *CellReconciler) reconcileNetworkPolicy(ctx context.Context, cell *dshv1alpha1.Cell) error {
 	names := cellcontract.ResourceNames(string(cell.UID))
 	policy := &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: names.Base, Namespace: cell.Namespace}}
@@ -337,12 +322,6 @@ func (r *CellReconciler) desiredPodTemplate(cell *dshv1alpha1.Cell) corev1.PodTe
 			},
 		},
 	}
-	if cell.Spec.SecurityClass == dshv1alpha1.SecuritySandboxed {
-		// The reconciler has already rejected an empty mapping. RuntimeClass
-		// remains cluster-owned and outside the Cell API.
-		podSpec.RuntimeClassName = ptr.To(r.SandboxedRuntimeClass)
-	}
-
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{Labels: workloadSelector(cell), Annotations: cellAnnotations(cell)},
 		Spec:       podSpec,

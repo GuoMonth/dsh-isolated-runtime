@@ -16,7 +16,7 @@ Administrators configure the cluster, namespaces, CNI, storage, DNS/TLS and serv
 - Fail fast on invalid configuration, permissions, templates or versions. Bound readiness waits. Errors include stage, redacted target, observed state, write outcome, retry/check advice and a correlation ID; never secrets.
 - Timeouts are not cancellation; missing records are not proof of stopped execution. Inspect the original identity after unknown writes. Do not create a new key automatically or build permanent tombstones, unbounded retries or automatic repair.
 - Current delivery uses the platform npm CLI with an administrator-configured cluster; this repository does not add a cluster installer.
-- The POC uses the standard Kubernetes Pod boundary. The separate [PR #93](https://github.com/GuoMonth/dsh-isolated-runtime/pull/93) proposes removing the optional RuntimeClass path and failing closed on unsupported `securityClass` values; the published Cell package and its fixed deployment artifacts are unchanged until a release is explicitly cut.
+- The source uses the standard Kubernetes Pod boundary: `securityClass` accepts only `standard`, and the controller rejects unsupported existing values. The published npm `0.3.0-alpha.1` package and its fixed deployment artifacts remain unchanged; this source change does not revise or republish them.
 
 ## Current acceptance
 
@@ -38,3 +38,5 @@ Published artifacts describe their own versions and remain unchanged by these so
 [中文](alpha-mvp.zh-CN.md)
 
 Actual results and remaining evidence limits: [2026-09-20 integration regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). Do not treat earlier R1–R6 deferred-check lists as current untested status.
+
+Unsupported security classes deny readiness and integrated admission. This does not stop or delete existing workloads or revoke historical standalone routes; administrators must inspect and explicitly dispose of those resources. In-place upgrades from historical sandboxed deployments are not supported.

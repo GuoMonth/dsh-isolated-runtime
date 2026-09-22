@@ -41,18 +41,18 @@ func immediateRequeueResult() ctrl.Result {
 }
 
 const (
-	reasonPVCsPending                     = "PVCsPending"
-	reasonPVCsBound                       = "PVCsBound"
-	reasonStatefulSetPending              = "StatefulSetPending"
-	reasonStatefulSetReady                = "StatefulSetReady"
-	reasonEndpointPending                 = "EndpointPending"
-	reasonEndpointReady                   = "EndpointReady"
-	reasonComponentsNotReady              = "ComponentsNotReady"
-	reasonComponentsReady                 = "ComponentsReady"
-	reasonOwnershipConflict               = "OwnershipConflict"
-	reasonReconcileFailed                 = "ReconcileFailed"
-	reasonSandboxRuntimeClassUnconfigured = "SandboxRuntimeClassUnconfigured"
-	reasonSnapshotInProgress              = "SnapshotInProgress"
+	reasonPVCsPending              = "PVCsPending"
+	reasonPVCsBound                = "PVCsBound"
+	reasonStatefulSetPending       = "StatefulSetPending"
+	reasonStatefulSetReady         = "StatefulSetReady"
+	reasonEndpointPending          = "EndpointPending"
+	reasonEndpointReady            = "EndpointReady"
+	reasonComponentsNotReady       = "ComponentsNotReady"
+	reasonComponentsReady          = "ComponentsReady"
+	reasonOwnershipConflict        = "OwnershipConflict"
+	reasonReconcileFailed          = "ReconcileFailed"
+	reasonUnsupportedSecurityClass = "UnsupportedSecurityClass"
+	reasonSnapshotInProgress       = "SnapshotInProgress"
 )
 
 // CellReconciler reconciles Cells across all namespaces.
@@ -61,7 +61,6 @@ type CellReconciler struct {
 	APIReader               client.Reader
 	Scheme                  *runtime.Scheme
 	SystemNamespace         string
-	SandboxedRuntimeClass   string
 	RouteConfig             RouteConfig
 	Recorder                recorder.EventRecorder
 	routeAPIAvailable       bool
@@ -143,6 +142,13 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 	}
 
 	state := pendingState()
+	if cell.Spec.SecurityClass != "" && cell.Spec.SecurityClass != dshv1alpha1.SecurityStandard {
+		state.Workload = falseCondition(
+			reasonUnsupportedSecurityClass,
+			"only the standard securityClass is supported in this POC",
+		)
+		return r.finish(ctx, &cell, state, nil)
+	}
 	if err := r.checkAccessMode(ctx, &cell); err != nil {
 		state.Access = falseCondition("AccessModeConflict", err.Error())
 		var conflict *accessModeConflict
@@ -200,18 +206,6 @@ func (r *CellReconciler) Reconcile(ctx context.Context, request ctrl.Request) (c
 		return r.finish(ctx, &cell, state, err)
 	}
 	routeErr := r.reconcilePublicAccess(ctx, &cell)
-
-	if cell.Spec.SecurityClass == dshv1alpha1.SecuritySandboxed && strings.TrimSpace(r.SandboxedRuntimeClass) == "" {
-		if err := r.deleteStatefulSet(ctx, &cell); err != nil {
-			state.Workload = failedCondition(err, "sandboxed workload cleanup failed")
-			return r.finish(ctx, &cell, state, err)
-		}
-		state.Workload = falseCondition(
-			reasonSandboxRuntimeClassUnconfigured,
-			"sandboxed RuntimeClass mapping is not configured",
-		)
-		return r.finishPublic(ctx, &cell, state, routeErr)
-	}
 
 	replicas := int32(1)
 	if snapshotActivity.StopWriter {

@@ -12,7 +12,7 @@
 | Pod 调度、Service、网络策略和卷 | Kubernetes 及其已安装的提供方 |
 | TLS 终止和入口路由 | Gateway API 实现 |
 
-Cell API 不接受用户指定的 Pod 名称、UID、IP、Node、route 或 session 作为目标。运行时从 Kubernetes 状态解析实例，并在转发前校验 identity。POC 的执行边界是标准 Kubernetes Pod。[Runtime PR #93](https://github.com/GuoMonth/dsh-isolated-runtime/pull/93) 中仅改源码的 sandbox 收缩仍是候选改动，尚未进入已发布的 npm `0.3.0-alpha.1` 包及固定清单。
+Cell API 不接受用户指定的 Pod 名称、UID、IP、Node、route 或 session 作为目标。运行时从 Kubernetes 状态解析实例，并在转发前校验 identity。POC 使用标准 Kubernetes Pod 作为边界；当前源码仅接受 `securityClass: standard` 并拒绝不支持的值。本次源码修改不改变已发布 npm `0.3.0-alpha.1` 包及固定清单。
 
 ## 请求路径
 

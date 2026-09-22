@@ -23,7 +23,6 @@ import (
 
 func main() {
 	var systemNamespace string
-	var sandboxedRuntimeClass string
 	var accessMode string
 	var gatewayName string
 	var gatewayNamespace string
@@ -37,7 +36,6 @@ func main() {
 	var cellConcurrency int
 	var snapshotConcurrency int
 	flag.StringVar(&systemNamespace, "system-namespace", "", "namespace whose labelled access Pods may reach Cells (defaults to POD_NAMESPACE)")
-	flag.StringVar(&sandboxedRuntimeClass, "sandboxed-runtime-class", "", "cluster-owned RuntimeClass used for sandboxed Cells")
 	flag.StringVar(&accessMode, "access-mode", "standalone", "Cell access: standalone direct routing or platform-owned ingress")
 	flag.StringVar(&gatewayName, "gateway-name", "", "Gateway used for derived Cell HTTPRoutes; empty disables public routing")
 	flag.StringVar(&gatewayNamespace, "gateway-namespace", "dsh-system", "namespace containing the public Gateway")
@@ -106,7 +104,6 @@ func main() {
 		APIReader:               manager.GetAPIReader(),
 		Scheme:                  manager.GetScheme(),
 		SystemNamespace:         systemNamespace,
-		SandboxedRuntimeClass:   sandboxedRuntimeClass,
 		RouteConfig:             accessConfig,
 		Recorder:                manager.GetEventRecorder("cell-operator"),
 		SnapshotEnabled:         enableSnapshots,
