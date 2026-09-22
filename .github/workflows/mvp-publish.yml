@@ -1,4 +1,4 @@
-name: Publish accepted alpha
+name: Legacy standalone publication
 on:
   workflow_dispatch:
     inputs:
@@ -66,7 +66,7 @@ jobs:
             test "$actual" = "${ref#*@}"
           done
           gh release create "$version" dist/* --repo "$GITHUB_REPOSITORY" --target "$source_sha" \
-            --latest --title "$version - DSH $(jq -r .source.version compat/dsh/baseline.json)" --notes-file docs/release-notes.md
+            --latest=false --title "$version - DSH $(jq -r .source.version compat/dsh/baseline.json)" --notes-file docs/archive/standalone-alpha1/release-notes-v0.2.0-alpha.1.md
       - name: Verify anonymous release download
         run: |
           version="$(jq -r .version dist/release.json)"

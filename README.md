@@ -4,7 +4,7 @@ Kubernetes Cell lifecycle and isolation for native DeepSeek Harness. The [multi-
 
 [中文](README.zh-CN.md)
 
-**Current scope: Cell MVP alpha.** The fixed two-user OIDC + Cell flow and real-model file operations passed [integration regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). The exact tested Linux/amd64 Cell/Operator images are public in [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1), with the same immutable digests; the platform has its own npm release. Breaking changes are allowed; no historical compatibility, upgrade, HA or seamless recovery promise.
+**Current scope: Cell MVP alpha.** The fixed two-user OIDC + Cell flow and real-model file operations passed [integration regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). The exact tested Linux/amd64 Cell/Operator images are public in [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1), with the same immutable digests; the platform has its own npm release. New iterations can make breaking changes; published artifact identities remain fixed.
 
 ## Fixed release boundary
 
@@ -16,6 +16,8 @@ Breaking updates are allowed: publish a new explicit combination, update configu
 ## Integrate with the platform
 
 Administrators supply Kubernetes, enforced CNI policies, storage, tenant namespaces, Gateway API and DNS/TLS. The new npm package supplies deployment YAML with the accepted public image already pinned. Review it and set the environment domain before deployment:
+
+For the fixed platform-mode deployment, the platform Pod must be in the operator’s system namespace (default `dsh-system`) and carry `dsh.isolated.io/access: platform`; see the [platform setup guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md). When selecting packages through `latest`, verify that the runtime release matches the platform’s `cell-release.json` before applying its manifests.
 
 ```bash
 npx dsh-isolated-runtime@latest release
@@ -32,7 +34,7 @@ The published platform npm entry requires Node 24+:
 npx dsh-multi-tenant@latest start --config /private/config.json
 ```
 
-Run it with direct API and Pod-IP reachability, normally inside the cluster. This command does not create a cluster. Runtime npm `0.3.0-alpha.1` delivers Cell metadata and deployment YAML only. The old standalone `start/up/stop/uninstall` commands are removed; no local cluster is created.
+Run it with direct API and Pod-IP reachability, normally inside the cluster. This command does not create a cluster. Runtime npm `0.3.0-alpha.1` delivers Cell metadata and deployment YAML only. The published npm package does not provide the old standalone `start/up/stop/uninstall` commands or create a local cluster; their historical source remains under `packages/cli`.
 
 | Layer | Authority |
 | --- | --- |
@@ -40,7 +42,7 @@ Run it with direct API and Pod-IP reachability, normally inside the cluster. Thi
 | isolated-runtime | Cell Operator, images, resource lifecycle/ownership, verified transport |
 | DSH | Native application sessions, tools, model calls and private application state |
 
-One cluster, one platform replica, fixed versions. The neutral internal contract does not promise interchangeable Process/Docker backends. Unknown writes require original-key inspection; delete acceptance does not prove writer cessation. See [constitution](CONSTITUTION.md), [RuntimePort](docs/design/runtime-port.zh-CN.md) and [MVP boundaries](docs/alpha-mvp.md).
+The current regression uses one cluster, one platform replica and fixed versions. Unknown writes require original-key inspection; delete acceptance does not prove writer cessation. See [constitution](CONSTITUTION.md), [RuntimePort](docs/design/runtime-port.zh-CN.md) and [MVP boundaries](docs/alpha-mvp.md).
 
 ## Real integrated session
 
@@ -54,6 +56,6 @@ Native DSH behind platform OIDC and a runtime-owned Cell; deepseek-flash wrote/r
 
 ## Historical standalone distribution
 
-Published `v0.2.0-alpha.1` is the local standalone launcher, not this integrated alpha. Use its [versioned instructions](https://github.com/GuoMonth/dsh-isolated-runtime/tree/v0.2.0-alpha.1) for that artifact. Current npm `0.3.0-alpha.1` uses `latest` and replaces the old launcher with Cell manifests. This is a breaking change with no automatic migration.
+Published `v0.2.0-alpha.1` is the local standalone launcher, not this integrated alpha. Use its [versioned instructions](https://github.com/GuoMonth/dsh-isolated-runtime/tree/v0.2.0-alpha.1) for that artifact. Current npm `0.3.0-alpha.1` uses `latest` and replaces the old launcher with Cell manifests. The old implementation remains as historical source under `packages/cli`; this is a breaking change with no automatic migration.
 
 [Documentation map](docs/README.md) · [Exact DSH baseline](compat/dsh/README.md) · [Architecture](docs/specs/architecture.md). License: [LICENSE](LICENSE).

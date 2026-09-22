@@ -1,23 +1,16 @@
 # 文档索引
 
-- [R2 internal Cell Connector](cell-connector.md) — source/artifact boundary; regression pending.
+从[平台集成配置](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md)、[共享回归实证](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)和[Cell MVP 范围](alpha-mvp.zh-CN.md)开始。当前用户身份与 OIDC 路径由 multi-tenant 平台负责。Gateway 提供 TLS 和路由；Connector 校验选定 Cell 实例并代理请求。
 
-- [平台接入配置（R1）](platform-access.md) —— 首个实现切片，集群验证待完成。
-- [共享宪法入口](../CONSTITUTION.md)
-- [内部 RuntimePort](design/runtime-port.zh-CN.md) / [Cell adapter](design/cell-adapter.zh-CN.md) —— 待实现设计。
-- [当前 alpha MVP 方向与验收](./alpha-mvp.zh-CN.md)
-- [Go 工具链、生命周期检查与泄漏诊断](./go-development.md)
-- [本地安装](./quickstart.zh-CN.md)
-- [AI 安装手册](./ai/local-run.md)
-- [Alpha 发行与网络依赖](./distribution.md)
+- [共享宪法](../CONSTITUTION.md)
+- [RuntimePort](design/runtime-port.zh-CN.md) / [Cell adapter](design/cell-adapter.zh-CN.md) —— 内部接口与资源边界
+- [平台接入配置](platform-access.md)
+- [Cell Connector](cell-connector.md)
+- [Cell MVP 范围与验收](alpha-mvp.zh-CN.md)
+- [架构](specs/architecture.zh-CN.md)与[威胁模型](specs/threat-model.zh-CN.md)
+- [Go 开发](go-development.md)
+- [当前发行说明](distribution.md)与[Cell CLI 源码 README](../packages/cell-cli/README.md)
+- [DSH 精确基线](../compat/dsh/README.zh-CN.md)
+- [当前路线图](../ROADMAP.zh-CN.md)
 
-- [架构](./specs/architecture.zh-CN.md) —— 资源归属、边界、数据流与非目标。
-- [威胁模型](./specs/threat-model.zh-CN.md) —— 保证、假设与攻击面。
-- [Namespace 契约](./specs/namespace-contract.zh-CN.md) —— 原生能力与策略边界。
-- [指标契约](./specs/metrics.zh-CN.md) —— 有界聚合观测面。
-- [DSH 兼容性](../compat/dsh/README.zh-CN.md) —— 精确上游实证与 launcher 决策。
-- [Roadmap](../ROADMAP.zh-CN.md) —— 当前集成顺序。
-
-可执行 API 细节以 Go 类型、生成的 CRD 和测试为准，不在文档中复制维护。
-
-按任务读取。archive/、旧发行记录与验收快照是历史证据，不是当前需求；安装现有版本时以其随包文档为准。
+已发布 npm `0.3.0-alpha.1` 及其固定 `operator.yaml` / `release.json` 描述的是该发行版。PR #93 等源码变更在单独发行前都只是候选。`archive/` 保存各版本 standalone 安装、snapshot/restore 和较早的实现/计划材料，不是当前入口或验收清单。

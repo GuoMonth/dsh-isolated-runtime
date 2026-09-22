@@ -102,11 +102,11 @@ be downgraded. Cross-version snapshot restore is unsupported.
 Existing clusters use `config/default`, `config/browser`, or
 `config/snapshots`; administrators supply networking, storage, DNS, TLS, OIDC
 and access grants. The local identity and local CA are not a production IdP/PKI.
-See the [snapshot sample](../config/samples/dsh_v1alpha1_cellsnapshot.yaml).
+See the [snapshot sample](https://github.com/GuoMonth/dsh-isolated-runtime/blob/v0.2.0-alpha.1/config/samples/dsh_v1alpha1_cellsnapshot.yaml).
 The optional hostpath CSI driver is a local reference driver, not a backup
 product. No k3d/k3s or Windows/Intel Mac installation guarantee in this alpha.
 
-[AI runbook](ai/local-run.md) | [Distribution and network requirements](distribution.md)
+[AI runbook](ai/local-run.md) | [Distribution and network requirements](https://github.com/GuoMonth/dsh-isolated-runtime/blob/v0.2.0-alpha.1/docs/distribution.md)
 
 Mac Docker Desktop end-to-end and real-model acceptance are maintainer follow-ups
 after alpha publication, not implied by deterministic Linux CI success.

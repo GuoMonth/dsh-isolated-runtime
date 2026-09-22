@@ -1,9 +1,9 @@
 # MVP delivery ledger
 
 This ledger records the historical local-installation MVP. The next milestone
-and current product scope are defined in [self-hosted alpha MVP](alpha-mvp.md).
+and current product scope are defined in [self-hosted alpha MVP](../../alpha-mvp.md).
 Historical baseline and distribution statements below are not current install
-instructions; see [distribution](distribution.md) for the published alpha.
+instructions; see [distribution](../../distribution.md) for the published alpha.
 
 Current target: Linux x86_64 and Apple Silicon macOS local kind experience, one
 current DSH baseline, existing Cell/CellSnapshot v1alpha1 APIs. No fleet platform
@@ -16,7 +16,7 @@ applies unchanged. Compatibility acceptance adds upstream V2-to-V3 migration
 and log-publication tests. V3 sessions cannot be read by the old DSH version;
 cross-version CellSnapshot restore and in-place demo release changes remain
 unsupported. Release-specific behavior and upgrade limits are recorded in
-[release notes](release-notes.md).
+[release notes](release-notes-v0.2.0-alpha.1.md).
 
 Milestone: https://github.com/GuoMonth/dsh-isolated-runtime/milestone/7
 

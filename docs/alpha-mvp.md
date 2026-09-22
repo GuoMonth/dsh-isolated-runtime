@@ -6,16 +6,17 @@ Updated 2026-09-20 under the [project constitution](../CONSTITUTION.md). The cor
 
 Two users sign in through multi-tenant OIDC, create their own Cells and use native DSH; cross-user access is denied. The platform owns user protocols, identity/membership, authorization and sessions. This repository owns Cells, resource lifecycle and restricted application transport. DSH owns application protocols, sessions and tools.
 
-Administrators configure the cluster, namespaces, CNI, storage, DNS/TLS and service permissions. The platform consumes a neutral internal interface, not a second Pod/PVC controller. Formal multi-backend compatibility waits for a second real requirement.
+Administrators configure the cluster, namespaces, CNI, storage, DNS/TLS and service permissions. The platform consumes a neutral internal interface, not a second Pod/PVC controller.
 
 ## Minimal deployment and limits
 
-- One cluster with Linux worker nodes, one platform replica, one OIDC provider and a pinned template. Validate one explicit reference setup; kind is sufficient for the first flow.
-- Reuse existing Kustomize/test deployment and Gateway capabilities. Helm, two-cluster installation acceptance and broad infrastructure matrices do not block the first integrated flow.
+- The fixed-version reference regression records one cluster, one platform replica, an OIDC provider and a pinned template. Use one explicit administrator-configured setup when validating that combination.
+- Use the selected administrator-configured Kubernetes deployment for the current integration flow.
 - Pin each source/DSH/image combination. Breaking API, configuration and state-format changes are allowed at any time, with no historical compatibility, upgrade, migration or seamless recovery promise.
 - Fail fast on invalid configuration, permissions, templates or versions. Bound readiness waits. Errors include stage, redacted target, observed state, write outcome, retry/check advice and a correlation ID; never secrets.
 - Timeouts are not cancellation; missing records are not proof of stopped execution. Inspect the original identity after unknown writes. Do not create a new key automatically or build permanent tombstones, unbounded retries or automatic repair.
-- Defer HA, multi-cluster, autoscaling, disaster recovery, generic runtime services and new Process/Docker backends. Current delivery is the platform npm CLI for an administrator-configured cluster; no new cluster installer. Existing features are not compatibility obligations; keep ownership/isolation checks relevant to the current flow.
+- Current delivery uses the platform npm CLI with an administrator-configured cluster; this repository does not add a cluster installer.
+- The POC uses the standard Kubernetes Pod boundary. The separate [PR #93](https://github.com/GuoMonth/dsh-isolated-runtime/pull/93) proposes removing the optional RuntimeClass path and failing closed on unsupported `securityClass` values; the published Cell package and its fixed deployment artifacts are unchanged until a release is explicitly cut.
 
 ## Current acceptance
 
@@ -30,11 +31,9 @@ Record both source commits, image digests, exact DSH, CNI/storage/CPU architectu
 
 When cleanup cannot be proven, reject old-data reuse and hand off to an administrator. Missing control objects are not proof that a physical writer stopped. Do not expand this into a generic recovery/migration system.
 
-## Historical behavior and distribution
+## Published artifact boundary
 
-Published artifacts and the standalone OIDC/RBAC path describe their own versions; they do not promise compatibility with new code. This documentation changes policy and planning, not installed artifacts or existing environments. Chart, uninstall/reinstall and multi-environment installation goals may be scheduled for a real requirement; they are not implicit gates for this integration MVP.
-
-Actual installation/release changes still require verification of their current artifacts and flow. Automatic CI remains Source standards only. Publication, deployment and data deletion follow existing user authorization.
+Published artifacts describe their own versions and remain unchanged by these source documents. The current npm package and fixed manifests are documented in [distribution](distribution.md); older standalone behavior is retained in [the archive](archive/standalone-alpha1/README.md).
 
 [中文](alpha-mvp.zh-CN.md)
 
