@@ -6,10 +6,20 @@ Node.js 22+. The runtime images support Linux/amd64 and pin DSH **0.1.5-rc.2**.
 This tracked README may change ahead of a package release; a source edit does not
 mean the public npm tarball or its `operator.yaml` / `release.json` changed.
 
+**Architecture direction:** Kubernetes-only Agent Workspace. Current source and
+this published package still use Cell; W1 plans a breaking `AgentWorkspace`
+rename and removal of Process/Docker product backends, standalone launch, and
+snapshot/restore. See the [authoritative design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md)
+and [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104).
+This does not remove Pod child processes, OCI image builds, or Docker as kind's
+substrate. The command examples below remain instructions for the published
+`0.3.0-alpha.1` package, not the planned target.
+
 ## Existing Kubernetes cluster
 
-Administrators prepare Kubernetes, enforced NetworkPolicy, storage, tenant
-namespaces, Gateway API, DNS/TLS and private configuration. This package does
+Administrators prepare Kubernetes, enforced NetworkPolicy, storage,
+preconfigured infrastructure-scope namespaces (not OIDC tenant IDs), Gateway API,
+DNS/TLS and private configuration. This package does
 not create a local cluster or install OIDC. It only prints bundled metadata/YAML;
 no kubectl, Docker or network access is used by its commands.
 
