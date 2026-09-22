@@ -13,6 +13,8 @@ namespaces, Gateway API, DNS/TLS and private configuration. This package does
 not create a local cluster or install OIDC. It only prints bundled metadata/YAML;
 no kubectl, Docker or network access is used by its commands.
 
+For the fixed platform-mode deployment, the platform Pod must be in the operator’s system namespace (default `dsh-system`) and carry `dsh.isolated.io/access: platform`; see the [platform setup guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md). When selecting packages through `latest`, verify that the runtime release matches the platform’s `cell-release.json` before applying its manifests.
+
 ```sh
 npx dsh-isolated-runtime@latest release
 npx dsh-isolated-runtime@latest manifests > operator.yaml

@@ -20,6 +20,6 @@ Current package source is `packages/cell-cli`; `packages/cli` and `hack/package-
 
 ## Historical standalone 0.2
 
-The old local-cluster launcher is not the new npm entry. `start/up/stop/uninstall`, automatic kind setup and host archives are not part of the current package; the historical implementation remains under `packages/cli`. Old standalone users can select exactly `0.2.0-alpha.1` and its [versioned distribution instructions](https://github.com/GuoMonth/dsh-isolated-runtime/blob/v0.2.0-alpha.1/docs/distribution.md). Historical scripts are not Cell release gates.
+The old local-cluster launcher is not the new npm entry. `start/up/stop/uninstall`, automatic kind setup and host archives are not part of the current package; the historical implementation remains under `packages/cli`. Old standalone users can select exactly `0.2.0-alpha.1` and its [versioned distribution instructions](https://github.com/GuoMonth/dsh-isolated-runtime/blob/v0.2.0-alpha.1/docs/distribution.md). Historical scripts are not Cell release gates. The manual `mvp-publish.yml` workflow is a legacy standalone publication tool, uses archived standalone notes and must not be dispatched for a Cell release; it does not promote GitHub Latest. Current Cell publication uses `cell-publish.yml` and `npm-publish.yml`.
 
 New iterations may break APIs, configuration and state formats. No historical compatibility, upgrade or automatic data migration is promised. Public image digests, npm tarballs and release source tags remain immutable.

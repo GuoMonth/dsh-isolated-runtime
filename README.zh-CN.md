@@ -17,6 +17,8 @@
 
 管理员准备 K8s、执行 NetworkPolicy 的 CNI、存储、租户 namespace、Gateway API 和 DNS/TLS。新版 npm 提供已固定公开镜像的部署清单，审阅并设置环境域名后部署：
 
+固定 platform 模式部署要求平台 Pod 位于 Operator 的 system namespace（默认 `dsh-system`），并带 `dsh.isolated.io/access: platform` 标签；详见[平台启动指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.zh-CN.md)。使用 `latest` 选择包后，先核对 runtime 发行与平台 `cell-release.json` 匹配，再应用清单。
+
 ```bash
 npx dsh-isolated-runtime@latest release
 npx dsh-isolated-runtime@latest manifests > /private/operator-rendered.yaml

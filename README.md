@@ -17,6 +17,8 @@ Breaking updates are allowed: publish a new explicit combination, update configu
 
 Administrators supply Kubernetes, enforced CNI policies, storage, tenant namespaces, Gateway API and DNS/TLS. The new npm package supplies deployment YAML with the accepted public image already pinned. Review it and set the environment domain before deployment:
 
+For the fixed platform-mode deployment, the platform Pod must be in the operator’s system namespace (default `dsh-system`) and carry `dsh.isolated.io/access: platform`; see the [platform setup guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md). When selecting packages through `latest`, verify that the runtime release matches the platform’s `cell-release.json` before applying its manifests.
+
 ```bash
 npx dsh-isolated-runtime@latest release
 npx dsh-isolated-runtime@latest manifests > /private/operator-rendered.yaml
