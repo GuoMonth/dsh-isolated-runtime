@@ -1,5 +1,7 @@
 # Current roadmap
 
-[Issue #82](https://github.com/GuoMonth/dsh-multi-tenant/issues/82) owns sequence and acceptance: S0 contract → S1 native access → S2 OIDC isolation → S3 creation/diagnostics → S4 data/end-to-end proof.
+The multi-tenant platform owns the current sequence and acceptance plan: [platform roadmap](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/roadmap.md), [main Issue #82](https://github.com/GuoMonth/dsh-multi-tenant/issues/82), and [follow-up Issue #99](https://github.com/GuoMonth/dsh-multi-tenant/issues/99).
 
-See [Cell MVP](docs/alpha-mvp.md) for scope. Previous Phase 0–4 and release milestones are [archived](docs/archive/milestones.md), not current prerequisite gates.
+This repository's current scope and technical boundaries are in [Cell MVP](docs/alpha-mvp.md) and the [documentation index](docs/README.md). Historical standalone installation, snapshot/restore and platform matrix plans are archived; they are not current gates.
+
+[P3 independent deployment acceptance #100](https://github.com/GuoMonth/dsh-multi-tenant/issues/100) starts after P2 provides a coordinated candidate.

@@ -128,6 +128,6 @@ immutable release bundle (#53), live acceptance and final GO/publication (#54).
 Earlier retrospectives remain historical evidence. The MVP supersedes their npm/RC
 baseline with the pinned 0.1.3-alpha.1 source build and records the native settings
 patch, authorization burst limit and snapshot acceptance race correction in
-[the current delivery ledger](../mvp-release.md). Historical GO decisions do not
+[the current delivery ledger](standalone-alpha1/mvp-release.md). Historical GO decisions do not
 constitute acceptance of the new MVP artifacts.
 No fleet-platform expansion or historical compatibility.

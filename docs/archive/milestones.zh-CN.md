@@ -107,6 +107,6 @@ Latest exact DSH baseline (#50), complete user journey (#51), local demo (#52),
 不可变发布包（#53）、真实模型验收及最终 GO/发布（#54）。
 
 既有复盘保留为历史证据。MVP 以精确 0.1.3-alpha.1 源码构建替代此前 npm/RC 基线；
-原生设置补丁、授权并发请求额度和快照接受竞态修正见[当前交付记录](../mvp-release.md)。
+原生设置补丁、授权并发请求额度和快照接受竞态修正见[当前交付记录](standalone-alpha1/mvp-release.md)。
 历史 GO 不代表新 MVP 产物已经通过发布验收。
 No fleet-platform expansion or historical compatibility.

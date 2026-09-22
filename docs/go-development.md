@@ -3,7 +3,7 @@
 The module and supported build paths use Go 1.27.1. Make pins GOTOOLCHAIN to
 that exact patch; Docker builders pin the matching multi-platform image digest.
 Manual workflows and Source standards use the same Go patch. Kubernetes SDK
-and test tooling follow the [Kubernetes baseline](kubernetes-baseline.md).
+and test tooling follow the [Kubernetes baseline](archive/standalone-alpha1/kubernetes-baseline.md).
 
 Run from the repository root:
 

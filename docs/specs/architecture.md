@@ -1,171 +1,38 @@
-# Architecture
+# Cell architecture
 
-## The boundary
+## Ownership
 
-A `Cell` is one namespaced DSH trust, execution, and durable-state boundary.
-The namespace is the tenant identity. Cell is not a small Kubernetes clone: it
-is a narrow intent API translated into native resources.
+A `Cell` is a namespaced boundary for one DSH instance and its persistent data. The namespace is the tenant boundary. This repository translates Cell intent into Kubernetes resources; it does not provide a second scheduler or user identity system.
 
-| Concern | Authority |
+| Concern | Owner |
 | --- | --- |
-| Fleet, placement, restart, rollout, quota, RBAC | Kubernetes |
-| External listeners and HTTP routing | Gateway API |
-| Durable volumes and snapshots | CSI |
-| Sessions, attachments, storage domains, protocol | DSH |
-| Cell-to-native-resource translation and access seam | This project |
+| User identity, OIDC, membership, authorization and user sessions | multi-tenant platform |
+| Cell resources, images, lifecycle and verified internal transport | this repository |
+| Application protocols, sessions, tools and model calls | DSH |
+| Pod scheduling, services, network policy and volumes | Kubernetes and its installed providers |
+| TLS termination and ingress routing | Gateway API implementation |
 
-The Cell API never selects Nodes or carries session state, topology, routes, or
-workload implementation details. The operator derives those from namespace,
-Cell identity, cluster policy, and observed state.
+The Cell API does not accept a Pod name, UID, IP, Node, route or session as a user-selected target. The runtime resolves an instance from Kubernetes state and checks its identity before forwarding. The standard Kubernetes Pod is the POC execution boundary. The source-only sandbox reduction in [runtime PR #93](https://github.com/GuoMonth/dsh-isolated-runtime/pull/93) is a candidate change; it is not part of the published npm `0.3.0-alpha.1` package or its fixed manifests.
 
-## Target resource graph
+## Request path
 
 ```text
-Cell
-  └─ operator
-      ├─ tenant-data PVC
-      ├─ private-state PVC
-      ├─ ServiceAccount (no workload API token)
-      ├─ StatefulSet (1 replica): launcher (PID 1) → DSH child
-      ├─ headless Service (StatefulSet network identity)
-      ├─ ClusterIP Service (Cell access)
-      ├─ NetworkPolicy
-      ├─ Role (one Cell `access` verb)
-      └─ HTTPRoute (UID-derived hostname)
-
-CellSnapshot
-  → StatefulSet replicas=0
-  → observed zero replicas + no owned Pod (writer-stop barrier)
-  → CSI VolumeSnapshot (tenant-data PVC only)
-  → source Cell replicas=1
-  → fresh Cell data PVC with VolumeSnapshot dataSource
-
-Browser
-  → Envoy Gateway (HTTPS + OIDC)
-  → cell-authorizer (route validation + SubjectAccessReview)
-  → HTTPRoute
-  → launcher
-  → DSH HTTP / WebSocket / streams / Fetch
+Browser → Gateway (TLS and routing) → multi-tenant platform (OIDC and authorization)
+        → Connector → verified Cell Pod → DSH
 ```
 
-The graph uses Kubernetes owner references and reconciliation; it introduces no
-project scheduler, runtime inventory, checkpoint service, or shadow desired-state
-database.
+Gateway provides TLS termination and routing in the integrated flow. OIDC login and user authorization belong to the platform. The Connector resolves the platform-authorized Cell reference, validates the current Kubernetes identity chain (including the Cell UID and Pod ownership), and proxies HTTP, WebSocket and streaming traffic to the selected Pod. The Go proxy keeps the DSH launch token in process memory and uses it for the local bootstrap exchange; it does not place it in a public URL or logs. DSH retains ownership of its application protocol and session behavior.
 
-## Access seam
+The network policy permits the platform Connector path to reach the Cell proxy port. The DSH listener remains loopback-only within the Pod. NetworkPolicy enforcement depends on a CNI that enforces the policy; a rendered policy alone is not proof of isolation.
 
-DSH 0.1.5-rc.2 creates a launch token in process memory, prints it once in the
-loopback readiness URL, and exchanges it for an authority-bound browser cookie.
-There is no supported token injection interface. Therefore the selected design
-is a launcher in the same container:
+## Identity and data boundaries
 
-1. The launcher starts DSH as a child and captures its readiness URL.
-2. The token stays in launcher memory and is used only on the internal first
-   root request; it never enters the public URL, arguments, or logs.
-3. HTTP, WebSocket, streams, and Fetch are proxied opaquely. Typert is not parsed.
-4. External Host and Origin remain intact for DSH validation. HTTPS egress
-   adds `Secure` and normalizes the DSH cookie to `SameSite=Lax`; DSH itself
-   supplies `HttpOnly`. Lax is required for the safe top-level return from an
-   external OIDC provider.
-5. Authentication and Cell authorization happen before this seam. The launcher
-   strips identity headers and every credential cookie used by the pinned Envoy
-   Gateway v1.9.1 OAuth2 filter, including its per-policy suffixed names, while
-   preserving DSH and unrelated application cookies. It trusts only the ingress
-   path constrained by NetworkPolicy.
+The Kubernetes namespace and immutable Cell UID identify a Cell instance. Recreated resources with the same name but a different UID are different instances. Before proxying, the Connector checks the Cell and owned Pod identity against live Kubernetes state; stale or mismatched targets fail closed.
 
-A detached sidecar cannot safely obtain the process token. Direct exposure
-conflicts with the loopback-only CLI and leaks the launch URL. Pure Gateway
-configuration cannot perform the in-memory token exchange or cookie rewrite.
+Tenant data and private runtime state use separate storage boundaries. Provider credentials belong to the Cell's DSH private state or an explicitly configured same-namespace credentialsRef Secret; the platform's OIDC secret is separate and must never be mounted into a user Cell. Keep provider credentials out of Cell status, logs and shared tenant data. Kubernetes objects and the installed storage/network providers remain the authority for resource state and enforcement.
 
-## Trusted browser access
+Ordinary Pods do not protect against a compromised node, kernel, cluster administrator, or storage/network provider. This POC does not claim that boundary.
 
-The public hostname and route are derived from the immutable Cell UID and a
-cluster base domain; they are not Cell API inputs. Envoy terminates TLS and
-validates the OIDC login before calling `cell-authorizer`. The authorizer trusts
-only Envoy route metadata, rereads the exact HTTPRoute and Cell, verifies their
-owner, UID, hostname, parent and backend, then submits an uncached
-SubjectAccessReview for the Cell `access` verb. RoleBindings remain wholly
-administrator-owned, so a grant or revocation applies to the next HTTP or
-WebSocket request. Missing identity is 401, a bad route or denied RBAC check is
-403, and dependencies fail closed with 503.
+## Historical implementation
 
-## State
-
-The data PVC contains workspace, sessions, attachments, and DSH storage domains.
-DSH's `.credentials.yaml` lives on the distinct private-state PVC;
-provider keys normally arrive from the same-namespace `credentialsRef` Secret as
-environment variables. Neither provider material nor browser-signing records are
-part of data snapshots.
-
-The persistence format is bound to the exact DSH version in
-`compat/dsh/baseline.json`. Restore is a data operation, not a promise to migrate
-foreign session formats. Before a snapshot the controller must stop the sole
-managed writer and must never attach one read-write data volume to concurrent
-Cell writers.
-
-`CellSnapshot` is an immutable, one-shot Kubernetes intent. A UID-bound Cell
-annotation acquired with resource-version compare-and-swap serializes data
-operations. Acceptance records both the source Cell UID and data PVC UID before
-the lock becomes active. That lock marks the Cell as snapshot-in-progress and
-withdraws Ready. Acceptance revalidates the persisted source binding when
-resuming under its own lock, without requiring the source to remain Ready.
-Once `Accepted=True`, the Cell controller sets the StatefulSet to zero.
-Only an observed-zero StatefulSet plus an uncached,
-namespace-wide check proving that neither a Pod owned by the current StatefulSet
-nor any Pod carrying the exact Cell name and UID remains establishes
-`WriterStopped=True` and permits creation of the CSI `VolumeSnapshot`. The
-controller revalidates the PVC UID and both CSI
-class drivers immediately before creation. DSH 0.1.5-rc.2 maps successful disposal, disposal
-rejection, and timeout to externally indistinguishable process termination, so
-the public contract deliberately claims crash consistency and never application
-flush. Snapshot errors delete the owned Kubernetes snapshot object before the
-source resumes; backend retention remains the CSI driver and
-VolumeSnapshotClass policy.
-
-A restore always creates a new data PVC and Cell identity. It requires a Ready,
-same-namespace snapshot, its exact recorded image digest, the one supported DSH
-version, compatible size, and the same StorageClass. The private PVC is always new.
-The data PVC records the snapshot UID, image digest, and DSH version. UID-bound
-finalizers keep the snapshot alive until that recorded image becomes the first
-Ready reader; another digest cannot enter first and deleting inputs cannot create
-an immutable PVC. Once CSI has materialized a Bound data PVC, that PVC's recorded
-provenance and the same finalizers form the durable barrier: a later snapshot
-delete request waits while the exact-image first reader continues. Rollout to
-another digest of the same DSH version is explicit only after this first-reader barrier.
-Rollback is another fresh Cell from an older
-snapshot, never an in-place PVC downgrade.
-
-## Fleet operations
-
-Fleet scale is repetition of the same namespaced graph, not a new object or
-control plane. A namespace supplies capabilities independently: core Cell
-resources require ordinary namespaced workload and PVC admission; public
-access additionally requires Gateway route eligibility; snapshots require CSI
-classes and APIs; sandboxing requires the configured RuntimeClass. The operator
-does not list, watch, own, or interpret Namespace, ResourceQuota, LimitRange,
-PriorityClass, or API Priority and Fairness objects.
-
-Both reconcilers have explicit worker limits. Kubernetes object watches drive
-normal progress, controller-runtime rate limiting handles API errors, and only
-real writer-stop/snapshot deadlines schedule exact wakeups. A one-minute retry
-is retained solely for cluster-scoped StorageClass/VolumeSnapshotClass changes
-that cannot be mapped safely to individual namespaced requests without a
-cluster-wide fan-out. A quiet cluster therefore produces no Cell polling loop.
-
-Metrics are disabled by default and have no Service or scraper. When enabled,
-the operator exposes controller-runtime process/work-queue aggregates and the
-authorizer exposes a counter labeled only by a closed decision enum. Cell,
-snapshot, namespace, user, hostname, UID, route, Pod, Node, address, provider,
-or credential values are never metric labels. Kubernetes objects remain the
-only inventory and diagnostic authority.
-
-## Non-goals
-
-- Replacing kube-scheduler, Gateway API, CSI, or a cluster fleet manager.
-- Exposing Pod, Node, Service, `RuntimeClass`, or hostname choices in Cell.
-- Interpreting DSH application protocols.
-- Promising host-compromise resistance for ordinary containers.
-- Supporting removed pre-Cell APIs or floating DSH versions.
-- Scheduling backups, copying snapshots across clusters, or replacing CSI.
-- Defining a Fleet CRD, namespace template, quota policy, custom scheduler,
-  autoscaler, telemetry backend, SLO product, or topology inventory.
+Earlier source versions included standalone OIDC/RBAC access, a `cell-authorizer` with SubjectAccessReview, and CellSnapshot/restore flows. Those are historical implementation details, not the current integrated platform request path or current MVP acceptance gates. Some corresponding code and release artifacts remain in the repository; this documentation change does not remove or alter them. See [archived standalone alpha documentation](../archive/standalone-alpha1/README.md) for version-specific context.

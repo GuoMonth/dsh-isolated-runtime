@@ -27,7 +27,7 @@ https://github.com/GuoMonth/dsh-isolated-runtime
 2. Require a running native Linux Docker engine. The reference allocation is
    4 CPUs / 16 GiB RAM, not a guaranteed minimum. Check available disk space
    and explain that images, tools and Chromium require additional downloads.
-3. Read the network/source list in ../distribution.md. Do not disable TLS
+3. Read the network/source list in https://github.com/GuoMonth/dsh-isolated-runtime/blob/v0.2.0-alpha.1/docs/distribution.md. Do not disable TLS
    checks or substitute arbitrary public registry proxies when downloads fail.
 4. Ask whether an existing installation or data must be preserved. Respect
    DSH_RUNTIME_HOME, XDG_STATE_HOME and legacy DSH_DEMO_HOME. Never repoint a
