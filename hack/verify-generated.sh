@@ -21,3 +21,5 @@ if [[ "$before" != "$after" ]]; then
   diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") >&2 || true
   exit 1
 fi
+
+./hack/verify-cell-template.sh
