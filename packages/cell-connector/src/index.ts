@@ -11,7 +11,7 @@ export type {
   ErrorCode,
 } from "./port.js";
 export { createCellAllocationRuntime } from "./allocation.js";
-export type { CellProfile, CellAllocationOptions } from "./allocation.js";
+export type { CellAllocationOptions } from "./allocation.js";
 export type { AllocationIntent, AllocationRuntime } from "./port.js";
 
 export type { DeleteView } from "./port.js";

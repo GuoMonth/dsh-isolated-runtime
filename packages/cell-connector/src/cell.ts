@@ -43,11 +43,12 @@ interface Resource {
   spec?: {
     [key: string]: unknown;
     image?: string;
-    template?: { spec?: { containers?: Container[] } };
+    template?: { metadata?: Meta; spec?: Record<string, unknown> };
     containers?: Container[];
     selector?: Record<string, string>;
     type?: string;
     ports?: Array<{
+      name?: string;
       port?: number;
       targetPort?: number | string;
       protocol?: string;
@@ -83,8 +84,9 @@ export interface CellBinding {
   readonly name: string;
   readonly origin: string;
   readonly template: string;
-  /** Exact defaulted Cell spec from the administrator's pinned fixture. No browser input. */
+  /** Exact Cell spec rendered from the runtime's fixed template. */
   readonly expectedSpec: Readonly<Record<string, unknown>>;
+  readonly expectedPodTemplateMetadata: Readonly<Record<string, unknown>>;
   readonly expectedPodSpec: Readonly<Record<string, unknown>>;
 }
 const uidPattern =
@@ -115,6 +117,43 @@ const ready = (r: Resource) =>
       c.observedGeneration === r.metadata?.generation,
   );
 
+const expectedPodSpec = (
+  input: Readonly<Record<string, unknown>>,
+  live?: { readonly name: string; readonly serviceName: string; readonly nodeName: string },
+) => {
+  const spec = structuredClone(input) as Record<string, unknown>;
+  const serviceAccountName = spec.serviceAccountName;
+  if (typeof serviceAccountName !== "string")
+    throw new Error("Generated Cell template lacks serviceAccountName");
+  // These fields are stable Kubernetes 1.37 defaults observed on both the
+  // StatefulSet template and its Pods. Materialize them only in the expected
+  // value so missing/mutated values in the API response still fail comparison.
+  spec.serviceAccount = serviceAccountName;
+  if (live) {
+    spec.hostname = live.name;
+    spec.subdomain = live.serviceName;
+    spec.priority = 0;
+    spec.preemptionPolicy = "PreemptLowerPriority";
+    spec.tolerations = [
+      {
+        key: "node.kubernetes.io/not-ready",
+        operator: "Exists",
+        effect: "NoExecute",
+        tolerationSeconds: 300,
+      },
+      {
+        key: "node.kubernetes.io/unreachable",
+        operator: "Exists",
+        effect: "NoExecute",
+        tolerationSeconds: 300,
+      },
+    ];
+    if (!live.nodeName) throw new Error("Scheduled Cell Pod lacks nodeName");
+    spec.nodeName = live.nodeName;
+  }
+  return spec;
+};
+
 export function createCellRuntime(
   options: KubernetesOptions,
   input: readonly CellBinding[] | (() => readonly CellBinding[]),
@@ -135,6 +174,7 @@ export function createCellRuntime(
         !url.hostname.startsWith(`cell-${b.ref.identity}.`) ||
         !b.template ||
         !/^[^\s@]+@sha256:[a-f0-9]{64}$/.test(String(b.expectedSpec.image)) ||
+        !b.expectedPodTemplateMetadata ||
         !b.expectedPodSpec ||
         bindings.has(b.ref.allocationKey)
       )
@@ -205,14 +245,31 @@ export function createCellRuntime(
       "platform"
     )
       throw fail("AccessRejected");
+    const podTemplate = workload.spec?.template;
+    const templateSpec = podTemplate?.spec;
+    const actualPodSpec = pod.spec as Record<string, unknown> | undefined;
+    const actualNodeName = actualPodSpec?.nodeName;
+    if (typeof actualNodeName !== "string" || !actualNodeName)
+      throw fail("TemplateMismatch");
+    const expectedTemplateSpec = expectedPodSpec(b.expectedPodSpec);
+    const expectedLivePodSpec = expectedPodSpec(b.expectedPodSpec, {
+      name: `${base}-0`,
+      serviceName: `${base}-headless`,
+      nodeName: actualNodeName,
+    });
     if (
-      !isDeepStrictEqual(workload.spec?.template?.spec, b.expectedPodSpec) ||
-      Object.entries(b.expectedPodSpec).some(
-        ([key, value]) => !isDeepStrictEqual(pod.spec?.[key], value),
-      )
+      workload.spec?.serviceName !== `${base}-headless` ||
+      workload.spec?.replicas !== 1 ||
+      !podTemplate ||
+      !isDeepStrictEqual(
+        podTemplate.metadata,
+        b.expectedPodTemplateMetadata,
+      ) ||
+      !isDeepStrictEqual(templateSpec, expectedTemplateSpec) ||
+      !isDeepStrictEqual(actualPodSpec, expectedLivePodSpec)
     )
       throw fail("TemplateMismatch");
-    const containers = workload.spec?.template?.spec?.containers;
+    const containers = templateSpec?.containers as Container[] | undefined;
     const podContainers = pod.spec?.containers;
     if (
       !Array.isArray(containers) ||
@@ -242,6 +299,10 @@ export function createCellRuntime(
       !owner(pod, "StatefulSet", "apps/v1", base, workload.metadata!.uid!) ||
       pod.metadata?.annotations?.["dsh.isolated.io/cell-uid"] !==
         ref.identity ||
+      pod.metadata?.annotations?.["dsh.isolated.io/cell-name"] !== b.name ||
+      Object.entries(
+        (b.expectedPodTemplateMetadata.labels ?? {}) as Record<string, string>,
+      ).some(([key, value]) => pod.metadata?.labels?.[key] !== value) ||
       !pod.status?.conditions?.some(
         (c: { type?: string; status?: string }) =>
           c.type === "Ready" && c.status === "True",
@@ -249,15 +310,19 @@ export function createCellRuntime(
     )
       throw fail("NotReady");
     const selector = service.spec?.selector;
+    const expectedSelector = b.expectedPodTemplateMetadata.labels as
+      | Record<string, string>
+      | undefined;
+    const servicePorts = service.spec?.ports;
     if (
       !selector ||
-      selector["dsh.isolated.io/cell-uid"] !== ref.identity ||
-      Object.entries(selector).some(
-        ([key, value]) => pod.metadata?.labels?.[key] !== value,
-      ) ||
+      !expectedSelector ||
+      !isDeepStrictEqual(selector, expectedSelector) ||
       service.spec?.type !== "ClusterIP" ||
-      !service.spec?.ports?.some(
+      servicePorts?.length !== 1 ||
+      !servicePorts.some(
         (p) =>
+          p.name === "http" &&
           p.port === 80 &&
           (p.targetPort === 8080 || p.targetPort === "http") &&
           p.protocol === "TCP",

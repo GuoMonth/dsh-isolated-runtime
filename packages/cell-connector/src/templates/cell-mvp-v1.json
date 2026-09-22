@@ -1,0 +1,208 @@
+{
+  "cellSpec": {
+    "credentialsRef": {
+      "name": "__CREDENTIALS_SECRET__"
+    },
+    "image": "__IMAGE__",
+    "resources": {
+      "limits": {
+        "cpu": "__CPU_LIMIT__",
+        "memory": "__MEMORY_LIMIT__"
+      },
+      "requests": {
+        "cpu": "__CPU_REQUEST__",
+        "memory": "__MEMORY_REQUEST__"
+      }
+    },
+    "securityClass": "standard",
+    "storage": {
+      "retentionPolicy": "__RETENTION_POLICY__",
+      "size": "__STORAGE_SIZE__",
+      "storageClassName": "__STORAGE_CLASS__"
+    }
+  },
+  "podTemplate": {
+    "metadata": {
+      "annotations": {
+        "dsh.isolated.io/cell-name": "__CELL_NAME__",
+        "dsh.isolated.io/cell-uid": "__CELL_UID__"
+      },
+      "labels": {
+        "app.kubernetes.io/managed-by": "dsh-isolated-runtime",
+        "app.kubernetes.io/name": "dsh-cell",
+        "dsh.isolated.io/cell-uid": "__CELL_UID__"
+      }
+    },
+    "spec": {
+      "automountServiceAccountToken": false,
+      "containers": [
+        {
+          "command": [
+            "/usr/local/bin/cell-launcher"
+          ],
+          "env": [
+            {
+              "name": "CELL_AUTHORITY",
+              "value": "__ORIGIN_HOST__"
+            },
+            {
+              "name": "HOME",
+              "value": "/var/lib/dsh/data/home"
+            },
+            {
+              "name": "DSH_HOME",
+              "value": "/var/lib/dsh/data/home"
+            },
+            {
+              "name": "DSH_AGENTS_HOME",
+              "value": "/var/lib/dsh/data/agents"
+            },
+            {
+              "name": "DSH_PERMISSION_MODE",
+              "value": "danger-full-access"
+            },
+            {
+              "name": "DSH_TELEMETRY_DISABLED",
+              "value": "1"
+            },
+            {
+              "name": "XDG_CACHE_HOME",
+              "value": "/tmp/.cache"
+            }
+          ],
+          "envFrom": [
+            {
+              "secretRef": {
+                "name": "__CREDENTIALS_SECRET__"
+              }
+            }
+          ],
+          "image": "__IMAGE__",
+          "imagePullPolicy": "IfNotPresent",
+          "livenessProbe": {
+            "failureThreshold": 3,
+            "httpGet": {
+              "path": "/livez",
+              "port": "management",
+              "scheme": "HTTP"
+            },
+            "periodSeconds": 10,
+            "successThreshold": 1,
+            "timeoutSeconds": 1
+          },
+          "name": "cell",
+          "ports": [
+            {
+              "containerPort": 8080,
+              "name": "http",
+              "protocol": "TCP"
+            },
+            {
+              "containerPort": 8081,
+              "name": "management",
+              "protocol": "TCP"
+            }
+          ],
+          "readinessProbe": {
+            "failureThreshold": 3,
+            "httpGet": {
+              "path": "/readyz",
+              "port": "management",
+              "scheme": "HTTP"
+            },
+            "periodSeconds": 3,
+            "successThreshold": 1,
+            "timeoutSeconds": 1
+          },
+          "resources": {
+            "limits": {
+              "cpu": "__CPU_LIMIT__",
+              "memory": "__MEMORY_LIMIT__"
+            },
+            "requests": {
+              "cpu": "__CPU_REQUEST__",
+              "memory": "__MEMORY_REQUEST__"
+            }
+          },
+          "securityContext": {
+            "allowPrivilegeEscalation": false,
+            "capabilities": {
+              "drop": [
+                "ALL"
+              ]
+            },
+            "readOnlyRootFilesystem": true,
+            "runAsGroup": 1000,
+            "runAsNonRoot": true,
+            "runAsUser": 1000
+          },
+          "startupProbe": {
+            "failureThreshold": 30,
+            "httpGet": {
+              "path": "/readyz",
+              "port": "management",
+              "scheme": "HTTP"
+            },
+            "periodSeconds": 3,
+            "successThreshold": 1,
+            "timeoutSeconds": 1
+          },
+          "terminationMessagePath": "/dev/termination-log",
+          "terminationMessagePolicy": "File",
+          "volumeMounts": [
+            {
+              "mountPath": "/var/lib/dsh/data",
+              "name": "data"
+            },
+            {
+              "mountPath": "/var/lib/dsh-private",
+              "name": "private"
+            },
+            {
+              "mountPath": "/tmp",
+              "name": "tmp"
+            }
+          ],
+          "workingDir": "/var/lib/dsh/data"
+        }
+      ],
+      "dnsPolicy": "ClusterFirst",
+      "enableServiceLinks": false,
+      "restartPolicy": "Always",
+      "schedulerName": "default-scheduler",
+      "securityContext": {
+        "fsGroup": 1000,
+        "fsGroupChangePolicy": "OnRootMismatch",
+        "runAsGroup": 1000,
+        "runAsNonRoot": true,
+        "runAsUser": 1000,
+        "seccompProfile": {
+          "type": "RuntimeDefault"
+        }
+      },
+      "serviceAccountName": "cell-__CELL_UID__",
+      "terminationGracePeriodSeconds": 30,
+      "volumes": [
+        {
+          "name": "data",
+          "persistentVolumeClaim": {
+            "claimName": "cell-__CELL_UID__-data"
+          }
+        },
+        {
+          "name": "private",
+          "persistentVolumeClaim": {
+            "claimName": "cell-__CELL_UID__-private"
+          }
+        },
+        {
+          "emptyDir": {
+            "sizeLimit": "1Gi"
+          },
+          "name": "tmp"
+        }
+      ]
+    }
+  },
+  "version": "cell-mvp-v1"
+}
