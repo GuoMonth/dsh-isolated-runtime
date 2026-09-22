@@ -21,6 +21,7 @@
       "storageClassName": "__STORAGE_CLASS__"
     }
   },
+  "dshVersion": "0.1.5-rc.2",
   "podTemplate": {
     "metadata": {
       "annotations": {

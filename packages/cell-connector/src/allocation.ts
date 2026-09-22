@@ -9,6 +9,7 @@ import {
 import { createCellRuntime, type CellBinding } from "./cell.js";
 import {
   bindCellTemplate,
+  CELL_DSH_VERSION,
   CELL_TEMPLATE_VERSION,
   type CellTemplateInputs,
 } from "./cell-template.js";
@@ -329,7 +330,7 @@ export function createCellAllocationRuntime(
     if (cell.metadata?.deletionTimestamp)
       return { ...base, state: "Deleting", reason: "DeletionRequested" };
     if (
-      (cell.status?.dshVersion && cell.status.dshVersion !== "0.1.5-rc.2") ||
+      (cell.status?.dshVersion && cell.status.dshVersion !== CELL_DSH_VERSION) ||
       (cell.status?.imageDigest &&
         cell.status.imageDigest !==
           String(boundTemplate.spec.image).split("@")[1])

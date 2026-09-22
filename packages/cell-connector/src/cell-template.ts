@@ -1,9 +1,11 @@
 import fixedTemplate from "./templates/cell-mvp-v1.json" with { type: "json" };
 
 export const CELL_TEMPLATE_VERSION = "cell-mvp-v1" as const;
+export const CELL_DSH_VERSION = fixedTemplate.dshVersion;
 type JsonObject = Record<string, unknown>;
 interface FixedTemplate {
   version: string;
+  dshVersion: string;
   cellSpec: JsonObject;
   podTemplate: {
     metadata: JsonObject;

@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createCellAllocationRuntime } from "../dist/index.js";
+import { CELL_DSH_VERSION } from "../dist/cell-template.js";
+import fixedTemplate from "../dist/templates/cell-mvp-v1.json" with { type: "json" };
 
 const base = {
   template: "cell-mvp-v1",
@@ -17,6 +19,7 @@ const base = {
 const kubernetes = { server: "https://127.0.0.1" };
 
 test("fixed Cell template rejects legacy profiles, unknown keys and version drift", async () => {
+  assert.equal(fixedTemplate.dshVersion, CELL_DSH_VERSION);
   assert.throws(
     () => createCellAllocationRuntime(kubernetes, { ...base, profiles: [] }),
     /allocation fields/,

@@ -8,6 +8,7 @@ import {
   type RuntimeAccess,
 } from "./port.js";
 import { connector } from "./proxy.js";
+import { CELL_DSH_VERSION } from "./cell-template.js";
 
 interface Meta {
   name?: string;
@@ -215,7 +216,7 @@ export function createCellRuntime(
     )
       throw fail("NotReady");
     if (
-      cell.status?.dshVersion !== "0.1.5-rc.2" ||
+      cell.status?.dshVersion !== CELL_DSH_VERSION ||
       cell.status?.imageDigest !== String(b.expectedSpec.image).split("@")[1]
     )
       throw fail("TemplateMismatch");

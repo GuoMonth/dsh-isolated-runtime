@@ -14,6 +14,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	dshv1alpha1 "github.com/GuoMonth/dsh-isolated-runtime/api/v1alpha1"
+	"github.com/GuoMonth/dsh-isolated-runtime/internal/cellcontract"
 	"github.com/GuoMonth/dsh-isolated-runtime/internal/controller"
 )
 
@@ -77,6 +78,7 @@ func main() {
 
 	result := map[string]any{
 		"version":     "cell-mvp-v1",
+		"dshVersion":  cellcontract.DSHVersion,
 		"cellSpec":    cellSpec,
 		"podTemplate": podTemplate,
 	}
