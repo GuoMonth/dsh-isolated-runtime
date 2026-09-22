@@ -4,7 +4,7 @@
 
 [English](README.md)
 
-**当前是 Cell MVP alpha。** 固定版本下的双用户 OIDC + Cell、真实模型文件操作已通过[集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。这批已验收的 Linux/amd64 Cell/Operator 镜像已按相同 digest 公开于 [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1)；平台 npm 独立发行。后续迭代允许破坏性变更；已发行制品身份保持不变。
+**当前是 Cell MVP alpha。** 固定版本下的双用户 OIDC + Cell、真实模型文件操作已通过[集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。这批已验收的 Linux/amd64 Cell/Operator 镜像已按相同 digest 公开于 [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1)；平台 npm 独立发行。当前 `main` 源码已加入固定模板 `cell-mvp-v1`，并通过 2026-09-22 内部候选回归（[报告](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/cell-mvp-2026-09-22.md)）。此源码候选尚未重新发行：公开 runtime npm `0.3.0-alpha.1` 及其 Cell/Operator 镜像仍对应旧发行。部署新模板候选请使用[平台候选指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.zh-CN.md)，不要用下方已发布 npm 清单命令。后续迭代允许破坏性变更；已发行制品身份保持不变。
 
 ## 固定发行边界
 
@@ -15,7 +15,7 @@
 
 ## 与平台配合
 
-管理员准备 K8s、执行 NetworkPolicy 的 CNI、存储、租户 namespace、Gateway API 和 DNS/TLS。新版 npm 提供已固定公开镜像的部署清单，审阅并设置环境域名后部署：
+管理员准备 K8s、执行 NetworkPolicy 的 CNI、存储、租户 namespace、Gateway API 和 DNS/TLS。下方命令安装已发行 runtime `0.3.0-alpha.1` 并渲染该发行版的固定清单，不会部署较新的 `cell-mvp-v1` 源码候选；新候选请按[平台候选指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.zh-CN.md)操作。已发行版清单固定了当时验收的公开镜像；审阅并设置环境域名后部署：
 
 固定 platform 模式部署要求平台 Pod 位于 Operator 的 system namespace（默认 `dsh-system`），并带 `dsh.isolated.io/access: platform` 标签；详见[平台启动指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.zh-CN.md)。使用 `latest` 选择包后，先核对 runtime 发行与平台 `cell-release.json` 匹配，再应用清单。
 

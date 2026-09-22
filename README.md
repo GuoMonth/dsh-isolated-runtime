@@ -4,7 +4,7 @@ Kubernetes Cell lifecycle and isolation for native DeepSeek Harness. The [multi-
 
 [中文](README.zh-CN.md)
 
-**Current scope: Cell MVP alpha.** The fixed two-user OIDC + Cell flow and real-model file operations passed [integration regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). The exact tested Linux/amd64 Cell/Operator images are public in [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1), with the same immutable digests; the platform has its own npm release. New iterations can make breaking changes; published artifact identities remain fixed.
+**Current scope: Cell MVP alpha.** The fixed two-user OIDC + Cell flow and real-model file operations passed [integration regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). The exact tested Linux/amd64 Cell/Operator images are public in [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1), with the same immutable digests; the platform has its own npm release. The current `main` source now includes fixed-template `cell-mvp-v1`, which passed the 2026-09-22 internal candidate run ([report](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/cell-mvp-2026-09-22.md)). This source candidate has not been republished: public runtime npm `0.3.0-alpha.1` and its Cell/Operator images still describe the older release. To deploy the new template candidate, follow the [platform candidate guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.md), not the published npm manifest commands below. New iterations can make breaking changes; published artifact identities remain fixed.
 
 ## Fixed release boundary
 
@@ -15,7 +15,7 @@ Breaking updates are allowed: publish a new explicit combination, update configu
 
 ## Integrate with the platform
 
-Administrators supply Kubernetes, enforced CNI policies, storage, tenant namespaces, Gateway API and DNS/TLS. The new npm package supplies deployment YAML with the accepted public image already pinned. Review it and set the environment domain before deployment:
+Administrators supply Kubernetes, enforced CNI policies, storage, tenant namespaces, Gateway API and DNS/TLS. The commands below install published runtime `0.3.0-alpha.1` and render that release's fixed manifests; they do not deploy the newer `cell-mvp-v1` source candidate. Use the [platform candidate guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.md) for that candidate. The published release's deployment YAML pins its accepted public image; review it and set the environment domain before deployment:
 
 For the fixed platform-mode deployment, the platform Pod must be in the operator’s system namespace (default `dsh-system`) and carry `dsh.isolated.io/access: platform`; see the [platform setup guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md). When selecting packages through `latest`, verify that the runtime release matches the platform’s `cell-release.json` before applying its manifests.
 

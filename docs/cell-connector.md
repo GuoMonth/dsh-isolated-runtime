@@ -6,6 +6,9 @@ create operation through [AllocationRuntime](design/r5-allocation.md). There is 
 independent service, public package release or Go FFI. Node 24 is the current
 integration build/runtime requirement.
 
+The fixed-template `cell-mvp-v1` source in current `main` passed the 2026-09-22
+internal candidate run ([report](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/cell-mvp-2026-09-22.md)). It is not included in the still-published runtime npm `0.3.0-alpha.1` package or its older Cell/Operator images. Use the [platform candidate guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.md) to deploy the new template candidate; existing npm manifest commands remain for their published release only.
+
 The neutral entry points are `RuntimeAccess.inspect/connect`. They consume opaque
 InstanceRef and an abort context; a single-use Connector forwards HTTP/stream or
 WS without exposing a Pod address to platform business code. Each actual request
