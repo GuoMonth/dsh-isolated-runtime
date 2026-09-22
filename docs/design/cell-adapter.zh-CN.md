@@ -1,12 +1,14 @@
-# Cell adapter：当前内部端口的实现方案
+# Cell adapter：旧实现映射参考
 
-2026-09-20 修订；创建/查询实现见 [R5](r5-allocation.md)，删除主路径见 [R6](r6-deletion.md)，真实闭环未验收。规范：[RuntimePort](runtime-port.zh-CN.md)，原则：[项目宪法](../../CONSTITUTION.md)。本稿替代永久退役及公共 v1alpha1 Cell 映射提案。
+> **旧 Cell 实现映射，不是目标架构规范。** 新需求和阶段以[平台 Agent Workspace 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md)及[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)为准。当前代码仍实现 Cell；W1 才计划破坏性改名为 AgentWorkspace，W2 停止/启动尚未实现。本稿不得用于声称这些目标已落地。
+
+2026-09-20 修订的旧设计稿；旧实现记录见 [R5](r5-allocation.md) / [R6](r6-deletion.md)，原则入口见[项目宪法](../../CONSTITUTION.md)。
 
 ## 1. 尽量复用当前实现
 
-Cell Operator 继续调谐 StatefulSet、Service、NetworkPolicy 与 PVC；launcher 承载原生 DSH。adapter 在平台进程中运行，源码由 runtime 维护；不新增 runtime 服务、Instance CRD、tombstone 或请求日志数据库。暂不拆多个发布包。
+当前 Cell Operator 调谐 StatefulSet、Service、NetworkPolicy 与 PVC；launcher 承载原生 DSH。目标 AgentWorkspace 仍可由薄 runtime-owned CRD/Operator 聚合这些原生资源，也可由 runtime 直接管理；平台/runtime 分工不强制平台接管原生对象操作。目标结构见上方规范设计。
 
-平台组合根注入 adapter；平台业务不导入 Kubernetes SDK，不写 Pod/PVC 或直接 scale StatefulSet。namespace、RBAC、存储、Gateway/TLS 由管理员配置。一套已验证的 Linux 节点参考部署即可。
+旧方案由平台组合根注入 adapter。目标仍隔离平台业务与 Kubernetes 资源细节，但 runtime 可以直接管理 StatefulSet/PVC；namespace、RBAC、存储、Gateway/TLS 由管理员配置。
 
 ## 2. 身份与管理调用
 
@@ -19,7 +21,7 @@ Cell Operator 继续调谐 StatefulSet、Service、NetworkPolicy 与 PVC；launc
 | 当前状态 | generation 对应的 Cell conditions 与实际模板核验 |
 | 请求删除 | UID 条件 DELETE；返回接受情况，不声称 writer 已停止 |
 
-记录不可变 owner/模板绑定的最小方式在 S3 落地；所选字段必须由 CRD/Operator 约束，不能只在 UI 验证。保持 namespace 为 Cell 租户边界，不引入可独立漂移的第二 tenant 字段。模板校验由 runtime 负责，返回已验证身份；漂移时不给 Ready/连接。
+本文旧方案记录不可变 owner/模板绑定的实现约束。新设计中 namespace 是管理员配置的基础设施 scope，不等于 OIDC tenantId；平台授权为唯一 owner 权威，runtime 只保留不可变 owner 关联用于资源匹配。模板校验由 runtime 负责，漂移时不给 Ready/连接。规范以本文顶部链接为准。
 
 create 遇 AlreadyExists 后读取并核对原归属/模板，不做认领式 apply。known-ref 丢失禁止自动重建；unknown create 只用原 key 查询，未决期间平台拒绝自动删除/重建。没有支持队列重放或永久去重的承诺。
 

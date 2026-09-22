@@ -1,8 +1,10 @@
-# RuntimePort：Cell MVP 的中立内部契约
+# RuntimePort：旧 Cell 内部契约参考
 
-2026-09-20 修订；设计边界；R2/R5 内部实现见 [R5](r5-allocation.md)，删除主路径见 [R6](r6-deletion.md)，真实闭环未验收。原则见[项目宪法](../../CONSTITUTION.md)，映射见 [Cell adapter](cell-adapter.zh-CN.md)，需求见 [Issue #82](https://github.com/GuoMonth/dsh-multi-tenant/issues/82)。
+> **旧 Cell 设计，不是当前规范。** 当前目标以[平台 Agent Workspace 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)为准。本文只帮助理解现有 Cell 代码，不承诺 Process/Docker 多后端或未来兼容实现。当前源码仍是 Cell；AgentWorkspace 改名及 W2 停止/启动尚未实现。
 
-本稿替代公共 v1alpha1 提案。这里只约束当前验证组合的内部调用；类型、错误码与状态格式均可破坏性变化，不是网络协议或未来三后端兼容标准。
+2026-09-20 修订的旧设计稿；旧实现记录见 [R5](r5-allocation.md) / [R6](r6-deletion.md)。原则入口见[项目宪法](../../CONSTITUTION.md)，旧资源映射见 [Cell adapter](cell-adapter.zh-CN.md)。
+
+本稿曾用于 Cell 内部调用设计；类型、错误码和状态格式不是稳定公共协议。平台/runtime 职责隔离仍适用，但 K8s 是唯一目标后端，不再承诺中立多后端边界。
 
 ## 1. 权威和对象
 

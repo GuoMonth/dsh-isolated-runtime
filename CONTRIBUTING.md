@@ -1,6 +1,6 @@
 # Contributing
 
-Read the [project constitution](CONSTITUTION.md). Focus on the Cell MVP and a neutral internal boundary. Pin each validation version; breaking API/configuration/state changes are allowed, with no historical compatibility, upgrade or seamless recovery promise. Fail fast with structured diagnostics and validate the core flow before adding infrastructure.
+Read the [project constitution](CONSTITUTION.md) and the authoritative [Agent Workspace design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md) tracked by [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104). Target Kubernetes-only Agent Workspace; current code remains Cell until the breaking W1 rename. Do not introduce a Process/Docker product backend or multi-backend compatibility promise. Pin each validation version; breaking API/configuration/state changes are allowed, with no historical compatibility, upgrade or seamless recovery promise. Fail fast with structured diagnostics and validate the core flow before adding infrastructure.
 
 This project optimizes for a small executable contract. Changes should remove
 ambiguity rather than add compatibility layers.
@@ -48,9 +48,9 @@ shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh demo-files
 
 ## Design rules
 
-- Namespace is the tenant boundary; do not add a second tenant identifier.
+- Namespace is administrator-configured infrastructure scope, not OIDC tenant identity. Use preconfigured per-user namespaces; platform authorization is the sole owner authority. Runtime owner linkage is immutable resource-matching metadata, not another identity system.
 - Keep topology, routing, scheduling, and session state out of Cell.
-- Use native Kubernetes, Gateway API, and CSI resources instead of shadow APIs.
+- Use native Kubernetes, Gateway API, and CSI resources behind the runtime contract; runtime may directly manage StatefulSet/PVC resources.
 - Keep all images and DSH behavior pinned by content/version.
 - Do not parse DSH protocols in the launcher.
 - State security assumptions explicitly and fail closed at trust boundaries.

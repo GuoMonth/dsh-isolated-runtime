@@ -1,7 +1,5 @@
 # Current roadmap
 
-The multi-tenant platform owns the current sequence and acceptance plan: [platform roadmap](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/roadmap.md), [main Issue #82](https://github.com/GuoMonth/dsh-multi-tenant/issues/82), and [follow-up Issue #99](https://github.com/GuoMonth/dsh-multi-tenant/issues/99).
+The multi-tenant platform owns current sequencing and acceptance: [Agent Workspace design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md), [main Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104), and [platform roadmap](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/roadmap.md).
 
-This repository's current scope and technical boundaries are in [Cell MVP](docs/alpha-mvp.md) and the [documentation index](docs/README.md). Historical standalone installation, snapshot/restore and platform matrix plans are archived; they are not current gates.
-
-[P3 independent deployment acceptance #100](https://github.com/GuoMonth/dsh-multi-tenant/issues/100) starts after P2 provides a coordinated candidate.
+The target is Kubernetes-only Agent Workspace with a thin runtime-owned CRD/Operator boundary. W1 is a breaking `Cell` → `AgentWorkspace` rename and removes Process/Docker product backends, standalone launch, snapshot/restore. Current source still implements Cell; W1 has not landed. W2 adds healthy-node normal stop/start through an explicit StatefulSet and data/private PVCs, retaining both PVC identities without node-partition fencing. W3 jointly validates real authorization, persistent HOME and performance before release. Backups, hot pools and automatic idle remain deferred. See the [current MVP implementation status](docs/alpha-mvp.md).

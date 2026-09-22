@@ -6,6 +6,8 @@
 
 **当前是 Cell MVP alpha。** 固定版本下的双用户 OIDC + Cell、真实模型文件操作已通过[集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。这批已验收的 Linux/amd64 Cell/Operator 镜像已按相同 digest 公开于 [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1)；平台 npm 独立发行。当前 `main` 源码已加入固定模板 `cell-mvp-v1`，并通过 2026-09-22 内部候选回归（[报告](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/cell-mvp-2026-09-22.md)）。此源码候选尚未重新发行：公开 runtime npm `0.3.0-alpha.1` 及其 Cell/Operator 镜像仍对应旧发行。部署新模板候选请使用[平台候选指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.zh-CN.md)，不要用下方已发布 npm 清单命令。后续迭代允许破坏性变更；已发行制品身份保持不变。
 
+**架构方向：**下一阶段目标是 K8s 唯一后端的 Agent Workspace；当前源码/包仍使用 Cell。W1 计划破坏性改名为 `AgentWorkspace`，并移除 Process/Docker 产品运行后端、standalone 启动与 snapshot/restore。详见[权威设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)。工作区 Pod 内子进程、OCI 镜像构建及 kind 的 Docker 底座保留。
+
 ## 固定发行边界
 
 依赖的 DSH 明确为 **0.1.5-rc.2**，源码 **`fb2c4b9e698e30edb738bca4cf0618587db7d203`**。每次发行锁定可公开拉取的 Cell、Operator 镜像 `@sha256` digest，并在平台 `cell-release.json` / runtime `release.json` 中记录匹配的运行时源码与 DSH 身份；实际部署的平台镜像也固定 digest。npm `latest` 只用于安装时选择包，不让运行中的镜像标签或 DSH 版本范围漂移。
@@ -15,7 +17,7 @@
 
 ## 与平台配合
 
-管理员准备 K8s、执行 NetworkPolicy 的 CNI、存储、租户 namespace、Gateway API 和 DNS/TLS。下方命令安装已发行 runtime `0.3.0-alpha.1` 并渲染该发行版的固定清单，不会部署较新的 `cell-mvp-v1` 源码候选；新候选请按[平台候选指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.zh-CN.md)操作。已发行版清单固定了当时验收的公开镜像；审阅并设置环境域名后部署：
+管理员准备 K8s、执行 NetworkPolicy 的 CNI、存储、预配置的基础设施 scope namespace、Gateway API 和 DNS/TLS。下方命令安装已发行 runtime `0.3.0-alpha.1` 并渲染该发行版的固定清单，不会部署较新的 `cell-mvp-v1` 源码候选；新候选请按[平台候选指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.zh-CN.md)操作。已发行版清单固定了当时验收的公开镜像；审阅并设置环境域名后部署：
 
 固定 platform 模式部署要求平台 Pod 位于 Operator 的 system namespace（默认 `dsh-system`），并带 `dsh.isolated.io/access: platform` 标签；详见[平台启动指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.zh-CN.md)。使用 `latest` 选择包后，先核对 runtime 发行与平台 `cell-release.json` 匹配，再应用清单。
 
