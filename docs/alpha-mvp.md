@@ -1,6 +1,6 @@
 # OIDC + Cell integration MVP
 
-Updated 2026-09-20 under the [project constitution](../CONSTITUTION.md). The core fixed-version integration passed regression; the accepted Cell/Operator pair is public as v0.3.0-alpha.1 (Linux/amd64). Enterprise self-hosting is a direction, not a production-readiness claim.
+Updated 2026-09-22 under the [project constitution](../CONSTITUTION.md). The accepted Cell/Operator pair remains public as v0.3.0-alpha.1 (Linux/amd64). Current `main` also contains fixed-template `cell-mvp-v1`, which passed the 2026-09-22 internal candidate run ([report](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/cell-mvp-2026-09-22.md)). The source candidate has not been republished: public runtime npm `0.3.0-alpha.1` and its images still describe the previous release. Deploy the candidate only using the [platform candidate guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.md); the published npm manifests below are not for the new template. Enterprise self-hosting is a direction, not a production-readiness claim.
 
 ## Goal and ownership
 
@@ -15,7 +15,7 @@ Administrators configure the cluster, namespaces, CNI, storage, DNS/TLS and serv
 - Pin each source/DSH/image combination. Breaking API, configuration and state-format changes are allowed at any time, with no historical compatibility, upgrade, migration or seamless recovery promise.
 - Fail fast on invalid configuration, permissions, templates or versions. Bound readiness waits. Errors include stage, redacted target, observed state, write outcome, retry/check advice and a correlation ID; never secrets.
 - Timeouts are not cancellation; missing records are not proof of stopped execution. Inspect the original identity after unknown writes. Do not create a new key automatically or build permanent tombstones, unbounded retries or automatic repair.
-- Current delivery uses the platform npm CLI with an administrator-configured cluster; this repository does not add a cluster installer.
+- Published delivery uses the platform npm CLI with an administrator-configured cluster; this repository does not add a cluster installer. The `cell-mvp-v1` candidate is source-only until a new package and images are released, and its deployment instructions live in the platform candidate guide above.
 - The source uses the standard Kubernetes Pod boundary: `securityClass` accepts only `standard`, and the controller rejects unsupported existing values. The published npm `0.3.0-alpha.1` package and its fixed deployment artifacts remain unchanged; this source change does not revise or republish them.
 
 ## Current acceptance
@@ -37,6 +37,6 @@ Published artifacts describe their own versions and remain unchanged by these so
 
 [中文](alpha-mvp.zh-CN.md)
 
-Actual results and remaining evidence limits: [2026-09-20 integration regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). Do not treat earlier R1–R6 deferred-check lists as current untested status.
+Earlier release results remain in the [2026-09-20 integration regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md). Current source-candidate results and limits are in the [2026-09-22 Cell MVP report](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/cell-mvp-2026-09-22.md). Do not treat earlier R1–R6 deferred-check lists as current untested status.
 
 Unsupported security classes deny readiness and integrated admission. This does not stop or delete existing workloads or revoke historical standalone routes; administrators must inspect and explicitly dispose of those resources. In-place upgrades from historical sandboxed deployments are not supported.
