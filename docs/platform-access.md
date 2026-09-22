@@ -1,48 +1,11 @@
-# Platform access: integrated Cell alpha
+# Platform access
 
-This configuration separates the launcher's public authority from runtime-owned
-HTTPRoutes. The fixed integration setup passed [S1 regression](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md); the overlay alone is not a complete platform deployment.
+The current integrated path is documented in the [multi-tenant setup guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md). The multi-tenant platform owns OIDC, user authorization and sessions. Gateway terminates TLS and routes requests to the platform. The runtime Connector validates the authorized Cell reference and current Kubernetes Cell/Pod UID ownership before proxying to DSH.
 
-Use `--access-mode=platform --base-domain=<domain>` with no `--gateway-name`.
-The operator gives each Cell `cell-<UID>.<domain>[:port]` as its authority but
-creates neither a direct HTTPRoute nor a standalone access Role. The default
-`standalone` mode retains the existing direct-route configuration for current
-fixtures; this is not a compatibility or migration promise.
+The Connector's network path is restricted to the configured platform pods by NetworkPolicy. DSH listens on loopback inside the Cell Pod. Network isolation is only effective when the cluster CNI enforces NetworkPolicy; verify this in the actual cluster.
 
-`config/platform` renders the operator/CRDs only:
+The public npm `0.3.0-alpha.1` package contains the fixed manifests described by its [`release.json`](../packages/cell-cli/release.json) and [`operator.yaml`](../packages/cell-cli/operator.yaml). Those published artifacts are immutable. Later source-only changes, including the standard-Pod sandbox candidate in [runtime PR #93](https://github.com/GuoMonth/dsh-isolated-runtime/pull/93), do not change the package or manifest until a new release is made.
 
-```sh
-kubectl kustomize config/platform
-```
+## Historical platform-mode overlay
 
-Before deployment, replace the example domain and pin the operator and Cell
-images to the tested build digests. The inherited `main` operator image is a
-placeholder, not evidence that the new flags are published. Use a fresh test
-installation. Gateway API HTTPRoute discovery is required even in platform mode,
-so inability to inspect direct routes fails startup rather than appearing safe.
-
-The administrator owns TLS/Gateway routes **to the platform**, and the platform
-owns authentication and forwarding. Only Pods labelled
-`dsh.isolated.io/access=platform` in the configured `--system-namespace` may reach
-Cell proxy ports through the generated NetworkPolicy. Keep that namespace and
-its labels outside tenant control. CNI enforcement and other additive policies
-must be checked in the actual cluster; generating a NetworkPolicy does not prove
-network isolation. This overlay does not deploy the platform or change a CNI.
-
-## Conflicts and state
-
-Before mutating resources, the operator checks live API state for the Cell's
-workload mode, standalone Role and HTTPRoutes in the Cell namespace referencing
-its Service (including differently named routes). Existing workloads without a
-platform marker are standalone; platform workloads carry an operator-owned
-`dsh.isolated.io/access-mode=platform` annotation. Switching either way is
-rejected. It does not roll workloads, delete routes or migrate data to change mode.
-
-A conflict sets Cell Access/Ready false with `AccessModeConflict` and a diagnostic
-pointing to a fresh Cell/manual inspection. Read/discovery failures remain errors,
-not absence. Existing deployments are left intact, so a conflict is **not** a
-claim that old direct access was revoked. Administrators still own arbitrary
-cross-namespace routes, out-of-band writes and additional network policies;
-this preflight is not a cluster-wide route admission controller.
-
-The Connector validates target identity on every admission. Current browser, revocation and network-bypass results are in the [shared report](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md); local socket and fixture evidence remain explicitly distinguished. Public release and startup instructions are owned by the [platform delivery guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/quickstart.md).
+Earlier source and releases included a standalone Envoy OIDC / `cell-authorizer` path with HTTPRoute and SubjectAccessReview validation. This is not the current integrated request path. That code remains in the repository as historical implementation; this document does not claim it was removed. See the [archived standalone alpha docs](archive/standalone-alpha1/README.md).

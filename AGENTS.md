@@ -1,18 +1,17 @@
 # Repository instructions
 
-[CONSTITUTION.md](CONSTITUTION.md) links the shared product principles. This repository owns Kubernetes Cell resources and the runtime boundary. Current scope is [Cell MVP](docs/alpha-mvp.md).
+[CONSTITUTION.md](CONSTITUTION.md) links the shared product principles. This repository owns Kubernetes Cell resources and the runtime boundary. Current scope is [Cell MVP](docs/alpha-mvp.md); sequence and acceptance live in the multi-tenant platform's [Issue #82](https://github.com/GuoMonth/dsh-multi-tenant/issues/82) and [Issue #99](https://github.com/GuoMonth/dsh-multi-tenant/issues/99).
 
 ## Task routing
 
-- Integration: [RuntimePort](docs/design/runtime-port.zh-CN.md) and [Cell adapter](docs/design/cell-adapter.zh-CN.md).
-- Development checks: [CONTRIBUTING.md](CONTRIBUTING.md); Go-specific details in [Go development](docs/go-development.md).
-- Installing an existing release: [installation runbook](docs/ai/local-run.md), using the selected release's bundled docs.
-- Other docs: [index](docs/README.md). Historical milestones are not current gates.
+- Integration boundary: [RuntimePort](docs/design/runtime-port.zh-CN.md), [Cell adapter](docs/design/cell-adapter.zh-CN.md), and [architecture](docs/specs/architecture.md).
+- Development checks: [CONTRIBUTING.md](CONTRIBUTING.md); Go details in [Go development](docs/go-development.md).
+- Current release instructions: [distribution](docs/distribution.md) and [documentation index](docs/README.md). Historical standalone instructions are under `docs/archive/`.
 
 ## Repository-specific constraints
 
-- Native Kubernetes/Gateway/CSI own resource mechanics. Keep application protocols in DSH and user authorization in the platform; enforce exact resource ownership at the runtime boundary.
-- `dsh-runtime` is the public local command. Legacy fixture/state names may still participate in ownership checks; do not erase them or state to make tests pass.
-- Use isolated `DSH_RUNTIME_HOME` and only clean task-owned resources. Source checkout is not an installable release: artifact acceptance binds actual images, archives and source SHA.
+- Kubernetes/Gateway/CSI own resource mechanics. The platform owns OIDC and user authorization; DSH owns application protocols. Validate exact Cell and Pod identity at the runtime boundary.
+- Preserve ownership checks and any legacy fixture/state names still used by current code or tests; their presence does not make historical flows current product requirements.
+- Treat published packages, images and manifests as immutable release evidence. A source checkout or candidate PR is not an installable release; artifact acceptance binds actual images, package contents and source SHA.
 - Automatic CI is only `Source standards`; do not introduce automatic builds, cluster runs or publication. Local checks can proceed within the task; releases, deployment and data deletion follow existing user authorization.
 - Contributions use DCO (`git commit -s`). Report untested environments without inferring them from another platform's fixtures.

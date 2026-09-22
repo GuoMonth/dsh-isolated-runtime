@@ -89,10 +89,10 @@ Linux 为 `${XDG_STATE_HOME:-$HOME/.local/state}/dsh-isolated-runtime`。
 
 通过 config/default、config/browser、config/snapshots 安装；管理员提供网络、存储、
 域名、TLS、OIDC 与访问授权。本地身份系统和 CA 不等于生产环境身份与证书方案。
-[快照示例](../config/samples/dsh_v1alpha1_cellsnapshot.yaml)中的 hostpath CSI 是本地参考驱动。
+[快照示例](https://github.com/GuoMonth/dsh-isolated-runtime/blob/v0.2.0-alpha.1/config/samples/dsh_v1alpha1_cellsnapshot.yaml)中的 hostpath CSI 是本地参考驱动。
 此 alpha 不承诺 k3d/k3s、Windows 或 Intel Mac 安装支持。
 
-[AI 运行手册](ai/local-run.md) | [发行与网络依赖](distribution.md)
+[AI 运行手册](ai/local-run.md) | [发行与网络依赖](https://github.com/GuoMonth/dsh-isolated-runtime/blob/v0.2.0-alpha.1/docs/distribution.md)
 
 完整 Mac Docker Desktop 与真实模型验收由维护者在 alpha 发布后进行，
 不能用 Linux 确定性测试结果替代。
