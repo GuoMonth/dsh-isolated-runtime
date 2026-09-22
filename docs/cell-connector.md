@@ -33,11 +33,12 @@ Cell annotations, selectors, Service and EndpointSlice identities remain live
 checks; template digests do not prove ownership. Sidecars, extra volumes,
 LimitRange resource mutation and admission webhook changes fail closed.
 
-The generated Pod fixes `DSH_PERMISSION_MODE=danger-full-access` for DSH's
-in-Pod tool permission layer because the Cell image does not ship `bwrap`.
-This permits native DSH tools to run inside the existing Pod boundary; it does
-not change the non-root UID, read-only root filesystem, dropped capabilities,
-seccomp profile, absent ServiceAccount token, or cluster network policy.
+The generated Pod fixes `DSH_PERMISSION_MODE=danger-full-access` as an explicit
+product choice: the ordinary Pod is the execution boundary, so native DSH tools
+do not apply a second, nested tool sandbox or approval gate. This only changes
+DSH's in-Pod tool permission layer; it does not change the non-root UID,
+read-only root filesystem, dropped capabilities, seccomp profile, absent
+ServiceAccount token, or cluster network policy.
 R5 implements create-time immutable allocation/principal/template fields. Access
 still refuses not-Ready instances; allocation queries return current Pending or
 Unavailable without maintaining a lifecycle cache.
@@ -56,8 +57,14 @@ Commit source inputs, then run:
 node hack/pack-cell-connector.mjs /absolute/output/directory
 ```
 
-When changing the Go Pod renderer, regenerate and verify its checked-in template
-with `hack/verify-cell-template.sh` from the runtime repository root.
+When changing the Go Pod renderer, regenerate its checked-in template and then
+verify it from the runtime repository root:
+
+```sh
+GOTOOLCHAIN=go1.27.1 go run ./internal/controller/cmd/generate-cell-template \
+  > packages/cell-connector/src/templates/cell-mvp-v1.json
+./hack/verify-cell-template.sh
+```
 
 The packer installs the locked build dependencies, builds declarations/JS, includes
 the repository LICENSE and source.json with the exact commit, and emits a local
