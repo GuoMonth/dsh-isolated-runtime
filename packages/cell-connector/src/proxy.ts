@@ -1,5 +1,6 @@
 import {
   request as httpRequest,
+  type ClientRequest,
   type IncomingMessage,
   type OutgoingHttpHeaders,
   type ServerResponse,
@@ -69,12 +70,52 @@ function responseHeaders(
   return result;
 }
 
+interface HandshakeTimeouts {
+  readonly connectMs: number;
+  readonly headersMs: number;
+}
+const handshakeTimeouts: HandshakeTimeouts = {
+  connectMs: 5_000,
+  headersMs: 30_000,
+};
+
+// Only bound establishment. Never impose a total duration on an established
+// model stream or WebSocket. A timed-out write still has an unknown outcome.
+function boundHandshake(request: ClientRequest, limits: HandshakeTimeouts) {
+  let connected: ReturnType<typeof setTimeout> | undefined;
+  let headers: ReturnType<typeof setTimeout> | undefined;
+  let completed = false;
+  const stop = () => {
+    completed = true;
+    clearTimeout(connected);
+    clearTimeout(headers);
+  };
+  request.once("socket", (socket) => {
+    if (completed || !socket.connecting) return;
+    connected = setTimeout(() => request.destroy(new Error("UpstreamConnectTimeout")), limits.connectMs);
+    connected.unref();
+    socket.once("connect", () => clearTimeout(connected));
+  });
+  request.once("finish", () => {
+    if (completed) return;
+    headers = setTimeout(() => request.destroy(new Error("UpstreamHeadersTimeout")), limits.headersMs);
+    headers.unref();
+  });
+  request.once("response", stop);
+  request.once("upgrade", stop);
+  request.once("error", stop);
+  request.once("close", stop);
+}
+
 /** All transport state stays inside runtime. No address, token or resource stop handle escapes. */
 export function connector(
   origin: string,
   context: AccessContext,
   resolve: () => Promise<string>,
+  limits: HandshakeTimeouts = handshakeTimeouts,
 ): Connector {
+  if (![limits.connectMs, limits.headersMs].every((value) => Number.isSafeInteger(value) && value > 0))
+    throw new Error("Invalid internal handshake timeout");
   let consumed = false;
   async function prepare(request: IncomingMessage, websocket: boolean) {
     if (consumed)
@@ -137,6 +178,7 @@ export function connector(
         headers,
         signal: context.signal,
       });
+      boundHandshake(upstream, limits);
       const abort = () => {
         upstream.destroy();
         response.destroy();
@@ -191,6 +233,7 @@ export function connector(
         headers,
         signal: context.signal,
       });
+      boundHandshake(upstream, limits);
       const abort = () => {
         upstream.destroy();
         socket.destroy();
