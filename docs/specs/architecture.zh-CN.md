@@ -1,10 +1,10 @@
 # AgentEnvironment 架构方向
 
-> **这是设计目标，不是当前实现。** 权威设计与阶段顺序见[平台 AgentEnvironment 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)。当前源码及已发行制品仍使用 `Cell`；当前不承诺新的产品 Kind。W1 移除 Process/Docker 产品运行后端、standalone 启动及 snapshot/restore。不要把计划描述成已实现或已发行。
+> **这是设计目标，不是当前实现。** 权威设计与阶段顺序见[平台 AgentEnvironment 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)。当前源码及已发行制品仍使用 `Cell`；当前不承诺新的产品 Kind。W1 移除 Process/Docker 产品运行后端、standalone 启动及 snapshot/restore。runtime #100 的有界上游真实接入已通过，但生产 adapter 尚待实现；不要把 W1/W2/W3 描述成已完成或已发行。
 
 ## 权责边界
 
-`AgentEnvironment` 是计划中的 namespaced Agent 实例及持久 HOME/数据边界。Kubernetes 是唯一产品运行后端。W1 前由 runtime #100 有界评估上游 core `Sandbox` CRD/controller、普通 Pod 与外部 PVC；不套同义 CRD、不 fork，`Sandbox` 只是基础设施对象。平台/runtime 分工隔离用户身份与应用协议、基础设施机制。namespace 是管理员配置的基础设施 scope，不是 OIDC tenantId；参考部署预配置 per-user namespace，不建设自动 namespace 租户系统。平台授权是唯一 owner 权威，runtime 只保存不可变 owner 关联用于资源匹配，不实现 OIDC。
+`AgentEnvironment` 是计划中的 namespaced Agent 实例及持久 HOME/数据边界。Kubernetes 是唯一产品运行后端。W1 正式采用上游 core `Sandbox` CRD/controller、普通 Pod 与外部 PVC；不套同义 CRD、不 fork，`Sandbox` 只是基础设施对象。平台/runtime 分工隔离用户身份与应用协议、基础设施机制。namespace 是管理员配置的基础设施 scope，不是 OIDC tenantId；参考部署预配置 per-user namespace，不建设自动 namespace 租户系统。平台授权是唯一 owner 权威，runtime 只保存不可变 owner 关联用于资源匹配，不实现 OIDC。见[有界真实接入证据](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/agent-sandbox-local-2026-09-23.md)。
 
 | 关注点 | 负责人 |
 | --- | --- |
@@ -37,7 +37,7 @@ data 与 private runtime state 使用不同 PVC。停止时保留两卷；删除
 
 ## 计划生命周期与暂缓项
 
-W2 在 runtime #100 选定的实现上增加健康节点正常停止/启动，保留环境及两卷身份。采用上游时，产品 `Running`/`Stopped` 映射为 `Running`/`Suspended` 期望，停止结果需核验，不直接照抄上游状态。停止保留两卷。检查期间当前 Cell 路径保留现有实现。不承诺节点分区 fencing，节点不健康或分区时强删不属于任何停止保证。备份、热池和自动 idle 暂缓。W3 要在发行前联合验证真实授权、持久 HOME 和性能。
+W2 在上游实现上增加健康节点正常停止/启动，保留环境及两卷身份。产品 `Running`/`Stopped` 映射为 `Running`/`Suspended` 期望，停止结果需核验，不直接照抄上游状态。生产实现还必须保留跨 resourceVersion 并发、删除结果未知屏障和旧 UID 精确校验。停止保留两卷。W1 落地前当前 Cell 路径仍是生产实现。不承诺节点分区 fencing，节点不健康或分区时强删不属于任何停止保证。备份、热池和自动 idle 暂缓。W3 要在发行前联合验证 OIDC 授权、真实工具、持久 HOME 和发行制品。
 
 W1 还计划移除 Process/Docker 产品运行后端、旧 standalone 启动及 snapshot/restore。这不影响工作区 Pod 内的子进程、OCI 镜像构建，也不影响 kind 使用 Docker 作为集群底座。
 

@@ -13,4 +13,4 @@
 - [DSH 精确基线](../compat/dsh/README.zh-CN.md)
 - [当前路线图](../ROADMAP.zh-CN.md)
 
-W1 计划移除 Process/Docker 产品运行后端、旧 standalone 启动与 snapshot/restore；工作区 Pod 内子进程、OCI 镜像构建及 kind 的 Docker 底座保留。W1 前置选型检查见 runtime [#100](https://github.com/GuoMonth/dsh-isolated-runtime/issues/100)：只装 core `Sandbox` controller，使用普通 Pod 与外部 PVC，不套同义 CRD、不 fork。W2 停止/启动与卷身份保证取决于该检查；当前 Cell 路径仍使用现有实现。W3 发行前联合验证真实授权、持久 HOME 和性能。备份、热池、自动 idle 暂缓。已发布 npm `0.3.0-alpha.1` 及固定清单仍描述该发行版；源码计划须单独验收发行。`archive/` 是历史材料，不是当前验收清单。
+W1 计划移除 Process/Docker 产品运行后端、旧 standalone 启动与 snapshot/restore；工作区 Pod 内子进程、OCI 镜像构建及 kind 的 Docker 底座保留。runtime [#100](https://github.com/GuoMonth/dsh-isolated-runtime/issues/100) 的有界上游真实接入已通过，因此 W1 采用 core `Sandbox` controller、普通 Pod 与外部 PVC，不套同义 CRD、不 fork。见[本地证据报告](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/agent-sandbox-local-2026-09-23.md)。生产实现仍是 Cell，W1/W2/W3 尚未完成。W2 保留停止证据、跨 resourceVersion 并发、删除结果未知屏障和旧 UID 精确校验门槛。W3 发行前联合验证 OIDC 授权、真实工具、持久 HOME 和发行制品。备份、热池、自动 idle 暂缓。已发布 npm `0.3.0-alpha.1` 及固定清单仍描述该发行版；源码计划须单独验收发行。`archive/` 是历史材料，不是当前验收清单。

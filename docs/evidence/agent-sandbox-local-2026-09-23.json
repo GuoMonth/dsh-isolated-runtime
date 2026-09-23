@@ -1,0 +1,222 @@
+{
+  "versions": {
+    "upstream": "v1.0.3",
+    "commit": "527d9346fe1d237dea5c003f3c720531c7bab1df",
+    "controllerImage": "registry.k8s.io/agent-sandbox/agent-sandbox-controller@sha256:b2160ee08dd4f2285b382d4b5073948891adfacbc9808a4ba9cf247766243c8c",
+    "dshImage": "localhost:30482/dsh-cell@sha256:c9462f224229cb54295d5dfee8bb7f44a26285e1efda341800b7831592f6941e",
+    "dsh": "0.1.5-rc.2",
+    "dshCommit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
+    "kubernetes": "v1.37.0",
+    "cni": "Calico v3.32.2",
+    "storage": "rancher.io/local-path (WaitForFirstConsumer, Delete)",
+    "runtimeSource": "031eb7540ae913671a84a3a65e9e67048986f9f0",
+    "controllerIndexDigest": "sha256:8c8f5814c16bd68631af0496a5fa4eb9bedce4d032de88b956130a041d9f438e"
+  },
+  "create-result": {
+    "readySeconds": 10.827087512006983,
+    "podUid": "c956f0f9-a5e6-4e53-9db9-6821ec36d6e4",
+    "sandboxUid": "8332303d-69ce-4964-8304-d258e0312b49"
+  },
+  "start-result-1": {
+    "round": 1,
+    "seconds": 6.668531102011912,
+    "podUid": "6a156ff9-e376-4417-b02e-a99a4a722d94",
+    "sandboxUid": "8332303d-69ce-4964-8304-d258e0312b49"
+  },
+  "start-result-2": {
+    "round": 2,
+    "seconds": 6.638422093936242,
+    "podUid": "190d9cc8-8051-4c35-90d3-9957c50a629e",
+    "sandboxUid": "8332303d-69ce-4964-8304-d258e0312b49"
+  },
+  "stop-result-1": {
+    "positiveTerminalEvidence": true,
+    "websocketRevoked": true,
+    "note": "fixed invalid kubectl watch flag; recovered exact Pod UID terminal event via API watch at original resourceVersion before resume",
+    "podUid": "c956f0f9-a5e6-4e53-9db9-6821ec36d6e4"
+  },
+  "stop-result-2": {
+    "round": 2,
+    "seconds": 1.8862297059968114,
+    "podUid": "6a156ff9-e376-4417-b02e-a99a4a722d94",
+    "generation": 5,
+    "positiveTerminalEvidence": true,
+    "websocketRevoked": false,
+    "stats": {
+      "reads": 84,
+      "requests": 14,
+      "revoked": true,
+      "active": 0
+    }
+  },
+  "stop-result-3": {
+    "round": 3,
+    "seconds": 1.4657490199897438,
+    "podUid": "1eef0097-f3a8-45e7-9189-341b01df4bdf",
+    "generation": 7,
+    "positiveTerminalEvidence": true,
+    "websocketRevoked": false,
+    "stats": {
+      "reads": 144,
+      "requests": 24,
+      "revoked": true,
+      "active": 0
+    }
+  },
+  "file-persistence": {
+    "passed": true,
+    "message": "both PVC markers retained",
+    "method": "kubectl exec: storage evidence, not DSH tool execution"
+  },
+  "fault-results": {
+    "unknownCreate": {
+      "sameUid": true,
+      "duplicateRejected": true,
+      "method": "discard successful create response then rediscover original key; not a network fault injection"
+    },
+    "missingVolume": {
+      "podPhase": "Pending",
+      "noPvcAutoCreated": true,
+      "sandboxReady": false
+    },
+    "foreignPod": {
+      "leftUnowned": true,
+      "unchangedUid": true,
+      "sandboxReady": false
+    },
+    "concurrentCas": {
+      "accepted": 1,
+      "staleRejected": 1,
+      "scope": "K8s resourceVersion compare-and-swap; full platform concurrency belongs to W2"
+    },
+    "controllerRebuildWithoutCaller": {
+      "newPodUid": "1eef0097-f3a8-45e7-9189-341b01df4bdf",
+      "sameSandboxUid": true,
+      "originalPvcUids": true,
+      "seconds": 7.870835767011158,
+      "scope": "normal Pod deletion on a healthy node; not node partition"
+    },
+    "nativeDshAfterRebuild": true
+  },
+  "pvc-replacement": {
+    "oldUid": "d2233034-4ee2-45d7-b774-dbb7d6986c14",
+    "newUid": "c6e03160-021f-47f6-876b-0af05e0d5c7d",
+    "staleDeleteRejected": true,
+    "connectorRejected": true
+  },
+  "deletion-result": {
+    "sandboxDeleted": true,
+    "serviceDeleted": true,
+    "privatePvcDeleted": true,
+    "dataPvcUidRetained": "e00e76d0-3c54-41e5-b928-bbf6676263a8",
+    "retainedDataRead": "retained-data-readable",
+    "interruptedCleanupRetried": true
+  },
+  "target-negative-tests": {
+    "positive": true,
+    "negativePassed": 15,
+    "results": [
+      {
+        "name": "wrong Sandbox UID",
+        "rejected": true,
+        "code": "StaleTarget"
+      },
+      {
+        "name": "stale Ready generation",
+        "rejected": true,
+        "code": "NotReady"
+      },
+      {
+        "name": "wrong Pod owner",
+        "rejected": true,
+        "code": "OwnershipMismatch"
+      },
+      {
+        "name": "extra container",
+        "rejected": true,
+        "code": "UnsafePodSpec"
+      },
+      {
+        "name": "extra credential injection",
+        "rejected": true,
+        "code": "TemplateMismatch"
+      },
+      {
+        "name": "host network",
+        "rejected": true,
+        "code": "UnsafePodSpec"
+      },
+      {
+        "name": "changed image policy",
+        "rejected": true,
+        "code": "TemplateMismatch"
+      },
+      {
+        "name": "wrong PVC UID",
+        "rejected": true,
+        "code": "StorageMismatch"
+      },
+      {
+        "name": "foreign PVC owner",
+        "rejected": true,
+        "code": "StorageMismatch"
+      },
+      {
+        "name": "unbound PVC",
+        "rejected": true,
+        "code": "StorageMismatch"
+      },
+      {
+        "name": "missing PVC",
+        "rejected": true,
+        "code": "InvalidTarget"
+      },
+      {
+        "name": "wrong endpoint UID",
+        "rejected": true,
+        "code": "EndpointMismatch"
+      },
+      {
+        "name": "extra ready endpoint",
+        "rejected": true,
+        "code": "EndpointMismatch"
+      },
+      {
+        "name": "foreign Service",
+        "rejected": true,
+        "code": "OwnershipMismatch"
+      },
+      {
+        "name": "suspended environment",
+        "rejected": true,
+        "code": "NotReady"
+      }
+    ]
+  },
+  "network-results": {
+    "workloadApiEgressDenied": true,
+    "untrustedIngressDenied": true,
+    "provider": "Calico3.32.2"
+  },
+  "stop-unverified": {
+    "code": "StopUnverified",
+    "watchDenied": true,
+    "modeRemains": "Suspended",
+    "staleStartRejected": true,
+    "noAutomaticResume": true
+  },
+  "stop-gates-result": {
+    "watchFailureFailClosed": true,
+    "staleStartRejectedDuringStop": true,
+    "deletedInstanceResumeRejected": true,
+    "cleanupAfterExactTerminalProof": true
+  },
+  "validationLimits": [
+    "single-node kind/local-path",
+    "no real model or OAuth/OIDC flow",
+    "test-only adapter; production W1/W2/W3 remain",
+    "unknown-create discards successful response; no transport fault injection",
+    "6 API reads per probe request; not total platform budget",
+    "watch failure gate additionally verified against empty/wrong-UID/missing-container evidence"
+  ]
+}
