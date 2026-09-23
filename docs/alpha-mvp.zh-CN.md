@@ -1,12 +1,12 @@
-# OIDC + Agent Workspace 集成 MVP 方向
+# OIDC + AgentEnvironment 集成 MVP 方向
 
 2026-09-22：按用户确认的[项目宪法](../CONSTITUTION.md)收缩当前里程碑。已验收 Cell/Operator 镜像仍以 v0.3.0-alpha.1（Linux/amd64）公开。当前 `main` 还包含固定模板 `cell-mvp-v1`，并通过了 2026-09-22 内部候选回归（[报告](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/cell-mvp-2026-09-22.md)）。该源码候选尚未重新发行：公开 runtime npm `0.3.0-alpha.1` 及其镜像仍对应先前发行。部署新候选请使用[平台候选指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.zh-CN.md)；下文已发行 npm 清单不适用于新模板。企业自托管是方向，不代表当前生产可用。
 
 ## 方向与当前实现
 
-产品目标是 K8s 唯一后端的 Agent Workspace。W1 计划把 `Cell` Kind 破坏性改名为 `AgentWorkspace`；当前源码和已发行包仍实现/使用 `Cell`。规范目标与阶段以[平台 Agent Workspace 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)为准。
+产品目标是 K8s 唯一后端的 AgentEnvironment。当前不承诺新的产品 Kind；上游 `Sandbox` 仅作为基础设施对象评估，当前源码和已发行包仍实现/使用 `Cell`。规范目标与阶段以[平台 AgentEnvironment 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)为准。
 
-W1 移除 Process/Docker 产品运行后端、旧 standalone 启动和 snapshot/restore；工作区 Pod 内子进程、OCI 镜像构建、kind 的 Docker 底座保留。W2 计划通过显式 StatefulSet 与显式 data/private PVC，在健康节点正常停止/启动，保留两卷身份。节点不健康/分区时强删不属于保证范围；不承诺节点分区 fencing。W3 发行前联合验证真实授权、持久 HOME 和性能。备份、热池、自动 idle 暂缓。
+W1 移除 Process/Docker 产品运行后端、旧 standalone 启动和 snapshot/restore；工作区 Pod 内子进程、OCI 镜像构建、kind 的 Docker 底座保留。runtime #100 先检查有界的上游 core 接入：普通 Pod、外部 data/private PVC，不套同义 CRD、不 fork。停止/启动与卷身份保证取决于该检查；当前 Cell 路径保留现有实现。节点不健康/分区时强删不属于任何保证范围；不承诺节点分区 fencing。W3 发行前联合验证真实授权、持久 HOME 和性能。备份、热池、自动 idle 暂缓。
 
 namespace 是管理员配置的基础设施 scope，不是 OIDC tenantId。参考部署预配置 per-user namespace，不建设自动 namespace 租户系统。平台授权是唯一用户归属权威；runtime 仅保存不可变 owner 关联用于资源匹配，不实现 OIDC。平台/runtime 分工不要求平台直接操作 StatefulSet/PVC，runtime 可在内部契约后管理原生资源。
 
@@ -16,7 +16,7 @@ data 和 private 是独立 PVC。停止时保留两卷；删除时 data 可保�
 
 2026-09-22 内测候选验证了两个用户通过 multi-tenant OIDC 登录、创建当前 `Cell` 资源并使用原生 DSH，跨用户访问被拒绝。上层负责用户协议、身份/成员、授权和会话；本仓库当前负责 Cell、资源生命周期与受限访问通道；DSH 负责应用协议、Session 和工具。
 
-集群、基础设施 scope namespace、CNI、存储、DNS/TLS 和服务身份权限由管理员配置。平台/runtime 分工是应用职责边界，不承诺多后端；runtime 可在内部契约后管理原生 StatefulSet/PVC。
+集群、基础设施 scope namespace、CNI、存储、DNS/TLS 和服务身份权限由管理员配置。平台/runtime 分工是应用职责边界，不承诺多后端；runtime 可在内部契约后管理原生 Pod/PVC（当前通过 StatefulSet）。
 
 ## 最小部署与边界
 

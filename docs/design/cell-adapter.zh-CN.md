@@ -1,12 +1,12 @@
 # Cell adapter：旧实现映射参考
 
-> **旧 Cell 实现映射，不是目标架构规范。** 新需求和阶段以[平台 Agent Workspace 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md)及[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)为准。当前代码仍实现 Cell；W1 才计划破坏性改名为 AgentWorkspace，W2 停止/启动尚未实现。本稿不得用于声称这些目标已落地。
+> **旧 Cell 实现映射，不是目标架构规范。** 新需求和阶段以[平台 AgentEnvironment 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md)及[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)为准。当前代码仍实现 Cell；产品改名及 W2 停止/启动尚未实现。本稿不得用于声称这些目标已落地。
 
 2026-09-20 修订的旧设计稿；旧实现记录见 [R5](r5-allocation.md) / [R6](r6-deletion.md)，原则入口见[项目宪法](../../CONSTITUTION.md)。
 
 ## 1. 尽量复用当前实现
 
-当前 Cell Operator 调谐 StatefulSet、Service、NetworkPolicy 与 PVC；launcher 承载原生 DSH。目标 AgentWorkspace 仍可由薄 runtime-owned CRD/Operator 聚合这些原生资源，也可由 runtime 直接管理；平台/runtime 分工不强制平台接管原生对象操作。目标结构见上方规范设计。
+当前 Cell Operator 调谐 StatefulSet、Service、NetworkPolicy 与 PVC；launcher 承载原生 DSH。W1 前通过 runtime [#100](https://github.com/GuoMonth/dsh-isolated-runtime/issues/100) 有界评估 upstream core `Sandbox` controller：普通 Pod、外部 PVC、不套同义 CRD、不 fork；`Sandbox` 只是基础设施对象，平台仍只暴露窄的 AgentEnvironment 契约。若薄 adapter 无法保留边界，则保留当前实现。目标结构见上方规范设计。
 
 旧方案由平台组合根注入 adapter。目标仍隔离平台业务与 Kubernetes 资源细节，但 runtime 可以直接管理 StatefulSet/PVC；namespace、RBAC、存储、Gateway/TLS 由管理员配置。
 

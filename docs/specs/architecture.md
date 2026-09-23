@@ -1,20 +1,20 @@
-# Agent Workspace architecture direction
+# AgentEnvironment architecture direction
 
-> **Design target, not current implementation.** The authoritative design and sequence are in the [platform Agent Workspace design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md) and [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104). Current source and released artifacts still use `Cell`; W1 plans a breaking rename to `AgentWorkspace`, removal of Process/Docker product backends, standalone launch, and snapshot/restore. Do not infer these changes are implemented or released.
+> **Design target, not current implementation.** The authoritative design and sequence are in the [platform AgentEnvironment design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md) and [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104). Current source and released artifacts still use `Cell`; no new product Kind is promised at this stage. W1 removes Process/Docker product backends, standalone launch, and snapshot/restore. Do not infer these changes are implemented or released.
 
 ## Ownership
 
-An `AgentWorkspace` is the planned namespaced resource boundary for one agent instance and its persistent HOME/data. Kubernetes is the only product execution backend. A thin runtime-owned CRD/Operator may reconcile native StatefulSet, PVC, Service and policy resources; direct runtime management of those native resources is also valid. The platform/runtime boundary isolates user identity and product protocols from infrastructure mechanics; it does not require pushing StatefulSet/PVC ownership into the platform. Namespace is administrator-configured infrastructure scope, not OIDC tenant identity; the reference setup preconfigures per-user namespaces rather than creating an automatic namespace tenancy system. Platform authorization is the sole user-owner authority; runtime stores immutable owner linkage only for resource matching and does not implement OIDC.
+An AgentEnvironment is the planned product boundary for one agent instance and its persistent HOME/data. Kubernetes is the only product execution backend. Before W1, runtime issue #100 evaluates the upstream core `Sandbox` CRD/controller as an infrastructure object with an ordinary Pod and external PVCs; no synonym product CRD or fork is promised. The platform/runtime boundary isolates user identity and product protocols from infrastructure mechanics. Namespace is administrator-configured infrastructure scope, not OIDC tenant identity; the reference setup preconfigures per-user namespaces rather than creating an automatic namespace tenancy system. Platform authorization is the sole user-owner authority; runtime stores immutable owner linkage only for resource matching and does not implement OIDC.
 
 | Concern | Owner |
 | --- | --- |
 | User identity, OIDC, membership, authorization and user sessions | multi-tenant platform |
-| AgentWorkspace resource, image, lifecycle and verified internal transport | runtime repository (planned name; currently Cell) |
+| AgentEnvironment contract, image, lifecycle and verified internal transport | runtime repository (product boundary; currently Cell) |
 | Application protocols, sessions, tools and model calls | DSH |
 | Pod scheduling, services, network policy and volumes | Kubernetes and its installed providers |
 | TLS termination and ingress routing | Gateway API implementation |
 
-The planned AgentWorkspace API will not accept a Pod name, UID, IP, Node, route or session as a user-selected target. Runtime resolves an instance from Kubernetes state and checks its identity before forwarding. **Current implementation fact:** the source uses a standard Kubernetes Pod boundary and `Cell`; current main accepts only `securityClass: standard`. Published npm `0.3.0-alpha.1` artifacts still describe their own older release and are not changed by this design text.
+The AgentEnvironment contract will not accept a Pod name, UID, IP, Node, route or session as a user-selected target. Runtime resolves an instance from Kubernetes state and checks its identity before forwarding. **Current implementation fact:** the source uses a standard Kubernetes Pod boundary and `Cell`; current main accepts only `securityClass: standard`. Published npm `0.3.0-alpha.1` artifacts still describe their own older release and are not changed by this design text.
 
 ## Request path
 
@@ -37,10 +37,10 @@ Ordinary Pods do not protect against a compromised node, kernel, cluster adminis
 
 ## Planned lifecycle and deferred work
 
-W2 is planned to add explicit `Running`/`Stopped` state and healthy-node normal stop/start over an explicit StatefulSet and explicit data/private PVCs, retaining both PVC identities. It does not promise fencing under node partition; force deletion on an unhealthy or partitioned node is outside the stop guarantee. Stopping retains both volumes. Backups, hot pools and automatic idle are deferred. W3 requires joint validation of real authorization, persistent HOME and performance before release.
+W2 adds explicit healthy-node normal stop/start on the implementation selected after runtime #100, retaining environment and both PVC identities. If upstream is adopted, product `Running`/`Stopped` maps to `Running`/`Suspended` intent, with verified stop evidence rather than blindly copying upstream status. Stopping retains both volumes. The current Cell path keeps its existing implementation while the check runs. No node-partition fencing is promised; force deletion on an unhealthy or partitioned node is outside any stop guarantee. Backups, hot pools and automatic idle are deferred. W3 requires joint validation of real authorization, persistent HOME and performance before release.
 
 W1 also plans removal of the product Process/Docker execution backends and the old standalone launcher and snapshot/restore flows. This does not remove child processes inside the workspace Pod, OCI image builds, or Docker as kind's cluster substrate.
 
 ## Historical Cell implementation
 
-Current source still includes CellSnapshot/restore and historical standalone files; this design update does not remove code or change release artifacts. Those paths are not part of the AgentWorkspace target. See [archived standalone alpha documentation](../archive/standalone-alpha1/README.md) for version-specific context.
+Current source still includes CellSnapshot/restore and historical standalone files; this design update does not remove code or change release artifacts. Those paths are not part of the AgentEnvironment target. See [archived standalone alpha documentation](../archive/standalone-alpha1/README.md) for version-specific context.
