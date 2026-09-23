@@ -6,10 +6,10 @@ Node.js 22+. The runtime images support Linux/amd64 and pin DSH **0.1.5-rc.2**.
 This tracked README may change ahead of a package release; a source edit does not
 mean the public npm tarball or its `operator.yaml` / `release.json` changed.
 
-**Architecture direction:** Kubernetes-only Agent Workspace. Current source and
-this published package still use Cell; W1 plans a breaking `AgentWorkspace`
+**Architecture direction:** Kubernetes-only AgentEnvironment. Current source and
+this published package still use Cell; no new product Kind is promised at this stage.
 rename and removal of Process/Docker product backends, standalone launch, and
-snapshot/restore. See the [authoritative design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md)
+snapshot/restore. See the [authoritative design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md)
 and [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104).
 This does not remove Pod child processes, OCI image builds, or Docker as kind's
 substrate. The command examples below remain instructions for the published

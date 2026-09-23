@@ -1,6 +1,6 @@
 # Contributing
 
-Read the [project constitution](CONSTITUTION.md) and the authoritative [Agent Workspace design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md) tracked by [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104). Target Kubernetes-only Agent Workspace; current code remains Cell until the breaking W1 rename. Do not introduce a Process/Docker product backend or multi-backend compatibility promise. Pin each validation version; breaking API/configuration/state changes are allowed, with no historical compatibility, upgrade or seamless recovery promise. Fail fast with structured diagnostics and validate the core flow before adding infrastructure.
+Read the [project constitution](CONSTITUTION.md) and the authoritative [AgentEnvironment design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md) tracked by [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104). Target Kubernetes-only AgentEnvironment; current code remains Cell. Do not introduce a Process/Docker product backend or multi-backend compatibility promise. Pin each validation version; breaking API/configuration/state changes are allowed, with no historical compatibility, upgrade or seamless recovery promise. Fail fast with structured diagnostics and validate the core flow before adding infrastructure.
 
 This project optimizes for a small executable contract. Changes should remove
 ambiguity rather than add compatibility layers.

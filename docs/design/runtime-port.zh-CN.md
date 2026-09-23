@@ -1,6 +1,6 @@
 # RuntimePort：旧 Cell 内部契约参考
 
-> **旧 Cell 设计，不是当前规范。** 当前目标以[平台 Agent Workspace 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)为准。本文只帮助理解现有 Cell 代码，不承诺 Process/Docker 多后端或未来兼容实现。当前源码仍是 Cell；AgentWorkspace 改名及 W2 停止/启动尚未实现。
+> **旧 Cell 设计，不是当前规范。** 当前目标以[平台 AgentEnvironment 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)为准。本文只帮助理解现有 Cell 代码，不承诺 Process/Docker 多后端或未来兼容实现。当前源码仍是 Cell；产品改名及 W2 停止/启动尚未实现。
 
 2026-09-20 修订的旧设计稿；旧实现记录见 [R5](r5-allocation.md) / [R6](r6-deletion.md)。原则入口见[项目宪法](../../CONSTITUTION.md)，旧资源映射见 [Cell adapter](cell-adapter.zh-CN.md)。
 

@@ -6,7 +6,7 @@
 
 **当前是 Cell MVP alpha。** 固定版本下的双用户 OIDC + Cell、真实模型文件操作已通过[集成回归](https://github.com/GuoMonth/dsh-multi-tenant/blob/4ba252765bccb41314c0bdc6b11bcf60cc0b33ef/docs/evidence/cell-regression-2026-09-20.md)。这批已验收的 Linux/amd64 Cell/Operator 镜像已按相同 digest 公开于 [v0.3.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.3.0-alpha.1)；平台 npm 独立发行。当前 `main` 源码已加入固定模板 `cell-mvp-v1`，并通过 2026-09-22 内部候选回归（[报告](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/cell-mvp-2026-09-22.md)）。此源码候选尚未重新发行：公开 runtime npm `0.3.0-alpha.1` 及其 Cell/Operator 镜像仍对应旧发行。部署新模板候选请使用[平台候选指南](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.zh-CN.md)，不要用下方已发布 npm 清单命令。后续迭代允许破坏性变更；已发行制品身份保持不变。
 
-**架构方向：**下一阶段目标是 K8s 唯一后端的 Agent Workspace；当前源码/包仍使用 Cell。W1 计划破坏性改名为 `AgentWorkspace`，并移除 Process/Docker 产品运行后端、standalone 启动与 snapshot/restore。详见[权威设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)。工作区 Pod 内子进程、OCI 镜像构建及 kind 的 Docker 底座保留。
+**架构方向：**下一阶段目标是 K8s 唯一后端的 AgentEnvironment；当前源码/包仍使用 Cell，源码调整尚未落地。W1 移除 Process/Docker 产品运行后端、standalone 启动与 snapshot/restore。详见[权威设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)。工作区 Pod 内子进程、OCI 镜像构建及 kind 的 Docker 底座保留。
 
 ## 固定发行边界
 

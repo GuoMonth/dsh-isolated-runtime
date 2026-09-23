@@ -1,12 +1,12 @@
-# OIDC + Agent Workspace integration MVP direction
+# OIDC + AgentEnvironment integration MVP direction
 
 Updated 2026-09-22 under the [project constitution](../CONSTITUTION.md). The accepted Cell/Operator pair remains public as v0.3.0-alpha.1 (Linux/amd64). Current `main` also contains fixed-template `cell-mvp-v1`, which passed the 2026-09-22 internal candidate run ([report](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/evidence/cell-mvp-2026-09-22.md)). The source candidate has not been republished: public runtime npm `0.3.0-alpha.1` and its images still describe the previous release. Deploy the candidate only using the [platform candidate guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/reference/cell-mvp-v1-candidate.md); the published npm manifests below are not for the new template. Enterprise self-hosting is a direction, not a production-readiness claim.
 
 ## Direction and current implementation
 
-The product target is Kubernetes-only Agent Workspace. The planned `AgentWorkspace` kind will replace `Cell` in W1 as a breaking change; current source and released packages still implement/use `Cell`. The canonical target and phases are in the [platform Agent Workspace design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-workspace.zh-CN.md) and [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104).
+The product target is Kubernetes-only AgentEnvironment. No new product Kind is promised at this stage; upstream `Sandbox` is evaluated only as an infrastructure object, while current source and released packages still implement/use `Cell`. The canonical target and phases are in the [platform AgentEnvironment design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md) and [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104).
 
-W1 removes Process/Docker product backends, old standalone launch, and snapshot/restore. Pod child processes, OCI image builds, and Docker as kind's substrate remain. W2 plans healthy-node normal stop/start through an explicit StatefulSet and explicit data/private PVCs, retaining both PVC identities. Force deletion on an unhealthy/partitioned node is outside the guarantee; this does not promise node-partition fencing. W3 requires joint validation of real authorization, persistent HOME and performance before release. Backups, hot pools and automatic idle are deferred.
+W1 removes Process/Docker product backends, old standalone launch, and snapshot/restore. Pod child processes, OCI image builds, and Docker as kind's substrate remain. Runtime #100 first checks the bounded upstream core integration: ordinary Pod, external data/private PVCs, no synonym CRD or fork. Stop/start and PVC identity guarantees remain conditional on that check; the current Cell path retains its existing implementation. Force deletion on an unhealthy/partitioned node is outside any guarantee; this does not promise node-partition fencing. W3 requires joint validation of real authorization, persistent HOME and performance before release. Backups, hot pools and automatic idle are deferred.
 
 Namespaces are administrator-configured infrastructure scopes, not OIDC tenant IDs. The reference setup preconfigures per-user namespaces and does not create an automatic namespace tenancy system. Platform authorization is the only user-owner authority; runtime keeps immutable owner linkage for resource matching and does not implement OIDC. Runtime may manage native Kubernetes resources behind its contract; the platform is not required to operate StatefulSets/PVCs directly.
 
@@ -16,7 +16,7 @@ Data and private are separate PVCs. Stop retains both; data may be retained on d
 
 The 2026-09-22 internal candidate run tested two users signing in through multi-tenant OIDC, creating their current `Cell` resources and using native DSH; cross-user access was denied. The platform owns user protocols, identity/membership, authorization and sessions. This repository currently owns Cell resources, lifecycle and restricted application transport. DSH owns application protocols, sessions and tools.
 
-Administrators configure the cluster, infrastructure-scope namespaces, CNI, storage, DNS/TLS and service permissions. Platform/runtime separation is an application boundary, not a multi-backend promise; runtime may manage native StatefulSet/PVC resources behind the internal contract.
+Administrators configure the cluster, infrastructure-scope namespaces, CNI, storage, DNS/TLS and service permissions. Platform/runtime separation is an application boundary, not a multi-backend promise; runtime may manage native Pod/PVC resources (currently via StatefulSet) behind the internal contract.
 
 ## Minimal deployment and limits
 
