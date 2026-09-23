@@ -1,6 +1,6 @@
 # Repository instructions
 
-[CONSTITUTION.md](CONSTITUTION.md) links shared principles. The target is Kubernetes-only AgentEnvironment; upstream `Sandbox` is an infrastructure integration candidate, while current source still implements `Cell`. Scope/sequence live in the [AgentEnvironment design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md) and platform [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104).
+[CONSTITUTION.md](CONSTITUTION.md) links shared principles. The target is Kubernetes-only AgentEnvironment; the local trial selected upstream core `Sandbox` for W1, while current production source still implements `Cell`. The [local report](docs/evidence/agent-sandbox-local-2026-09-23.md) records test-only evidence and outstanding production work. Scope/sequence live in the [AgentEnvironment design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md) and platform [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104).
 
 ## Task routing
 

@@ -4,7 +4,7 @@
 
 ## 方向与当前实现
 
-产品目标是 K8s 唯一后端的 AgentEnvironment。当前不承诺新的产品 Kind；上游 `Sandbox` 仅作为基础设施对象评估，当前源码和已发行包仍实现/使用 `Cell`。规范目标与阶段以[平台 AgentEnvironment 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)为准。
+产品目标是 K8s 唯一后端的 AgentEnvironment。当前不承诺新的产品 Kind；本地有限接入已通过，W1 选定上游 core `Sandbox` 作为基础设施对象，当前源码和已发行包仍实现/使用 `Cell`。规范目标与阶段以[平台 AgentEnvironment 设计](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md)和[Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)为准。
 
 W1 移除 Process/Docker 产品运行后端、旧 standalone 启动和 snapshot/restore；工作区 Pod 内子进程、OCI 镜像构建、kind 的 Docker 底座保留。runtime #100 先检查有界的上游 core 接入：普通 Pod、外部 data/private PVC，不套同义 CRD、不 fork。停止/启动与卷身份保证取决于该检查；当前 Cell 路径保留现有实现。节点不健康/分区时强删不属于任何保证范围；不承诺节点分区 fencing。W3 发行前联合验证真实授权、持久 HOME 和性能。备份、热池、自动 idle 暂缓。
 

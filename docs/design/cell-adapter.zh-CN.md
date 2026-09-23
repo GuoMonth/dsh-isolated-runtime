@@ -6,7 +6,7 @@
 
 ## 1. 尽量复用当前实现
 
-当前 Cell Operator 调谐 StatefulSet、Service、NetworkPolicy 与 PVC；launcher 承载原生 DSH。W1 前通过 runtime [#100](https://github.com/GuoMonth/dsh-isolated-runtime/issues/100) 有界评估 upstream core `Sandbox` controller：普通 Pod、外部 PVC、不套同义 CRD、不 fork；`Sandbox` 只是基础设施对象，平台仍只暴露窄的 AgentEnvironment 契约。若薄 adapter 无法保留边界，则保留当前实现。目标结构见上方规范设计。
+当前 Cell Operator 调谐 StatefulSet、Service、NetworkPolicy 与 PVC；launcher 承载原生 DSH。runtime [#100](https://github.com/GuoMonth/dsh-isolated-runtime/issues/100) 有界试验已通过，W1正式采用 upstream core `Sandbox` controller：普通 Pod、外部 PVC、不套同义 CRD、不 fork；`Sandbox` 只是基础设施对象，平台仍只暴露窄的 AgentEnvironment 契约。试验已验证薄适配可行，正式生产替换尚未实施。目标结构见上方规范设计。
 
 旧方案由平台组合根注入 adapter。目标仍隔离平台业务与 Kubernetes 资源细节，但 runtime 可以直接管理 StatefulSet/PVC；namespace、RBAC、存储、Gateway/TLS 由管理员配置。
 
