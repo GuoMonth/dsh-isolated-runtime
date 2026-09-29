@@ -95,3 +95,76 @@ test("absence, failure or a different writer is never positive stop evidence", (
   terminal.status.containerStatuses[0].state.terminated.exitCode = 137;
   assert.equal(isTerminal(terminal, "writer"), false);
 });
+
+test("stop watches from collection RV, not the aged Pod item RV; observation failure remains gated", async (t) => {
+  const { API } = await import("../dist/api.js");
+  const { createAgentEnvironmentRuntime } = await import("../dist/index.js");
+  const originalCall = API.prototype.call,
+    originalTerminal = API.prototype.terminal;
+  t.after(() => {
+    API.prototype.call = originalCall;
+    API.prototype.terminal = originalTerminal;
+  });
+  const sandbox = structuredClone(sb);
+  let observed;
+  API.prototype.call = async function (method, path, _signal, body) {
+    if (method === "PATCH") {
+      for (const op of body)
+        if (op.op === "add" && op.path.startsWith("/metadata/annotations/"))
+          sandbox.metadata.annotations[
+            op.path.slice("/metadata/annotations/".length).replaceAll("~1", "/")
+          ] = op.value;
+      return sandbox;
+    }
+    if (path.startsWith("/api/v1/nodes/"))
+      return {
+        metadata: { uid: "node" },
+        spec: {},
+        status: { conditions: [{ type: "Ready", status: "True" }] },
+      };
+    if (path.includes("/leases/"))
+      return {
+        metadata: { ownerReferences: [{ kind: "Node", uid: "node" }] },
+        spec: { renewTime: new Date().toISOString() },
+      };
+    if (path.includes("/sandboxes/")) return sandbox;
+    if (path.endsWith("/persistentvolumeclaims/data")) return pvc;
+    if (path.endsWith("/serviceaccounts/workload"))
+      return get("ServiceAccount");
+    if (path.includes("/networkpolicies/")) return get("NetworkPolicy");
+    if (path.endsWith("/pods"))
+      return {
+        metadata: { resourceVersion: "current-list-cursor" },
+        items: [pod],
+      };
+    if (path.includes("/services/")) return service;
+    if (path.includes("/endpointslices?")) return { items: slices };
+    return ns;
+  };
+  API.prototype.terminal = async function (path, uid) {
+    observed = { path, uid };
+    throw new Error("test-only failed observation");
+  };
+  const runtime = createAgentEnvironmentRuntime({
+    ...options,
+    kubernetes: {
+      server: "https://kubernetes.test",
+      caFile: "unused",
+      tokenFile: "unused",
+    },
+  });
+  await assert.rejects(
+    runtime.stop(ref, sandbox.metadata.resourceVersion, {
+      signal: AbortSignal.timeout(3000),
+      correlationId: "cursor-regression",
+    }),
+    (e) =>
+      e.failure.code === "StopUnverified" && e.failure.effect === "accepted",
+  );
+  assert.equal(observed.uid, pod.metadata.uid);
+  assert.match(observed.path, /resourceVersion=current-list-cursor&/);
+  assert.equal(
+    sandbox.metadata.annotations["environment.dsh.io/phase"],
+    "unverified",
+  );
+});

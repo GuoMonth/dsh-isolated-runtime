@@ -329,6 +329,7 @@ export function createAgentEnvironmentRuntime(
         state = "Unavailable";
     } else state = "Unavailable";
     return {
+      watchRevision: podList.metadata.resourceVersion,
       namespace,
       sb,
       pvc,
@@ -565,10 +566,14 @@ export function createAgentEnvironmentRuntime(
         throw error("StopRejected", ctx, ref, "stop");
       revoke(ref.sandbox.uid);
       const pod = current.pods.length === 1 ? current.pods[0] : undefined;
+      // Item RV may be older than watch history for a long-running Pod.
+      // The list RV observes that exact item while providing a current cursor.
+      const watchRevision = current.watchRevision;
       const updated = await patch(current.sb, ctx, [
         add("phase", "stopping"),
         add("writer-uid", pod?.metadata.uid ?? "unknown"),
         add("writer-rv", pod?.metadata.resourceVersion ?? "unknown"),
+        add("watch-rv", watchRevision),
         { op: "replace", path: "/spec/operatingMode", value: "Suspended" },
       ]);
       accepted();
@@ -577,7 +582,7 @@ export function createAgentEnvironmentRuntime(
         const nodeUID = await healthyWriter(pod, ctx);
         if (!isTerminal(pod, pod.metadata.uid))
           await api.terminal(
-            `${nsPath(ref.namespace)}/pods?watch=true&fieldSelector=metadata.name%3D${encodeURIComponent(pod.metadata.name)}&resourceVersion=${encodeURIComponent(pod.metadata.resourceVersion)}&timeoutSeconds=50`,
+            `${nsPath(ref.namespace)}/pods?watch=true&fieldSelector=metadata.name%3D${encodeURIComponent(pod.metadata.name)}&resourceVersion=${encodeURIComponent(watchRevision)}&timeoutSeconds=50`,
             pod.metadata.uid,
             ctx.signal,
           );

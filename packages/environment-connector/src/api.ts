@@ -133,7 +133,7 @@ export class API {
       throw e;
     }
   }
-  /** A single bounded watch from the pre-stop Pod RV, never an infinite reconnect. */
+  /** A single bounded watch from the pre-stop Pod list RV, never an infinite reconnect. */
   async terminal(
     path: string,
     uid: string,
