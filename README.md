@@ -1,15 +1,34 @@
 # DSH Isolated Runtime
 
-Kubernetes-only runtime for the [DSH platform](https://github.com/GuoMonth/dsh-multi-tenant). The platform owns login, authorization and allocation bindings; this repository supplies a narrow Connector, a fixed single-PVC workload and the DSH launcher. Upstream Agent Sandbox core is the only controller.
+[中文](README.zh-CN.md) · [Install the platform](https://github.com/GuoMonth/dsh-multi-tenant#install) · [AI guide](AI.md)
 
-DSH is pinned to **0.2.0-rc.2**, source `639ed015397290b3745d163aafe02ffee4aa3f84`. Every environment has one external PVC at `/var/lib/dsh/data`, containing `workspace`, `home` and `dsh`. Resources use native CPU/memory requests and limits and one storage capacity.
+The Kubernetes resource and execution layer for [DSH multi-tenant](https://github.com/GuoMonth/dsh-multi-tenant). It supplies the fixed DSH workload image, launcher and in-process environment Connector. **Install through the platform**; it bundles the Connector and owns the installation CLI and Helm chart.
 
-- [Executable contract](docs/design/environment-contract.zh-CN.md)
-- [Runtime implementation](packages/environment-connector/src/runtime.ts), exported as `createAgentEnvironmentRuntime(options)`
-- [Fixed workload template](packages/environment-connector/src/template.ts), [platform RBAC](config/runtime/cluster-role.yaml)
-- [Contributing and checks](CONTRIBUTING.md), [distribution](docs/distribution.md)
-- [Current MVP scope](https://github.com/GuoMonth/dsh-multi-tenant/issues/104)
+DSH is pinned to **0.2.0-rc.2**. Each environment has one independently owned PVC at `/var/lib/dsh/data`, with `workspace/` for files, `home/` for user tools/configuration and `dsh/` for native conversations/credentials. Normal stop/start and Pod recreation retain the same volume. CPU/memory use Kubernetes requests/limits and storage has one requested capacity.
 
-There is no standalone backend, custom Cell operator, installation CLI or historical state migration. Explicit stop requires observed successful termination of the exact writer and healthy-node evidence; unknown outcomes require inspection of the original allocation. Deletion retains the PVC, namespace and its isolation policy. Node partition recovery is not promised.
+## Responsibilities
 
-This is a local RC candidate, not a published release. Platform installation artifacts consume the pinned Connector, image and upstream core assets. See [中文](README.zh-CN.md).
+| Component | Owns |
+| --- | --- |
+| This repository | Fixed workload image and launcher, namespace/PVC/Sandbox identity, explicit create/query/stop/start/delete, verified access channel |
+| [Platform](https://github.com/GuoMonth/dsh-multi-tenant) | OIDC, members, user authorization, allocation bindings, connection revocation, npm CLI and installation |
+| Upstream Agent Sandbox core | Sole controller reconciling Sandbox into Pod/Service |
+| DeepSeek Harness | Native Web, conversations, model/tool execution and user credentials |
+
+The Connector runs inside the platform process. It is an internal bundled package, not a separate public npm dependency or network service. User authorization always belongs to the platform; resource labels and namespaces are not authorization.
+
+## Installation with AI
+
+Give your assistant the [platform AI installation guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/packages/multi-tenant/AI.md). It checks cluster, OIDC, DNS/TLS, storage and release image identities before using the packaged installer. Runtime contributors use [this repository's AI guide](AI.md) and [executable contract](docs/design/environment-contract.zh-CN.md).
+
+## Lifecycle and limits
+
+Stop requires positive evidence for the exact writer on a healthy node. Unknown outcomes are inspected against the original allocation; missing/replaced PVC identity fails closed. Delete requires verified stop and retains the PVC, namespace and isolation policy. Automatic node-partition recovery, backup, HA and data migration are outside the Alpha guarantees.
+
+- [Connector implementation](packages/environment-connector/src/runtime.ts) and [fixed template](packages/environment-connector/src/template.ts)
+- [Platform RBAC](config/runtime/cluster-role.yaml)
+- [Development and checks](CONTRIBUTING.md)
+- [Image and Connector distribution](docs/distribution.md)
+- [Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases)
+
+MIT licensed.
