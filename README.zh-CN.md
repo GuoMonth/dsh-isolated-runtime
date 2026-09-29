@@ -1,5 +1,7 @@
 # dsh-isolated-runtime
 
+**产品定位：**开源 Alpha 阶段的企业内网持久 AI 工作环境。首版聚焦 OIDC 登录、原生 DSH、每用户单 PVC、显式启停与一条安装路径；允许破坏性变更，不维护旧版本兼容或迁移。企业规模、灾备和受支持升级后置，详见[产品边界](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/enterprise-positioning.zh-CN.md)。
+
 原生 DeepSeek Harness 的 Kubernetes Cell 生命周期与隔离运行时。[多租户平台](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/README.zh-CN.md) 负责 OIDC、成员、用户协议和会话；本仓库负责 Cell 资源、镜像、精确实例校验与受限内部 Connector。DSH 负责原生 Web 和工具。
 
 [English](README.md)
@@ -12,7 +14,7 @@
 
 依赖的 DSH 明确为 **0.1.5-rc.2**，源码 **`fb2c4b9e698e30edb738bca4cf0618587db7d203`**。每次发行锁定可公开拉取的 Cell、Operator 镜像 `@sha256` digest，并在平台 `cell-release.json` / runtime `release.json` 中记录匹配的运行时源码与 DSH 身份；实际部署的平台镜像也固定 digest。npm `latest` 只用于安装时选择包，不让运行中的镜像标签或 DSH 版本范围漂移。
 
-允许破坏性更新：新迭代明确新的固定组合，按需修改配置/状态要求并验证受影响链路，不要求兼容层、历史升级或迁移承诺。已发布制品身份不改写。公开的 [v0.3.0-alpha.1 清单](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.3.0-alpha.1/release.json) 已记录本次 Linux/amd64 的 Cell/Operator 组合。空值或不匹配 digest 仍会阻止平台发行。
+允许破坏性更新：新迭代明确新的固定组合，按需修改配置/状态要求并验证受影响链路，已发布 Alpha 不承诺通用历史迁移；本轮不开发旧版本升级、迁移或兼容层。已发布制品身份不改写。公开的 [v0.3.0-alpha.1 清单](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.3.0-alpha.1/release.json) 已记录本次 Linux/amd64 的 Cell/Operator 组合。空值或不匹配 digest 仍会阻止平台发行。
 
 
 ## 与平台配合
