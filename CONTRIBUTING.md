@@ -48,7 +48,7 @@ shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh demo-files
 
 ## Design rules
 
-- Namespace is administrator-configured infrastructure scope, not OIDC tenant identity. Use preconfigured per-user namespaces; platform authorization is the sole owner authority. Runtime owner linkage is immutable resource-matching metadata, not another identity system.
+- Namespace is administrator-configured infrastructure scope, not OIDC tenant identity. Use approved per-user namespace provisioning; platform authorization is the sole owner authority. Runtime owner linkage is immutable resource-matching metadata, not another identity system.
 - Keep topology, routing, scheduling, and session state out of Cell.
 - Use native Kubernetes, Gateway API, and CSI resources behind the runtime contract; runtime may directly manage StatefulSet/PVC resources.
 - Keep all images and DSH behavior pinned by content/version.
