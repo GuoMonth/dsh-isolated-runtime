@@ -5,7 +5,7 @@
 `@dsh/environment-connector-internal`，精确 tarball 由平台 vendor 消费。
 A 提供可编译契约、可执行模板与真实 RC smoke；B 实现
 `createAgentEnvironmentRuntime(options: EnvironmentRuntimeOptions): AgentEnvironmentRuntime`。
-A 不提供伪装为生产实现的 factory，旧 Cell 包仅待 B 删除，不能作为新接口的回退。
+A/G1 不提供伪装为生产实现的 factory；B 已实现生产 factory 并删除旧 Cell 包。当前入口和真实验证见 [B 阶段证据](../evidence/mvp-b-runtime-2026-09-29.md)，没有旧接口回退。
 
 ## 输入、归属与供应
 

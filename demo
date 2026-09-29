@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Compatibility entry only. New installations use dsh-runtime.
-set -euo pipefail
-if [[ "${1:-}" == down ]]; then
-  shift
-  exec "$(cd "$(dirname "$0")" && pwd)/dsh-runtime" uninstall "$@"
-fi
-exec "$(cd "$(dirname "$0")" && pwd)/dsh-runtime" "$@"

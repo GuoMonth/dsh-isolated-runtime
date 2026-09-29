@@ -6,7 +6,6 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/environment-launcher ./cmd/environment-launcher
 COPY internal/accesscontract ./internal/accesscontract
-COPY internal/cellcontract ./internal/cellcontract
 COPY internal/dshcompat ./internal/dshcompat
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w -buildid=' -o /out/environment-launcher ./cmd/environment-launcher
 

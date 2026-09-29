@@ -1,0 +1,817 @@
+{
+  "sandbox": {
+    "apiVersion": "agents.x-k8s.io/v1beta1",
+    "kind": "Sandbox",
+    "metadata": {
+      "annotations": {
+        "environment.dsh.io/allocation": "b-lifecycle-1",
+        "environment.dsh.io/data-uid": "2d2eee12-51f1-435d-9aaf-8ee8082921e5",
+        "environment.dsh.io/owner": "{\"tenantId\":\"b-fixture\",\"principalId\":\"alice\"}",
+        "environment.dsh.io/phase": "running",
+        "environment.dsh.io/writer-rv": "7769",
+        "environment.dsh.io/writer-uid": "dca80f5d-0710-4b64-ae73-59757ff3e958"
+      },
+      "generation": 4,
+      "name": "environment",
+      "namespace": "dsh-mvp-b-5029fc5dc0e2832be4a246174509ad96",
+      "resourceVersion": "7826",
+      "uid": "56355f28-74d5-4fc9-895f-08b70a073dfb"
+    },
+    "spec": {
+      "operatingMode": "Running",
+      "podTemplate": {
+        "metadata": {
+          "labels": {
+            "app.kubernetes.io/managed-by": "dsh-isolated-runtime",
+            "app.kubernetes.io/name": "dsh-environment"
+          }
+        },
+        "spec": {
+          "automountServiceAccountToken": false,
+          "containers": [
+            {
+              "command": [
+                "/usr/local/bin/environment-launcher"
+              ],
+              "env": [
+                {
+                  "name": "DSH_AUTHORITY",
+                  "value": "5029fc5dc0e2832be4a246174509ad96.environments.test"
+                },
+                {
+                  "name": "HOME",
+                  "value": "/var/lib/dsh/data/home"
+                },
+                {
+                  "name": "DSH_HOME",
+                  "value": "/var/lib/dsh/data/dsh"
+                },
+                {
+                  "name": "DSH_PERMISSION_MODE",
+                  "value": "danger-full-access"
+                },
+                {
+                  "name": "DSH_TELEMETRY_DISABLED",
+                  "value": "1"
+                },
+                {
+                  "name": "XDG_CACHE_HOME",
+                  "value": "/tmp/.cache"
+                },
+                {
+                  "name": "NPM_CONFIG_PREFIX",
+                  "value": "/var/lib/dsh/data/home/.local"
+                },
+                {
+                  "name": "NPM_CONFIG_CACHE",
+                  "value": "/tmp/.npm"
+                }
+              ],
+              "image": "docker.io/library/dsh-mvp-rc2@sha256:3a3d58acd85ef98ee2fa794aeb323cba29fa0c8be79539d4cb8644b975694c6c",
+              "imagePullPolicy": "IfNotPresent",
+              "livenessProbe": {
+                "httpGet": {
+                  "path": "/livez",
+                  "port": "management"
+                },
+                "periodSeconds": 10
+              },
+              "name": "dsh",
+              "ports": [
+                {
+                  "containerPort": 8080,
+                  "name": "http",
+                  "protocol": "TCP"
+                },
+                {
+                  "containerPort": 8081,
+                  "name": "management",
+                  "protocol": "TCP"
+                }
+              ],
+              "readinessProbe": {
+                "httpGet": {
+                  "path": "/readyz",
+                  "port": "management"
+                },
+                "periodSeconds": 3
+              },
+              "resources": {
+                "limits": {
+                  "cpu": "1",
+                  "memory": "1Gi"
+                },
+                "requests": {
+                  "cpu": "100m",
+                  "memory": "256Mi"
+                }
+              },
+              "securityContext": {
+                "allowPrivilegeEscalation": false,
+                "capabilities": {
+                  "drop": [
+                    "ALL"
+                  ]
+                },
+                "readOnlyRootFilesystem": true
+              },
+              "startupProbe": {
+                "failureThreshold": 30,
+                "httpGet": {
+                  "path": "/readyz",
+                  "port": "management"
+                },
+                "periodSeconds": 3
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/var/lib/dsh/data",
+                  "name": "data"
+                },
+                {
+                  "mountPath": "/tmp",
+                  "name": "tmp"
+                }
+              ],
+              "workingDir": "/var/lib/dsh/data"
+            }
+          ],
+          "enableServiceLinks": false,
+          "securityContext": {
+            "fsGroup": 1000,
+            "fsGroupChangePolicy": "OnRootMismatch",
+            "runAsGroup": 1000,
+            "runAsNonRoot": true,
+            "runAsUser": 1000,
+            "seccompProfile": {
+              "type": "RuntimeDefault"
+            }
+          },
+          "serviceAccountName": "workload",
+          "terminationGracePeriodSeconds": 30,
+          "volumes": [
+            {
+              "name": "data",
+              "persistentVolumeClaim": {
+                "claimName": "data"
+              }
+            },
+            {
+              "emptyDir": {
+                "sizeLimit": "1Gi"
+              },
+              "name": "tmp"
+            }
+          ]
+        }
+      },
+      "service": true,
+      "shutdownPolicy": "Retain"
+    },
+    "status": {
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-09-29T13:13:07Z",
+          "message": "Sandbox is not suspended",
+          "observedGeneration": 4,
+          "reason": "NotSuspended",
+          "status": "False",
+          "type": "Suspended"
+        },
+        {
+          "lastTransitionTime": "2026-09-29T13:13:10Z",
+          "message": "Pod is Ready; Service Exists",
+          "observedGeneration": 4,
+          "reason": "DependenciesReady",
+          "status": "True",
+          "type": "Ready"
+        },
+        {
+          "lastTransitionTime": "2026-09-29T13:13:07Z",
+          "message": "",
+          "observedGeneration": 4,
+          "reason": "PodScheduled",
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ],
+      "nodeName": "dsh-mvp-rc2-control-plane",
+      "podIPs": [
+        "10.244.11.26"
+      ],
+      "selector": "agents.x-k8s.io/sandbox-name-hash=3fee2bfa",
+      "service": "environment",
+      "serviceFQDN": "environment.dsh-mvp-b-5029fc5dc0e2832be4a246174509ad96.svc.cluster.local"
+    }
+  },
+  "resources": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "agents.x-k8s.io/propagated-labels": "app.kubernetes.io/managed-by,app.kubernetes.io/name",
+          "cni.projectcalico.org/containerID": "80343474132585b4ac0da64f560f1aad0b0cd528f372348c38ccc08ed7715a73",
+          "cni.projectcalico.org/podIP": "10.244.11.26/32",
+          "cni.projectcalico.org/podIPs": "10.244.11.26/32"
+        },
+        "generation": 1,
+        "labels": {
+          "agents.x-k8s.io/sandbox-name-hash": "3fee2bfa",
+          "app.kubernetes.io/managed-by": "dsh-isolated-runtime",
+          "app.kubernetes.io/name": "dsh-environment"
+        },
+        "name": "environment",
+        "namespace": "dsh-mvp-b-5029fc5dc0e2832be4a246174509ad96",
+        "ownerReferences": [
+          {
+            "apiVersion": "agents.x-k8s.io/v1beta1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "Sandbox",
+            "name": "environment",
+            "uid": "56355f28-74d5-4fc9-895f-08b70a073dfb"
+          }
+        ],
+        "resourceVersion": "7823",
+        "uid": "7d918052-afc6-412d-9944-9fb489eb47a4"
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "containers": [
+          {
+            "command": [
+              "/usr/local/bin/environment-launcher"
+            ],
+            "env": [
+              {
+                "name": "DSH_AUTHORITY",
+                "value": "5029fc5dc0e2832be4a246174509ad96.environments.test"
+              },
+              {
+                "name": "HOME",
+                "value": "/var/lib/dsh/data/home"
+              },
+              {
+                "name": "DSH_HOME",
+                "value": "/var/lib/dsh/data/dsh"
+              },
+              {
+                "name": "DSH_PERMISSION_MODE",
+                "value": "danger-full-access"
+              },
+              {
+                "name": "DSH_TELEMETRY_DISABLED",
+                "value": "1"
+              },
+              {
+                "name": "XDG_CACHE_HOME",
+                "value": "/tmp/.cache"
+              },
+              {
+                "name": "NPM_CONFIG_PREFIX",
+                "value": "/var/lib/dsh/data/home/.local"
+              },
+              {
+                "name": "NPM_CONFIG_CACHE",
+                "value": "/tmp/.npm"
+              }
+            ],
+            "image": "docker.io/library/dsh-mvp-rc2@sha256:3a3d58acd85ef98ee2fa794aeb323cba29fa0c8be79539d4cb8644b975694c6c",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/livez",
+                "port": "management",
+                "scheme": "HTTP"
+              },
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "dsh",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http",
+                "protocol": "TCP"
+              },
+              {
+                "containerPort": 8081,
+                "name": "management",
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/readyz",
+                "port": "management",
+                "scheme": "HTTP"
+              },
+              "periodSeconds": 3,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "1",
+                "memory": "1Gi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "readOnlyRootFilesystem": true
+            },
+            "startupProbe": {
+              "failureThreshold": 30,
+              "httpGet": {
+                "path": "/readyz",
+                "port": "management",
+                "scheme": "HTTP"
+              },
+              "periodSeconds": 3,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/lib/dsh/data",
+                "name": "data"
+              },
+              {
+                "mountPath": "/tmp",
+                "name": "tmp"
+              }
+            ],
+            "workingDir": "/var/lib/dsh/data"
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": false,
+        "nodeName": "dsh-mvp-rc2-control-plane",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {
+          "fsGroup": 1000,
+          "fsGroupChangePolicy": "OnRootMismatch",
+          "runAsGroup": 1000,
+          "runAsNonRoot": true,
+          "runAsUser": 1000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "serviceAccount": "workload",
+        "serviceAccountName": "workload",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "data",
+            "persistentVolumeClaim": {
+              "claimName": "data"
+            }
+          },
+          {
+            "emptyDir": {
+              "sizeLimit": "1Gi"
+            },
+            "name": "tmp"
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "256Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-09-29T13:13:07Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-09-29T13:13:07Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-09-29T13:13:10Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-09-29T13:13:10Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-09-29T13:13:07Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "256Mi"
+            },
+            "containerID": "containerd://8cdf495760daa6a1dcd550a1ea8b1f8a9cb8210a75f9dd3d1696e7d68f438f4f",
+            "image": "docker.io/library/dsh-mvp-rc2:candidate",
+            "imageID": "docker.io/library/dsh-mvp-rc2@sha256:3a3d58acd85ef98ee2fa794aeb323cba29fa0c8be79539d4cb8644b975694c6c",
+            "lastState": {},
+            "name": "dsh",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "1",
+                "memory": "1Gi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-09-29T13:13:07Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 1000,
+                "supplementalGroups": [
+                  1000
+                ],
+                "uid": 1000
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/lib/dsh/data",
+                "name": "data"
+              },
+              {
+                "mountPath": "/tmp",
+                "name": "tmp"
+              }
+            ]
+          }
+        ],
+        "hostIP": "192.168.64.2",
+        "hostIPs": [
+          {
+            "ip": "192.168.64.2"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.11.26",
+        "podIPs": [
+          {
+            "ip": "10.244.11.26"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "1",
+            "memory": "1Gi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "256Mi"
+          }
+        },
+        "startTime": "2026-09-29T13:13:07Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "labels": {
+          "agents.x-k8s.io/sandbox-name-hash": "3fee2bfa"
+        },
+        "name": "environment",
+        "namespace": "dsh-mvp-b-5029fc5dc0e2832be4a246174509ad96",
+        "ownerReferences": [
+          {
+            "apiVersion": "agents.x-k8s.io/v1beta1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "Sandbox",
+            "name": "environment",
+            "uid": "56355f28-74d5-4fc9-895f-08b70a073dfb"
+          }
+        ],
+        "resourceVersion": "7695",
+        "uid": "72e0bc9c-bdc2-4efd-ad1f-4e3db71a6550"
+      },
+      "spec": {
+        "clusterIP": "None",
+        "clusterIPs": [
+          "None"
+        ],
+        "internalTrafficPolicy": "Cluster",
+        "ipFamilies": [
+          "IPv4"
+        ],
+        "ipFamilyPolicy": "SingleStack",
+        "ports": [
+          {
+            "name": "http",
+            "port": 8080,
+            "protocol": "TCP",
+            "targetPort": 8080
+          },
+          {
+            "name": "management",
+            "port": 8081,
+            "protocol": "TCP",
+            "targetPort": 8081
+          }
+        ],
+        "selector": {
+          "agents.x-k8s.io/sandbox-name-hash": "3fee2bfa"
+        },
+        "sessionAffinity": "None",
+        "type": "ClusterIP"
+      },
+      "status": {
+        "loadBalancer": {}
+      }
+    },
+    {
+      "addressType": "IPv4",
+      "apiVersion": "discovery.k8s.io/v1",
+      "endpoints": [
+        {
+          "addresses": [
+            "10.244.11.26"
+          ],
+          "conditions": {
+            "ready": true,
+            "serving": true,
+            "terminating": false
+          },
+          "nodeName": "dsh-mvp-rc2-control-plane",
+          "targetRef": {
+            "kind": "Pod",
+            "name": "environment",
+            "namespace": "dsh-mvp-b-5029fc5dc0e2832be4a246174509ad96",
+            "uid": "7d918052-afc6-412d-9944-9fb489eb47a4"
+          }
+        }
+      ],
+      "kind": "EndpointSlice",
+      "metadata": {
+        "annotations": {
+          "endpoints.kubernetes.io/last-change-trigger-time": "2026-09-29T13:13:10Z"
+        },
+        "generateName": "environment-",
+        "generation": 7,
+        "labels": {
+          "agents.x-k8s.io/sandbox-name-hash": "3fee2bfa",
+          "endpointslice.kubernetes.io/managed-by": "endpointslice-controller.k8s.io",
+          "kubernetes.io/service-name": "environment",
+          "service.kubernetes.io/headless": ""
+        },
+        "name": "environment-25bjt",
+        "namespace": "dsh-mvp-b-5029fc5dc0e2832be4a246174509ad96",
+        "ownerReferences": [
+          {
+            "apiVersion": "v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "Service",
+            "name": "environment",
+            "uid": "72e0bc9c-bdc2-4efd-ad1f-4e3db71a6550"
+          }
+        ],
+        "resourceVersion": "7824",
+        "uid": "a9e10967-aa67-4e84-93f9-e57b3854a6c9"
+      },
+      "ports": [
+        {
+          "name": "http",
+          "port": 8080,
+          "protocol": "TCP"
+        },
+        {
+          "name": "management",
+          "port": 8081,
+          "protocol": "TCP"
+        }
+      ]
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "PersistentVolumeClaim",
+      "metadata": {
+        "annotations": {
+          "environment.dsh.io/allocation": "b-lifecycle-1",
+          "environment.dsh.io/owner": "{\"tenantId\":\"b-fixture\",\"principalId\":\"alice\"}",
+          "environment.dsh.io/sandbox-uid": "56355f28-74d5-4fc9-895f-08b70a073dfb",
+          "pv.kubernetes.io/bind-completed": "yes",
+          "pv.kubernetes.io/bound-by-controller": "yes",
+          "volume.beta.kubernetes.io/storage-provisioner": "rancher.io/local-path",
+          "volume.kubernetes.io/selected-node": "dsh-mvp-rc2-control-plane",
+          "volume.kubernetes.io/storage-provisioner": "rancher.io/local-path"
+        },
+        "finalizers": [
+          "kubernetes.io/pvc-protection"
+        ],
+        "name": "data",
+        "namespace": "dsh-mvp-b-5029fc5dc0e2832be4a246174509ad96",
+        "resourceVersion": "7798",
+        "uid": "2d2eee12-51f1-435d-9aaf-8ee8082921e5"
+      },
+      "spec": {
+        "accessModes": [
+          "ReadWriteOnce"
+        ],
+        "resources": {
+          "requests": {
+            "storage": "1Gi"
+          }
+        },
+        "storageClassName": "standard",
+        "volumeMode": "Filesystem",
+        "volumeName": "pvc-2d2eee12-51f1-435d-9aaf-8ee8082921e5"
+      },
+      "status": {
+        "accessModes": [
+          "ReadWriteOnce"
+        ],
+        "capacity": {
+          "storage": "1Gi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-09-29T13:13:07Z",
+            "message": "A pod is currently referencing this PVC",
+            "reason": "PodUsingPVC",
+            "status": "False",
+            "type": "Unused"
+          }
+        ],
+        "phase": "Bound"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "automountServiceAccountToken": false,
+      "kind": "ServiceAccount",
+      "metadata": {
+        "annotations": {
+          "environment.dsh.io/allocation": "b-lifecycle-1",
+          "environment.dsh.io/owner": "{\"tenantId\":\"b-fixture\",\"principalId\":\"alice\"}",
+          "environment.dsh.io/sandbox-uid": "56355f28-74d5-4fc9-895f-08b70a073dfb"
+        },
+        "name": "workload",
+        "namespace": "dsh-mvp-b-5029fc5dc0e2832be4a246174509ad96",
+        "resourceVersion": "7701",
+        "uid": "0b495844-6521-4407-acb3-4d7c7da074b1"
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "annotations": {
+          "environment.dsh.io/allocation": "b-lifecycle-1",
+          "environment.dsh.io/owner": "{\"tenantId\":\"b-fixture\",\"principalId\":\"alice\"}",
+          "environment.dsh.io/sandbox-uid": "56355f28-74d5-4fc9-895f-08b70a073dfb"
+        },
+        "generation": 1,
+        "name": "workload",
+        "namespace": "dsh-mvp-b-5029fc5dc0e2832be4a246174509ad96",
+        "resourceVersion": "7703",
+        "uid": "ae6dbf20-cb69-49bd-bf47-b2ef1249a0a5"
+      },
+      "spec": {
+        "egress": [
+          {
+            "ports": [
+              {
+                "port": 53,
+                "protocol": "UDP"
+              },
+              {
+                "port": 53,
+                "protocol": "TCP"
+              }
+            ],
+            "to": [
+              {
+                "namespaceSelector": {
+                  "matchLabels": {
+                    "kubernetes.io/metadata.name": "kube-system"
+                  }
+                },
+                "podSelector": {
+                  "matchLabels": {
+                    "k8s-app": "kube-dns"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "0.0.0.0/0",
+                  "except": [
+                    "0.0.0.0/8",
+                    "10.0.0.0/8",
+                    "100.64.0.0/10",
+                    "127.0.0.0/8",
+                    "169.254.0.0/16",
+                    "172.16.0.0/12",
+                    "192.168.0.0/16",
+                    "224.0.0.0/4",
+                    "240.0.0.0/4"
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "ingress": [
+          {
+            "from": [
+              {
+                "namespaceSelector": {
+                  "matchLabels": {
+                    "kubernetes.io/metadata.name": "dsh-mvp-b-platform"
+                  }
+                },
+                "podSelector": {
+                  "matchLabels": {
+                    "app.kubernetes.io/name": "dsh-platform"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "port": 8080,
+                "protocol": "TCP"
+              }
+            ]
+          }
+        ],
+        "podSelector": {},
+        "policyTypes": [
+          "Ingress",
+          "Egress"
+        ]
+      }
+    }
+  ]
+}

@@ -7,12 +7,11 @@ coverage.out
 
 # Go
 bin/
-!packages/cli/bin/
-!packages/cli/bin/cli.mjs
-!packages/cell-cli/bin/
-!packages/cell-cli/bin/cli.mjs
 *.test
 *.out
 
 # Generated exact tarball provenance (embedded by pack script).
 packages/environment-connector/source.json
+
+# Local Python fixture syntax checks.
+__pycache__/

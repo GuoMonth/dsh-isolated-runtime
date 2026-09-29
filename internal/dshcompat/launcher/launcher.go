@@ -1,4 +1,4 @@
-// Package launcher owns the Cell-local DSH child process and exposes its
+// Package launcher owns the environment-local DSH child process and exposes its
 // authority-bound access seam without releasing the launch token.
 package launcher
 
@@ -36,7 +36,7 @@ var (
 	tokenValue      = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 )
 
-// Config describes one Cell-local DSH process and its public proxy endpoint.
+// Config describes one environment-local DSH process and its public proxy endpoint.
 type Config struct {
 	// DSHCommand is the executable and fixed prefix arguments. The launcher
 	// appends: web, configured --patch overlays, and the fixed web flags.
@@ -51,7 +51,7 @@ type Config struct {
 	LogWriter       io.Writer
 }
 
-// Instance is a running DSH child and its Cell-local access endpoint.
+// Instance is a running DSH child and its environment-local access endpoint.
 type Instance struct {
 	URL string
 
@@ -192,7 +192,7 @@ func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
 		Handler: http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 			if draining.Load() {
 				response.Header().Set("Connection", "close")
-				http.Error(response, "Cell is stopping", http.StatusServiceUnavailable)
+				http.Error(response, "Environment is stopping", http.StatusServiceUnavailable)
 				return
 			}
 			proxy.ServeHTTP(response, request)
