@@ -12,3 +12,6 @@ bin/
 
 # Generated exact tarball provenance (embedded by pack script).
 packages/environment-connector/source.json
+
+# Local Python fixture syntax checks.
+__pycache__/

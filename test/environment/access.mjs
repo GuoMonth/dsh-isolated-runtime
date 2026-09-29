@@ -121,6 +121,16 @@ try {
   cookie = bootstrap.headers["set-cookie"][0].split(";")[0];
   const settings = await rpc("settings/describe", {});
   assert.equal(settings.writable, true);
+  const model = settings.namespaces.find((n) => n.ns === "llm-deepseek");
+  assert.ok(model);
+  if (process.env.ASSERT_MODEL_CONFIG === "1")
+    assert.equal(model.user.baseURL, "https://api.deepseek.com/anthropic");
+  else
+    await rpc("settings/update", {
+      ns: model.ns,
+      patch: { baseURL: "https://api.deepseek.com/anthropic" },
+      expectedRevision: model.revision,
+    });
   let sessionId;
   if (process.env.RESUME_SESSION === "1") {
     sessionId = JSON.parse(readFileSync("/tmp/session.json")).sessionId;

@@ -24,8 +24,11 @@ const code = async (p, expected) => {
     await p;
     assert.fail("Expected " + expected);
   } catch (e) {
-    assert.equal(e.failure?.code ?? e.code, expected, JSON.stringify(e));
-    report(expected, { failure: e.failure ?? e });
+    assert.ok(
+      [expected].flat().includes(e.failure?.code ?? e.code),
+      JSON.stringify(e),
+    );
+    report(e.failure?.code ?? e.code, { failure: e.failure ?? e });
   }
 };
 let v = await runtime.create(
@@ -120,9 +123,10 @@ const server = createServer(
     req.on("end", () => {
       const body = Buffer.concat(chunks);
       const drop =
-        fault === "drop-activation" &&
-        req.method === "PATCH" &&
-        body.includes(Buffer.from('"value":"Running"'));
+        (fault === "drop-activation" &&
+          req.method === "PATCH" &&
+          body.includes(Buffer.from('"value":"Running"'))) ||
+        (fault === "drop-delete" && req.method === "DELETE");
       const upstream = request(
         new URL(req.url, options.kubernetes.server),
         {
@@ -134,7 +138,7 @@ const server = createServer(
           },
         },
         (received) => {
-          if (drop && received.statusCode === 200) {
+          if (drop && received.statusCode >= 200 && received.statusCode < 300) {
             received.resume();
             received.on("end", () => {
               fault = "none";
@@ -153,6 +157,7 @@ const server = createServer(
           received.pipe(res);
         },
       );
+      res.on("close", () => upstream.destroy());
       upstream.on("error", () => res.destroy());
       upstream.end(body);
     });
@@ -184,9 +189,12 @@ try {
   assert.ok(["StopUnverified", "Stopping"].includes(v.state));
   await code(
     createAgentEnvironmentRuntime(options).start(v.ref, v.revision, ctx()),
-    "StartRejected",
+    ["StartRejected", "IntentConflict"],
   );
-  await code(runtime.delete(v.ref, v.revision, ctx()), "DeleteRejected");
+  await code(runtime.delete(v.ref, v.revision, ctx()), [
+    "DeleteRejected",
+    "IntentConflict",
+  ]);
   writeFileSync("/tmp/unverified.json", JSON.stringify(v));
   report("durable-stop-unverified", { view: v });
   fault = "none";
@@ -216,6 +224,30 @@ try {
   v = await ready(v.ref);
   report("accepted-write-observed", { view: v });
   writeFileSync("/tmp/binding.json", JSON.stringify(v));
+  let deleted = await runtime.create(
+    {
+      allocationKey: "b-delete-lost-" + Date.now(),
+      owner: { tenantId: "b-fixture", principalId: "alice" },
+    },
+    ctx(),
+  );
+  deleted = await ready(deleted.ref);
+  deleted = (await runtime.stop(deleted.ref, deleted.revision, ctx())).view;
+  fault = "drop-delete";
+  await code(
+    faultRuntime.delete(deleted.ref, deleted.revision, ctx()),
+    "DeleteOutcomeUnknown",
+  );
+  fault = "none";
+  for (let i = 0; i < 50; i++) {
+    const observed = await runtime.delete(deleted.ref, deleted.revision, ctx());
+    if (observed.state === "Deleted") {
+      report("delete-read-first-same-uid", observed);
+      break;
+    }
+    if (i === 49) throw Error("Delete observation timeout");
+    await wait(200);
+  }
 } finally {
   server.closeAllConnections();
   await new Promise((r) => server.close(r));

@@ -1,23 +1,7 @@
 import { createAgentEnvironmentRuntime } from "/tmp/connector/index.js";
 import { writeFileSync, readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-const options = {
-  kubernetes: {
-    server: "https://kubernetes.default.svc",
-    caFile: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-    tokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
-  },
-  namespacePrefix: "dsh-mvp-b",
-  platformNamespace: "dsh-mvp-b-platform",
-  domain: "environments.test",
-  image:
-    "docker.io/library/dsh-mvp-rc2@sha256:3a3d58acd85ef98ee2fa794aeb323cba29fa0c8be79539d4cb8644b975694c6c",
-  storage: { size: "1Gi", storageClassName: "standard" },
-  resources: {
-    requests: { cpu: "100m", memory: "256Mi" },
-    limits: { cpu: "1", memory: "1Gi" },
-  },
-};
+const options = JSON.parse(readFileSync("/tmp/options.json"));
 const runtime = createAgentEnvironmentRuntime(options);
 const context = () => ({
   signal: AbortSignal.timeout(85_000),
