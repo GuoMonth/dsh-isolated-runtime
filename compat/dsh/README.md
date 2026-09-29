@@ -1,62 +1,22 @@
-# DSH compatibility baseline
+# DSH RC2 compatibility
 
-The project supports exactly `dsh-v0.1.5-rc.2` at
-`fb2c4b9e698e30edb738bca4cf0618587db7d203`, installed with `pnpm@11.7.0` and
-the frozen lockfile digest recorded in [`baseline.json`](./baseline.json).
-Persistence is version-bound; passing a newer or older session format is not a
-compatibility promise.
+The exact source identity and npm integrity are in [baseline.json](baseline.json).
+`images/environment/Dockerfile` installs the official `0.2.0-rc.2` distribution
+with the committed npm lock; no upstream checkout, build:official or source deploy.
 
-`make verify-dsh` performs a full upstream checkout and runs the upstream tests
-covering browser token/cookie exchange, `settings/describe`, remote mux and ready
-streams, Fetch GET/HEAD, Host/Origin and cross-site rejection, restart cookie
-continuity, session-format rejection, SIGTERM, disposal, and shutdown. The local
-Go suite separately exercises opaque proxying, redaction, cookie hardening,
-signal forwarding, and failure cleanup, then drives the launcher with the exact
-built DSH CLI for a real browser exchange.
+A real Chromium session at a remote hostname reproduced the native Models error
+“settings are unavailable in this browser”. RC2 has no setting to select host
+persistence for that hostname. `apply-patches.mjs` therefore changes one line of
+the shipped ui-settings client module, checking the entire file SHA256 before
+and after. It does not alter authentication, server routes or model protocols.
+The old source `cell-settings.patch` and source-rebuild image recipe are removed.
 
-## Access decision
+One PVC contains workspace/, home/ and dsh/. The launcher starts DSH in workspace,
+with HOME=home and DSH_HOME=dsh; native credentials remain in dsh/.credentials.yaml.
+User npm tools install into HOME/.local and caches into /tmp. No platform secrets
+or Kubernetes token enter this environment. Retention is not backup or migration.
 
-| Candidate | Result |
-| --- | --- |
-| Direct DSH exposure | Rejected: the standard CLI intentionally binds loopback and the launch URL contains a bearer token. |
-| Gateway configuration only | Rejected: it cannot own the process-memory token exchange or harden the returned cookie. |
-| Independent sidecar | Rejected: 0.1.5-rc.2 has no supported way to inject or retrieve the launch token across a process boundary. |
-| Cell-local launcher | Selected: the parent process observes readiness, keeps the token in memory, and proxies DSH opaquely. |
-
-The Cell image retains the source-build distribution: it builds
-`build:official` from the exact source archive/checksum in baseline.json, deploys
-the upstream runtime closure, and completes omitted transitive workspace peers
-from that same source. It does not substitute older npm packages. The only source change is the hashed
-Cell settings integration patch described below.
-The launcher remains PID 1. The native runtime dependencies are built in the image.
-
-Snapshot guarantees remain writer-stopped crash consistency. Upstream owns its
-session format V3 and V2-to-V3 migrations, which preserve original logs but do
-not support downgrade reads. The compatibility suite exercises upstream migration
-and publication tests; this project maintains no historical restore or migration
-layer. Credential filtering retains the pinned Envoy cookie family
-and forged/stale unsuffixed names as part of the access boundary.
-
-## State ownership
-
-| State | Owner | Data snapshot |
-| --- | --- | --- |
-| Sessions, attachments, storage domains | DSH on data PVC | Yes |
-| Workspace | Cell data PVC | Yes |
-| Configuration | DSH home, excluding secrets/signing records | Yes |
-| Provider credentials | Kubernetes Secret / separate DSH credentials mount | No |
-| Browser signing records | Separate DSH credentials mount | No |
-
-This mapping is evidence for the exact release only. A DSH upgrade requires a
-new baseline, compatibility run, and explicit persistence decision.
-
-## Cell settings integration patch
-
-The pinned upstream UI only loads persistent settings on loopback hostnames.
-`patches/cell-settings.patch` enables its existing settings mirror in the Cell
-image, whose remote access is protected by Gateway OIDC and Cell authorization.
-It adds no UI or API and changes no server-side authorization or proxy behavior.
-The source archive and patch are separately hashed in `baseline.json`; both the
-image build and compatibility gate verify and apply the same exact patch.
-The MVP browser gate must configure a key through the native editor at a Cell
-hostname and verify that credentials remain outside the data snapshot.
+Run `dev-run go=1.27 -- bash hack/verify-dsh-compat.sh` for official package install,
+patch checksum, launcher auth/transport tests. See `test/rc2/README.md` for browser
+and real upstream Sandbox smoke. Actual evidence and untested boundaries are in
+`docs/evidence/mvp-a-rc2-2026-09-29.md`. Source standards are the only automatic CI.

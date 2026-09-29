@@ -1,0 +1,5 @@
+# Native deployment configuration: headless Linux has no desktop Documents lookup.
+# DSH owns its default-workspace subdirectory below this persistent workspace root.
+- id: workspace-controller
+  config:
+    documentsDirectory: !!js process.cwd()

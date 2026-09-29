@@ -1,3 +1,0 @@
-- id: credentials
-  config:
-    path: /var/lib/dsh-private/.credentials.yaml

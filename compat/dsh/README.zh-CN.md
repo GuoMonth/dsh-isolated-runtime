@@ -1,49 +1,18 @@
-# DSH 兼容基线
+# DSH RC2 接入
 
-项目只支持 `dsh-v0.1.5-rc.2`，commit
-`fb2c4b9e698e30edb738bca4cf0618587db7d203`，使用 `pnpm@11.7.0` 与
-[`baseline.json`](./baseline.json) 记录的 frozen lockfile digest。持久化格式与该版本绑定，
-不承诺兼容更新或更旧的 session format。
+精确源码身份/npm integrity 见 [baseline.json](baseline.json)。新镜像
+`images/environment/Dockerfile` 按提交的 npm lock 安装官方 `0.2.0-rc.2`，
+不再下载源码或运行 build:official/source deploy。
 
-`make verify-dsh` 会完整 checkout 上游并运行其测试，覆盖 browser token/cookie exchange、
-`settings/describe`、remote mux 与 ready stream、Fetch GET/HEAD、Host/Origin 与跨站拒绝、
-cookie 跨重启保持、session-format 拒绝、SIGTERM、dispose 和 shutdown。本地 Go 套件另行验证
-透明代理、脱敏、cookie 加固、信号转发与失败清理，最后用这份精确构建的 DSH CLI 直接驱动
-launcher 完成真实 browser exchange。
+真实 Chromium 在远程 hostname 复现 Models 页“settings are unavailable in this browser”。
+RC2 没有配置项可改变该 hostname 的持久模式，因此 `apply-patches.mjs` 仅替换发行包
+ui-settings 客户端模块的一行，前后完整 SHA256 校验；不改认证、服务端接口或模型协议。
+旧 `cell-settings.patch` 与源码重构建镜像配方已删除。
 
-## Access 决策
+单 PVC 包含 workspace/home/dsh。launcher 在 workspace 启动；HOME=home、DSH_HOME=dsh，
+原生凭据在 dsh/.credentials.yaml。用户 npm 工具写 HOME/.local，缓存写 /tmp。
+平台密钥和集群 token 不进入环境；正常保留不等于备份或迁移。
 
-| 候选 | 结论 |
-| --- | --- |
-| 直接暴露 DSH | 拒绝：标准 CLI 有意只监听 loopback，launch URL 还包含 bearer token。 |
-| 纯 Gateway 配置 | 拒绝：无法持有进程内 token exchange，也无法加固返回 cookie。 |
-| 独立 sidecar | 拒绝：0.1.5-rc.2 没有跨进程注入或取得 launch token 的支持接口。 |
-| Cell-local launcher | 选择：父进程观测 readiness，将 token 留在内存，并透明代理 DSH。 |
-
-Cell 镜像继续从 baseline.json 的精确源码归档和校验和构建
-`build:official`，再使用上游 runtime closure 部署已编译产物，并补齐该 closure 漏列的传递 workspace peer。
-不从旧 npm 版本补依赖；唯一源码修改是下面记录并校验的 Cell 设置补丁。launcher 是镜像 PID 1。
-
-DSH 仍不提供可区分的应用 flush acknowledgement，快照保持 writer-stopped crash consistency。
-上游 0.1.5 使用 session format V3，V2 迁移会保留原始日志，但升级后的日志不支持降级读取。
-兼容套件包含上游迁移和日志发布测试；本项目不维护旧版本恢复或迁移层。
-凭据过滤保留固定 Envoy cookie 家族及可能伪造的无后缀名称；这些拒绝规则属于凭据隔离保证。
-
-## 状态归属
-
-| 状态 | 权威 | 数据快照 |
-| --- | --- | --- |
-| Session、附件、storage domain | data PVC 上的 DSH | 是 |
-| Workspace | Cell data PVC | 是 |
-| 配置 | DSH home，排除 secret/signing record | 是 |
-| Provider 凭据 | Kubernetes Secret / 独立 DSH credentials mount | 否 |
-| Browser signing record | 独立 DSH credentials mount | 否 |
-
-这份映射只对精确版本成立。升级 DSH 必须建立新基线、重跑兼容门并显式决定持久化语义。
-
-## Cell 原生设置补丁
-
-上游 UI 仅在 loopback hostname 加载持久设置。`patches/cell-settings.patch` 在已由
-Gateway OIDC 和 Cell 授权保护的 Cell hostname 上启用现有设置镜像，不新增 UI、API，
-也不改变服务端授权或透明代理。`baseline.json` 分别记录源码与补丁校验和，镜像与兼容门
-应用同一补丁。MVP 浏览器验收通过原生编辑器配置密钥，并验证凭据不进入数据快照。
+`dev-run go=1.27 -- bash hack/verify-dsh-compat.sh` 验证官方包、补丁和 launcher。
+浏览器与真实上游 Sandbox smoke 见 `test/rc2/README.md`；实际证据见
+`docs/evidence/mvp-a-rc2-2026-09-29.md`，未做项不计通过。

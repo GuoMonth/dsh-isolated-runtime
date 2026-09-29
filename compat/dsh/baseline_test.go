@@ -1,116 +1,51 @@
 package dsh
 
 import (
-	"crypto/sha256"
-	_ "embed"
-	"encoding/hex"
 	"encoding/json"
 	"os"
-	"strings"
 	"testing"
 )
 
-//go:embed baseline.json
-var baselineJSON []byte
-
-type baseline struct {
-	SchemaVersion int `json:"schemaVersion"`
-	Source        struct {
-		Repository string `json:"repository"`
-		Tag        string `json:"tag"`
-		Commit     string `json:"commit"`
-		Version    string `json:"version"`
-	} `json:"source"`
-	Toolchain struct {
-		PackageManager string `json:"packageManager"`
-		LockfileSHA256 string `json:"lockfileSHA256"`
-	} `json:"toolchain"`
-	Distribution struct {
-		Mode    string `json:"mode"`
-		Package string `json:"package"`
-		Version string `json:"version"`
-		Archive string `json:"archive"`
-		SHA256  string `json:"sha256"`
-		Patches []struct {
-			File   string `json:"file"`
-			SHA256 string `json:"sha256"`
-		} `json:"patches"`
-	} `json:"distribution"`
-	Shutdown struct {
-		Signal               string `json:"signal"`
-		ExitCode             int    `json:"exitCode"`
-		FlushAcknowledgement bool   `json:"flushAcknowledgement"`
-		Reason               string `json:"reason"`
-	} `json:"shutdown"`
-	State []struct {
-		Class    string `json:"class"`
-		Location string `json:"location"`
-		Snapshot bool   `json:"snapshot"`
-	} `json:"state"`
-	UpstreamTests []string `json:"upstreamTests"`
-}
-
 func TestBaselineIsExactAndComplete(t *testing.T) {
-	var value baseline
-	if err := json.Unmarshal(baselineJSON, &value); err != nil {
+	data, err := os.ReadFile("baseline.json")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if value.SchemaVersion != 1 || value.Source.Repository != "https://github.com/deepseek-ai/deepseek-harness.git" {
-		t.Fatalf("unexpected source contract: %+v", value.Source)
-	}
-	if value.Source.Tag != "dsh-v0.1.5-rc.2" || value.Source.Version != "0.1.5-rc.2" {
-		t.Fatalf("unexpected DSH release: %+v", value.Source)
-	}
-	if len(value.Source.Commit) != 40 {
-		t.Fatalf("commit is not a full SHA-1: %q", value.Source.Commit)
-	}
-	if _, err := hex.DecodeString(value.Source.Commit); err != nil {
-		t.Fatalf("invalid commit: %v", err)
-	}
-	if value.Toolchain.PackageManager != "pnpm@11.7.0" || len(value.Toolchain.LockfileSHA256) != 64 {
-		t.Fatalf("toolchain is not exact: %+v", value.Toolchain)
-	}
-	if value.Distribution.Mode != "source-deploy" || value.Distribution.Package != "@deepseek-ai/dsh" || value.Distribution.Version != value.Source.Version ||
-		value.Distribution.Archive != "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/"+value.Source.Commit ||
-		len(value.Distribution.SHA256) != 64 {
-		t.Fatalf("runtime distribution is not exact: %+v", value.Distribution)
-	}
-	if strings.Contains(strings.ToLower(string(baselineJSON)), "latest") {
-		t.Fatal("compatibility baseline contains a floating latest reference")
-	}
-	if len(value.Distribution.Patches) != 1 || value.Distribution.Patches[0].File != "patches/cell-settings.patch" {
-		t.Fatal("expected the single reviewed Cell settings integration patch")
-	}
-	for _, patch := range value.Distribution.Patches {
-		contents, err := os.ReadFile(patch.File)
-		if err != nil {
-			t.Fatal(err)
+	var baseline struct {
+		Source       struct{ Version, Commit string }
+		Distribution struct {
+			Mode, Version, Integrity string
+			SettingsPatch            struct{ BeforeSHA256, AfterSHA256 string }
 		}
-		digest := sha256.Sum256(contents)
-		if hex.EncodeToString(digest[:]) != patch.SHA256 {
-			t.Fatal("integration patch differs from the recorded baseline")
-		}
+		State struct{ Workspace, Home, DshHome, Credentials string }
 	}
-	if value.Shutdown.Signal != "SIGTERM" || value.Shutdown.ExitCode != 0 || value.Shutdown.FlushAcknowledgement ||
-		!strings.Contains(value.Shutdown.Reason, "indistinguishable") {
-		t.Fatalf("shutdown ambiguity is not explicit: %+v", value.Shutdown)
+	if err = json.Unmarshal(data, &baseline); err != nil {
+		t.Fatal(err)
 	}
-	wantState := map[string]bool{
-		"sessions": true, "attachments": true, "storage-domains": true,
-		"workspace": true, "configuration": true, "provider-credentials": false,
-		"browser-signing-records": false,
+	if baseline.Source.Version != "0.2.0-rc.2" || baseline.Source.Commit != "639ed015397290b3745d163aafe02ffee4aa3f84" {
+		t.Fatal("DSH source pin drift")
 	}
-	for _, item := range value.State {
-		expected, ok := wantState[item.Class]
-		if !ok || item.Location == "" || item.Snapshot != expected {
-			t.Fatalf("unexpected state contract: %+v", item)
-		}
-		delete(wantState, item.Class)
+	if baseline.Distribution.Mode != "npm" || baseline.Distribution.Version != baseline.Source.Version {
+		t.Fatal("use official exact npm release")
 	}
-	if len(wantState) != 0 {
-		t.Fatalf("missing state classes: %v", wantState)
+	lockData, err := os.ReadFile("../../images/environment/package-lock.json")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(value.UpstreamTests) < 8 {
-		t.Fatalf("compatibility suite is too small: %v", value.UpstreamTests)
+	var lock struct {
+		Packages map[string]struct{ Version, Integrity string }
+	}
+	if err = json.Unmarshal(lockData, &lock); err != nil {
+		t.Fatal(err)
+	}
+	pkg := lock.Packages["node_modules/@deepseek-ai/dsh"]
+	if pkg.Version != baseline.Source.Version || pkg.Integrity != baseline.Distribution.Integrity {
+		t.Fatal("npm lock integrity drift")
+	}
+	if len(baseline.Distribution.SettingsPatch.BeforeSHA256) != 64 || len(baseline.Distribution.SettingsPatch.AfterSHA256) != 64 {
+		t.Fatal("settings patch must be exact")
+	}
+	if baseline.State.Workspace != "/var/lib/dsh/data/workspace" || baseline.State.Home != "/var/lib/dsh/data/home" || baseline.State.DshHome != "/var/lib/dsh/data/dsh" || baseline.State.Credentials != "$DSH_HOME/.credentials.yaml" {
+		t.Fatal("single PVC path contract drift")
 	}
 }

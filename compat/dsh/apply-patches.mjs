@@ -1,14 +1,14 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import crypto from 'node:crypto';
-import {execFileSync} from 'node:child_process';
-const [source] = process.argv.slice(2);
-const root=import.meta.dirname;
-const baseline=JSON.parse(fs.readFileSync(path.join(root,'baseline.json')));
-for(const patch of baseline.distribution.patches) {
-  const file=path.join(root,patch.file);
-  const digest=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-  if(digest!==patch.sha256)throw Error('Integration patch integrity mismatch');
-  execFileSync('git',['apply','--check',file],{cwd:source,stdio:'inherit'});
-  execFileSync('git',['apply',file],{cwd:source,stdio:'inherit'});
-}
+import { readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
+const baseline = JSON.parse(readFileSync(new URL("./baseline.json", import.meta.url)));
+const root = process.argv[2];
+if (!root) throw new Error("Usage: node compat/dsh/apply-patches.mjs NPM_INSTALL_ROOT");
+const patch = baseline.distribution.settingsPatch;
+const file = resolve(root, patch.file);
+const input = readFileSync(file, "utf8");
+const sha = value => createHash("sha256").update(value).digest("hex");
+if (sha(input) !== patch.beforeSHA256) throw new Error("Unexpected official RC2 settings module; refusing patch");
+const output = input.replace('const persistence = ctx.remote.$host.isLoopback ? "host" : "memory";', 'const persistence = "host";');
+if (sha(output) !== patch.afterSHA256) throw new Error("Unexpected patched settings module");
+writeFileSync(file, output);
