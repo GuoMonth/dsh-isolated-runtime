@@ -1,18 +1,15 @@
 # Repository instructions
 
-[CONSTITUTION.md](CONSTITUTION.md) links shared principles. The target is Kubernetes-only AgentEnvironment; the local trial selected upstream core `Sandbox` for W1, while current production source still implements `Cell`. The [local report](docs/evidence/agent-sandbox-local-2026-09-23.md) records test-only evidence and outstanding production work. Scope/sequence live in the [AgentEnvironment design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md) and platform [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104).
+Product boundaries: [shared constitution](CONSTITUTION.md). Interface and phase design: [AgentEnvironment](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md); its linked Issues own acceptance and progress. Read the paired platform checkout when a task changes both repositories.
 
-## Task routing
+## Development
 
-- Current Cell implementation context: [RuntimePort](docs/design/runtime-port.zh-CN.md), [Cell adapter](docs/design/cell-adapter.zh-CN.md), and [architecture](docs/specs/architecture.md). These do not supersede the AgentEnvironment design or claim the product rename/stop-start work is implemented.
-- Development checks: [CONTRIBUTING.md](CONTRIBUTING.md); Go details in [Go development](docs/go-development.md).
-- Current release instructions: [distribution](docs/distribution.md) and [documentation index](docs/README.md). Historical standalone instructions are under `docs/archive/`.
+- Check commands: [CONTRIBUTING.md](CONTRIBUTING.md); toolchain pins: [Go development](docs/go-development.md). Contributions use DCO (git commit -s).
+- Preserve immutable owner linkage and exact workspace, storage and Pod identity. Runtime matches resources; platform owns user authorization. Kubernetes manages resource mechanics.
+- Preserve fixture/state names still required by current code and tests; names do not make historical product backends current requirements.
+- Source currently implements Cell. The [local Sandbox trial](docs/evidence/agent-sandbox-local-2026-09-23.md) is test-only evidence, not production integration or stop/start acceptance.
+- Automatic CI is Source standards only. Behavioral tests run locally according to changed surfaces; cluster diagnostics and publication workflows are manual.
 
-## Repository-specific constraints
+## References
 
-- Kubernetes/Gateway/CSI own resource mechanics. Namespace is administrator-configured infrastructure scope, not OIDC tenantId; use preconfigured per-user namespaces. Platform authorization is the sole user-owner authority; runtime stores immutable owner linkage only for resource matching and does not implement OIDC. Runtime may directly manage native Pod/PVC/Service resources (currently via StatefulSet); separation does not force those operations into the platform. DSH owns application protocols. Validate exact workspace and Pod identity.
-- Product execution backend is Kubernetes only. Do not treat DSH child processes, OCI image builds, or kind's Docker substrate as product Process/Docker runtime backends.
-- Preserve ownership checks and any legacy fixture/state names still used by current code or tests; their presence does not make historical flows current product requirements.
-- Treat published packages, images and manifests as immutable release evidence. A source checkout or candidate PR is not an installable release; artifact acceptance binds actual images, package contents and source SHA.
-- Automatic CI is only `Source standards`; do not introduce automatic builds, cluster runs or publication. Local checks can proceed within the task; releases, deployment and data deletion follow existing user authorization.
-- Contributions use DCO (`git commit -s`). Report untested environments without inferring them from another platform's fixtures.
+Current implementation: [RuntimePort](docs/design/runtime-port.zh-CN.md), [Cell adapter](docs/design/cell-adapter.zh-CN.md), [architecture](docs/specs/architecture.md). Distribution: [release instructions](docs/distribution.md). Other documents: [index](docs/README.md). Historical standalone guides live under docs/archive and do not supersede the current design.
