@@ -1,11 +1,17 @@
-# Local RC artifacts
+# Distribution
 
-The runtime publishes no installation CLI. The platform installation artifact consumes:
+Runtime distributes a Linux/amd64 workload image and source release. The internal Connector stays private and is bundled into the [platform npm package](https://github.com/GuoMonth/dsh-multi-tenant); administrators install with the [platform AI guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/packages/multi-tenant/AI.md).
 
-1. The exact internal Connector tarball produced from a clean committed tree by `node hack/pack-environment-connector.mjs /absolute/output-directory`. Record `source.json`, SHA-256 and npm SHA-512 integrity.
-2. The environment image built with `docker build --platform linux/amd64 --build-arg SOURCE_REVISION=$(git rev-parse HEAD) -f images/environment/Dockerfile -t dsh-environment:candidate .`. Record the manifest digest and local image identity; import into the dedicated kind cluster without a registry push.
-3. Upstream Agent Sandbox core v1.0.3 and the runtime [ClusterRole](../config/runtime/cluster-role.yaml). Platform packaging may include checksummed copies, not a second implementation.
+## Prepare and validate
 
-The fixed RC npm closure and minimal remote-settings patch are described in [compat/dsh](../compat/dsh/README.md). One PVC contains all durable state. Deletion of a stopped Sandbox leaves its data and isolated namespace; operator data removal is outside the runtime API.
+Run `make verify` and `make verify-dsh` with the pinned tools. `node hack/pack-environment-connector.mjs /absolute/output-directory` packs a clean committed Connector with source.json, SHA256 and npm integrity. Changes to this artifact must be consumed and jointly tested by the platform before release.
 
-No package publication, public image push or Release is authorized in this implementation wave. The user performs final E2E and decides publication afterward.
+The manual `prepare-release.yml` workflow builds the workload image from its exact main commit, publishes a candidate image and uploads its source/digest metadata. Pull that exact image locally and run the real runtime/platform acceptance before creating a public release. Candidate image publication is not acceptance.
+
+The workload Dockerfile pins DSH0.2.0-rc.2 and its npm closure. The minimal remote-settings patch is checksummed in [compat/dsh](../compat/dsh/README.md). Runtime RBAC and upstream core pins are consumed by the platform installer.
+
+## Publish
+
+After local acceptance and user authorization, create a lightweight `vVERSION` tag at the verified source commit. Create the matching GitHub Release with the workload digest, source SHA, DSH identity, Connector provenance and a link to the paired platform release. Do not publish the internal Connector to npm. The platform publishes its npm package and matching GitHub Release together, using the same verified artifacts.
+
+Keep published artifacts immutable. Retain the local joint evidence and list actual limitations; normal PVC retention does not prove backup, storage hard quotas or disaster recovery.

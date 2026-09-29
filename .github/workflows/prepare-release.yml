@@ -1,0 +1,31 @@
+name: Prepare runtime release candidate
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: prepare-runtime-release
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Build exact workload candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          mkdir candidate
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          image="ghcr.io/guomonth/dsh-isolated-runtime:source-${GITHUB_SHA}"
+          docker buildx build --platform linux/amd64 --provenance=false --push --build-arg SOURCE_REVISION="$GITHUB_SHA" --metadata-file candidate/image.json -f images/environment/Dockerfile -t "$image" .
+          jq -n --arg repository "$GITHUB_REPOSITORY" --arg commit "$GITHUB_SHA" --arg runId "$GITHUB_RUN_ID" --arg image "ghcr.io/guomonth/dsh-isolated-runtime@$(jq -r '."containerimage.digest"' candidate/image.json)" '{repository:$repository,commit:$commit,runId:$runId,workloadImage:$image}' > candidate/candidate.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: runtime-candidate
+          path: candidate/
+          retention-days: 30

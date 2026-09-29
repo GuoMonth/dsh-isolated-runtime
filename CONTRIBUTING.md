@@ -4,7 +4,7 @@ Read [CONSTITUTION.md](CONSTITUTION.md) and the [environment contract](docs/desi
 
 Use Go 1.27.1 (`dev-run go=1.27 -- make verify`), Node 24 and the committed Connector lockfile. Install its development dependencies with `npm ci --prefix packages/environment-connector`. `make verify` builds, runs Go race tests and Connector tests, vets Go, and checks source standards. `make verify-dsh` validates the exact upstream DSH source seam. Real cluster acceptance is described in [test/environment](test/environment/README.md); pure fixtures do not replace that evidence.
 
-CI runs Source standards only. Record actual local behavior checks, artifact identities and uncovered cases in the PR. Do not publish packages, push public product images or create a release as part of this MVP implementation.
+CI runs Source standards only. Record actual local behavior checks, artifact identities and uncovered cases in the PR. Publish only an explicitly authorized and locally verified release; see [distribution](docs/distribution.md).
 
 Runtime owns resource identity and lifecycle; platform owns authorization. Keep exact owner, Sandbox UID, PVC UID and Pod identity. Runtime provisions the dedicated namespace and fixed resources without a background reconciler. Upstream core alone manages Pods and Services. Never infer successful stop from absence, and never replace missing data automatically.
 
