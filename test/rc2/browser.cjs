@@ -38,6 +38,11 @@ const rpc = (page, method, args) => page.evaluate(async ({method,args}) => {
   await rpc(page,'settings/update',{ns:model.ns,patch:{baseURL:'https://api.deepseek.com/anthropic'},expectedRevision:model.revision});
   const credential=await rpc(page,'credentials/describe',{refs:['DEEPSEEK_API_KEY']});
   assert.equal(credential.DEEPSEEK_API_KEY.configured,true);
+  if(process.env.RC2_PREVIOUS_SESSION) {
+   const listed=await rpc(page,'session/list',{_request:{}});
+   assert.ok(listed.items.some(s=>s.sessionId===process.env.RC2_PREVIOUS_SESSION));
+   assert.equal(model.user.baseURL,'https://api.deepseek.com/anthropic');
+  }
   const {sessionId}=await rpc(page,'session/create',{request:{}});
   assert.ok(sessionId);
   await page.evaluate(sessionId=>new Promise((resolve,reject)=>{
