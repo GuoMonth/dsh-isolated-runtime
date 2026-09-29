@@ -1,75 +1,20 @@
 GO ?= go
 export GOTOOLCHAIN := go1.27.1
-GOLANGCI_LINT_VERSION := v2.13.2
-GOVULNCHECK_VERSION := v1.8.0
-SETUP_ENVTEST_VERSION ?= v0.25.1
-ENVTEST_K8S_VERSION ?= 1.37.0
-
-.PHONY: build fmt fmt-check generate images lint test test-envtest vet verify verify-phase1 verify-phase2 verify-phase3 verify-phase4 verify-cell verify-dsh verify-generated verify-images verify-kind verify-kind-phase2 verify-kind-phase3 verify-kind-phase4
-
+.PHONY: build test verify verify-dsh images
 build:
 	$(GO) build ./...
-
-images:
-	docker buildx build --platform linux/amd64 --load -f images/operator/Dockerfile -t dsh-operator:test .
-	docker buildx build --platform linux/amd64 --load -f images/cell/Dockerfile -t dsh-cell:test .
-
-fmt:
-	"$$($(GO) env GOROOT)/bin/gofmt" -w .
-
-fmt-check:
-	test -z "$$("$$($(GO) env GOROOT)/bin/gofmt" -l .)"
-
-generate:
-	$(GO) generate ./...
-
-lint:
-	$(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
-
-.PHONY: vuln
-vuln:
-	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+	npm run build --prefix packages/environment-connector
 
 test:
-	$(GO) test -race -cover ./...
+	$(GO) test -race ./...
+	npm test --prefix packages/environment-connector
 
-test-envtest:
-	assets="$$($(GO) run sigs.k8s.io/controller-runtime/tools/setup-envtest@$(SETUP_ENVTEST_VERSION) use -p path $(ENVTEST_K8S_VERSION))" && \
-		KUBEBUILDER_ASSETS="$$assets" $(GO) test -count=1 -run TestEnvtest ./internal/controller
-
-vet:
+verify: build test
 	$(GO) vet ./...
-
-verify-generated:
-	./hack/verify-generated.sh
-
-verify: fmt-check verify-generated vet test build
-
-verify-phase1: verify test-envtest
-
-verify-phase2: verify test-envtest
-
-verify-phase3: verify test-envtest
-
-verify-phase4: verify test-envtest
-
-verify-cell:
-	./hack/verify-cell-contract.sh
+	node hack/check-standards.mjs
 
 verify-dsh:
-	./hack/verify-dsh-compat.sh
+	bash hack/verify-dsh-compat.sh
 
-verify-images:
-	./hack/verify-images.sh
-
-verify-kind:
-	./hack/verify-phase1-kind.sh
-
-verify-kind-phase2:
-	./hack/verify-phase2-kind.sh
-
-verify-kind-phase3:
-	./hack/verify-phase3-kind.sh
-
-verify-kind-phase4:
-	./hack/verify-phase4-kind.sh
+images:
+	docker build --platform linux/amd64 -f images/environment/Dockerfile -t dsh-environment:test .

@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/kubernetes-sigs/agent-sandbox",
+  "version": "v1.0.3",
+  "url": "https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.3/sandbox.yaml",
+  "sha256": "725fafdabe6aac202a89dc57f1cfe0e2e92f3164c8c2bd343fffca52f7039d96",
+  "controllerImageAMD64": "registry.k8s.io/agent-sandbox/agent-sandbox-controller@sha256:b2160ee08dd4f2285b382d4b5073948891adfacbc9808a4ba9cf247766243c8c"
+}

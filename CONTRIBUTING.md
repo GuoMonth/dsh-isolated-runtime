@@ -1,61 +1,11 @@
 # Contributing
 
-Read the [project constitution](CONSTITUTION.md) and the authoritative [AgentEnvironment design](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/design/agent-environment.zh-CN.md) tracked by [Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104). Target Kubernetes-only AgentEnvironment; current code remains Cell. Do not introduce a Process/Docker product backend or multi-backend compatibility promise. Pin each validation version; breaking API/configuration/state changes are allowed, with no historical compatibility, upgrade or seamless recovery promise. Fail fast with structured diagnostics and validate the core flow before adding infrastructure.
+Read [CONSTITUTION.md](CONSTITUTION.md) and the [environment contract](docs/design/environment-contract.zh-CN.md). The latest user authorization and [MVP Issue #104](https://github.com/GuoMonth/dsh-multi-tenant/issues/104) own scope and acceptance. Breaking Alpha changes are allowed; do not retain old backends, compatibility layers or migration paths.
 
-This project optimizes for a small executable contract. Changes should remove
-ambiguity rather than add compatibility layers.
+Use Go 1.27.1 (`dev-run go=1.27 -- make verify`), Node 24 and the committed Connector lockfile. Install its development dependencies with `npm ci --prefix packages/environment-connector`. `make verify` builds, runs Go race tests and Connector tests, vets Go, and checks source standards. `make verify-dsh` validates the exact upstream DSH source seam. Real cluster acceptance is described in [test/environment](test/environment/README.md); pure fixtures do not replace that evidence.
 
-## Before opening a pull request
+CI runs Source standards only. Record actual local behavior checks, artifact identities and uncovered cases in the PR. Do not publish packages, push public product images or create a release as part of this MVP implementation.
 
-GitHub automatically runs only `Source standards`: syntax, Go formatting,
-whitespace, LF/final-newline and workflow syntax checks. It has one Linux job,
-a five-minute timeout and cancels superseded PR runs. Main pushes do not repeat
-CI or build images. Run the same source check with `node hack/check-standards.mjs`.
+Runtime owns resource identity and lifecycle; platform owns authorization. Keep exact owner, Sandbox UID, PVC UID and Pod identity. Runtime provisions the dedicated namespace and fixed resources without a background reconciler. Upstream core alone manages Pods and Services. Never infer successful stop from absence, and never replace missing data automatically.
 
-Run behavioral tests locally according to the changed surface and record the
-commit, commands, results and relevant artifact digests in the PR. Heavy GitHub
-workflows remain manual diagnostic/release tools; do not dispatch them for
-routine PR acceptance. Local success is sufficient for behavioral acceptance.
-
-| Changed surface | Relevant local checks |
-| --- | --- |
-| Documentation | Links, referenced commands, `git diff --check`, Source standards |
-| Go behavior | Affected tests; `make verify` for a broad change; lint/vuln when relevant |
-| API / CRD | `make verify-cell`, generated-artifact drift checks |
-| DSH / image / access seam | `make verify-dsh` (downloads exact upstream source) |
-| Cluster behavior | Relevant `make verify-kind` / `verify-kind-phase2` / `verify-kind-phase3` / `verify-kind-phase4` |
-| CLI / installation | Cell CLI checks below and a clean consumer install; `hack/verify-mvp.sh` applies only to the legacy standalone installer |
-| Release inputs | `node hack/verify-release-contract.mjs` after committing inputs; exact-archive acceptance |
-
-Use [Go development](docs/go-development.md) for toolchain pins and lifecycle diagnostics. Select checks for the changed behavior; documentation alone does not require cluster or release acceptance. Once checks pass, broaden or repeat for new changes or unresolved concerns.
-
-Current Cell npm CLI checks, only when that surface changes:
-
-```sh
-npm test --prefix packages/cell-cli
-node packages/cell-cli/bin/cli.mjs --verify-release
-```
-
-Legacy standalone checks apply only when modifying the retained legacy implementation; they are not Cell CLI acceptance:
-
-```sh
-npm ci --ignore-scripts --prefix packages/cli
-npm test --prefix packages/cli
-npm ci --ignore-scripts --prefix runtime-files
-node --test test/local-runtime.test.cjs
-shellcheck -x dsh-runtime demo demo-files/host.sh demo-files/tools.sh demo-files/forward.sh
-```
-
-## Design rules
-
-- Namespace is administrator-configured infrastructure scope, not OIDC tenant identity. Use approved per-user namespace provisioning; platform authorization is the sole owner authority. Runtime owner linkage is immutable resource-matching metadata, not another identity system.
-- Keep topology, routing, scheduling, and session state out of Cell.
-- Use native Kubernetes, Gateway API, and CSI resources behind the runtime contract; runtime may directly manage StatefulSet/PVC resources.
-- Keep all images and DSH behavior pinned by content/version.
-- Do not parse DSH protocols in the launcher.
-- State security assumptions explicitly and fail closed at trust boundaries.
-- Generated API and CRD artifacts are committed and must have zero drift.
-
-Current acceptance is recorded in the active Issue; historical milestone GO gates do not apply to every change.
-Apache-2.0 contributions require the usual Developer Certificate of Origin
-sign-off (`git commit -s`).
+Use `git commit -s` for DCO. The [Go guide](docs/go-development.md) explains the toolchain. See [中文](CONTRIBUTING.zh-CN.md).

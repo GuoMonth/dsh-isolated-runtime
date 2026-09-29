@@ -1,13 +1,3 @@
 # DSH Isolated Runtime
 
-Current entry: Kubernetes Cell resources for the multi-tenant platform. Use the selected release's fixed package/image identities; source candidates do not change published artifacts.
-
-- [Current package usage](packages/cell-cli/README.md)
-- [Distribution and release](docs/distribution.md)
-- [Architecture and ownership](docs/specs/architecture.md)
-- [Threat model](docs/specs/threat-model.md)
-- [Documentation index](docs/README.md)
-- [Shared POC roadmap](ROADMAP.md)
-- [Contributor instructions](AGENTS.md)
-
-Historical standalone/local-cluster instructions live under docs/archive/ and do not describe the current npm entry. Platform owns OIDC/user admission; runtime owns Cell identity and resources; DSH owns application protocols. Do not place credentials in docs or logs or silently delete user data.
+Kubernetes-only AgentEnvironment on upstream Agent Sandbox core. Start with CONSTITUTION.md, AGENTS.md, CONTRIBUTING.md and docs/design/environment-contract.zh-CN.md. Implementation: packages/environment-connector/src/runtime.ts. Fixed template: packages/environment-connector/src/template.ts. Launcher: cmd/environment-launcher. Platform installation and authorization live in dsh-multi-tenant. docs/archive is historical, not current behavior.

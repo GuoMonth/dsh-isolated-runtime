@@ -5,53 +5,6 @@ import (
 	"testing"
 )
 
-func TestConfig(t *testing.T) {
-	t.Parallel()
-	disabled := Config{}
-	if err := disabled.Validate(); err != nil || disabled.Enabled() {
-		t.Fatalf("disabled config = enabled %v, error %v", disabled.Enabled(), err)
-	}
-	config := Config{
-		GatewayName:       "dsh",
-		GatewayNamespace:  "dsh-system",
-		GatewaySection:    "https",
-		BaseDomain:        "cells.test",
-		ExternalHTTPSPort: 18443,
-	}
-	if err := config.Validate(); err != nil {
-		t.Fatal(err)
-	}
-	uid := "12345678-1234-1234-1234-123456789abc"
-	if got, want := config.Hostname(uid), "cell-12345678-1234-1234-1234-123456789abc.cells.test"; got != want {
-		t.Fatalf("hostname = %q, want %q", got, want)
-	}
-	if got, want := config.Authority(uid), "cell-12345678-1234-1234-1234-123456789abc.cells.test:18443"; got != want {
-		t.Fatalf("authority = %q, want %q", got, want)
-	}
-	config.ExternalHTTPSPort = 443
-	if got := config.Authority(uid); got != config.Hostname(uid) {
-		t.Fatalf("default HTTPS authority = %q", got)
-	}
-}
-
-func TestConfigRejectsPartialAndInvalidValues(t *testing.T) {
-	t.Parallel()
-	for name, config := range map[string]Config{
-		"domain without gateway": {BaseDomain: "cells.test"},
-		"missing domain":         {GatewayName: "dsh", GatewayNamespace: "dsh-system", GatewaySection: "https"},
-		"bad domain":             {GatewayName: "dsh", GatewayNamespace: "dsh-system", GatewaySection: "https", BaseDomain: "Cells.Test"},
-		"bad port":               {GatewayName: "dsh", GatewayNamespace: "dsh-system", GatewaySection: "https", BaseDomain: "cells.test", ExternalHTTPSPort: 70000},
-		"derived host too long":  {GatewayName: "dsh", GatewayNamespace: "dsh-system", GatewaySection: "https", BaseDomain: strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 60)},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			if err := config.Validate(); err == nil {
-				t.Fatal("invalid config was accepted")
-			}
-		})
-	}
-}
-
 func TestEnvoyOAuthCookieContract(t *testing.T) {
 	t.Parallel()
 	for _, name := range EnvoyOAuthCookieNames {
@@ -72,31 +25,5 @@ func TestEnvoyOAuthCookieContract(t *testing.T) {
 		if IsEnvoyOAuthCookie(name) {
 			t.Fatalf("application cookie %q was classified as OAuth state", name)
 		}
-	}
-}
-
-func TestPlatformAuthorityWithoutDirectRouting(t *testing.T) {
-	t.Parallel()
-	c := Config{Mode: ModePlatform, BaseDomain: "cells.test", ExternalHTTPSPort: 18443}
-	if err := c.Validate(); err != nil {
-		t.Fatal(err)
-	}
-	if c.Enabled() || !c.HasPublicAuthority() {
-		t.Fatal("platform authority enabled direct routing")
-	}
-	if got := c.Authority("uid"); got != "cell-uid.cells.test:18443" {
-		t.Fatal(got)
-	}
-	for name, bad := range map[string]Config{
-		"direct gateway": {Mode: ModePlatform, BaseDomain: "cells.test", GatewayName: "dsh"},
-		"missing domain": {Mode: ModePlatform},
-		"unknown mode":   {Mode: "automatic"},
-		"bad port":       {Mode: ModePlatform, BaseDomain: "cells.test", ExternalHTTPSPort: -1},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if bad.Validate() == nil {
-				t.Fatal("invalid configuration accepted")
-			}
-		})
 	}
 }
