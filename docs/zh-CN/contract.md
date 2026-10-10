@@ -33,4 +33,4 @@ PVC 挂载到 `/var/lib/dsh/data`：`workspace/` 是工作目录，`home/` 是 H
 
 `EnvironmentError.failure` 包含 code、stage、effect（`not-submitted`、`accepted`、`unknown`）、observedState、retry、allocationKey、correlationId、nextAction。写入结果未知时，先检查原绑定，再决定是否修改。日志不包含 token、凭据或原始 API 响应。
 
-测试见[开发](development.md)，受测组合见[发行验证](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-alpha.1/validation.md)。
+测试见[开发](development.md)，受测组合见[发行验证](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-rc.1/validation.md)。

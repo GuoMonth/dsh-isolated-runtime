@@ -33,4 +33,4 @@ Mutations compare both Sandbox UID and `revision` (Kubernetes resourceVersion). 
 
 `EnvironmentError.failure` includes code, stage, effect (`not-submitted`, `accepted`, `unknown`), observedState, retry, allocationKey, correlationId and nextAction. An unknown write requires inspection of the original binding before another mutation. Logs exclude tokens, credentials and raw API responses.
 
-See [development](development.md) for tests and [release validation](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-alpha.1/validation.md) for the tested combination.
+See [development](development.md) for tests and [release validation](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-rc.1/validation.md) for the tested combination.
