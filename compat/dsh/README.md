@@ -1,22 +1,13 @@
 # DSH RC2 compatibility
 
-The exact source identity and npm integrity are in [baseline.json](baseline.json).
-`images/environment/Dockerfile` installs the official `0.2.0-rc.2` distribution
-with the committed npm lock; no upstream checkout, build:official or source deploy.
+[简体中文](README.zh-CN.md)
 
-A real Chromium session at a remote hostname reproduced the native Models error
-“settings are unavailable in this browser”. RC2 has no setting to select host
-persistence for that hostname. `apply-patches.mjs` therefore changes one line of
-the shipped ui-settings client module, checking the entire file SHA256 before
-and after. It does not alter authentication, server routes or model protocols.
-The old source `cell-settings.patch` and source-rebuild image recipe are removed.
+The workload image installs official DSH 0.2.0-rc.2 using the committed npm lockfile. [baseline.json](baseline.json) records the source identity, package integrity, transport and data paths.
 
-One PVC contains workspace/, home/ and dsh/. The launcher starts DSH in workspace,
-with HOME=home and DSH_HOME=dsh; native credentials remain in dsh/.credentials.yaml.
-User npm tools install into HOME/.local and caches into /tmp. No platform secrets
-or Kubernetes token enter this environment. Retention is not backup or migration.
+At remote hostnames, RC2 disables the native Models settings page. `apply-patches.mjs` changes one line of the shipped ui-settings client module, verifying the full file SHA256 before and after. Authentication, server routes and model protocols stay native.
 
-Run `dev-run go=1.27 -- bash hack/verify-dsh-compat.sh` for official package install,
-patch checksum, launcher auth/transport tests. See `test/rc2/README.md` for browser
-and real upstream Sandbox smoke. Actual evidence and untested boundaries are in
-`docs/evidence/mvp-a-rc2-2026-09-29.md`. Source standards are the only automatic CI.
+```sh
+bash hack/verify-dsh-compat.sh
+```
+
+This checks package installation, patch hashes and launcher transport. Browser/upstream Sandbox tests are in [test/rc2](../../test/rc2/README.md); actual release coverage is in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-alpha.1/validation.md). Data and lifecycle are defined by the [contract](../../docs/en/contract.md).

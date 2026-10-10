@@ -1,34 +1,24 @@
 # DSH Isolated Runtime
 
-[English](README.md) · [安装平台](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/README.zh-CN.md) · [AI 引导](AI.md)
+[English](README.md)
 
-[DSH multi-tenant](https://github.com/GuoMonth/dsh-multi-tenant) 的 Kubernetes 资源与执行层，提供固定 DSH 运行镜像、launcher 和同进程环境 Connector。**部署请从平台仓库开始**；平台已打包 Connector，并提供 npm 安装 CLI 和 Helm Chart。
+为自托管、多用户 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 提供 Kubernetes 运行层，维护 [dsh-multi-tenant](https://github.com/GuoMonth/dsh-multi-tenant) 使用的运行镜像、launcher 和同进程 Connector。
 
-DSH 固定 **0.2.0-rc.2**。每环境一个独立 PVC，挂载到 `/var/lib/dsh/data`：`workspace/` 存文件，`home/` 存用户工具和配置，`dsh/` 存原生对话及凭据。正常启停和 Pod 重建保留原卷。CPU/Memory 使用 Kubernetes requests/limits，存储仅一个申请容量参数。
+**部署从平台仓库开始。** 平台 npm 包已打包 Connector、CLI 和 Helm Chart。已发布组合为 runtime **0.4.0-alpha.1**、平台 **0.10.0-alpha.1**、DSH **0.2.0-rc.2**。
 
-## 职责
+## runtime 做什么
 
-| 组件 | 负责 |
-| --- | --- |
-| 本仓库 | 固定运行镜像与 launcher、namespace/PVC/Sandbox 身份、创建/查询/启停/删除及核验后的访问通道 |
-| [平台仓库](https://github.com/GuoMonth/dsh-multi-tenant) | OIDC、成员、用户授权、分配绑定、连接撤销、npm CLI 和安装 |
-| 上游 Agent Sandbox core | 唯一控制器，将 Sandbox 调谐为 Pod/Service |
-| DeepSeek Harness | 原生界面、对话、模型和工具执行、用户凭据 |
+runtime 为已授权用户创建固定 Kubernetes 资源，核对 owner 和 UID，处理显式停止/启动/删除，并转发原生 DSH 流量。上游 Agent Sandbox core 是唯一的 Pod/Service 控制器；平台负责 OIDC 和用户授权。
 
-Connector 在平台进程内运行，是内部打包组件，无需单独安装 npm 依赖或部署网络服务。用户授权由平台负责，资源标签和 namespace 不能代替鉴权。
+每环境一个 PVC，挂载到 `/var/lib/dsh/data`，包含 `workspace/`、`home/`、`dsh/`。正常启停和 Pod 重建保留文件、对话、配置及工具凭据，删除环境保留用户存储。状态和失败处理见[契约](docs/zh-CN/contract.md)。
 
-## 让 AI 帮你安装
+Alpha 支持 Linux/amd64 和可信组织成员。节点分区恢复、备份、高可用和数据迁移另行建设。
 
-把[平台 AI 安装指引](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/packages/multi-tenant/AI.md)交给助手。它会先核对集群、OIDC、DNS/TLS、存储及发行镜像，再运行 npm 包内的安装器。开发 runtime 时阅读[本仓库 AI 引导](AI.md)和[可执行契约](docs/design/environment-contract.zh-CN.md)。
+## 文档
 
-## 生命周期与边界
-
-停止必须在健康节点上取得精确 writer 的正面退出证据。未知结果按原分配检查，卷缺失或 UID 替换时拒绝访问。删除须先证实停止，并保留 PVC、namespace 和隔离策略。自动节点分区恢复、备份、HA 和数据迁移不在当前 Alpha 保证内。
-
-- [Connector 实现](packages/environment-connector/src/runtime.ts)与[固定模板](packages/environment-connector/src/template.ts)
-- [平台 RBAC](config/runtime/cluster-role.yaml)
-- [开发与检查](CONTRIBUTING.md)
-- [镜像与 Connector 分发](docs/distribution.md)
-- [发行版本](https://github.com/GuoMonth/dsh-isolated-runtime/releases)
+- [中文指南](docs/zh-CN/index.md) · [English guides](docs/en/index.md)
+- [开发](docs/zh-CN/development.md) · [发布](docs/zh-CN/releasing.md)
+- [源码与镜像发行](https://github.com/GuoMonth/dsh-isolated-runtime/releases)
+- [平台安装](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/README.zh-CN.md) · [AI 助手说明（英文）](AI.md)
 
 MIT 许可证。

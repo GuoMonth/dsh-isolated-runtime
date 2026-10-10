@@ -1,3 +1,8 @@
 # DSH Isolated Runtime
 
-Kubernetes-only AgentEnvironment on upstream Agent Sandbox core. Start with CONSTITUTION.md, AGENTS.md, CONTRIBUTING.md and docs/design/environment-contract.zh-CN.md. Implementation: packages/environment-connector/src/runtime.ts. Fixed template: packages/environment-connector/src/template.ts. Launcher: cmd/environment-launcher. Platform installation and authorization live in dsh-multi-tenant. docs/archive is historical, not current behavior.
+Kubernetes resource lifecycle and workload image for self-hosted, multi-user DeepSeek Harness. Install through dsh-multi-tenant.
+
+- [English documentation](https://github.com/GuoMonth/dsh-isolated-runtime/blob/main/docs/en/index.md)
+- [简体中文文档](https://github.com/GuoMonth/dsh-isolated-runtime/blob/main/docs/zh-CN/index.md)
+- [Runtime contract](https://github.com/GuoMonth/dsh-isolated-runtime/blob/main/docs/en/contract.md)
+- [Platform installation](https://github.com/GuoMonth/dsh-multi-tenant)
