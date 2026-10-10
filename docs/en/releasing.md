@@ -2,7 +2,9 @@
 
 [简体中文](../zh-CN/releasing.md) · [Guides](index.md)
 
-Runtime distributes a Linux/amd64 workload image and source release. The platform bundles the private Connector and owns installation. Current release: [0.4.0-alpha.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.4.0-alpha.1), paired with platform 0.10.0-alpha.1 and DSH 0.2.0-rc.2.
+Runtime distributes a Linux/amd64 workload image and source release. The platform bundles the private Connector and owns installation. RC candidate: [0.4.0-rc.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.4.0-rc.1), paired with platform 0.10.0-rc.1 and DSH 0.2.0-rc.2.
+
+Runtime version is maintained in `VERSION`. RC/beta releases use `--prerelease --latest=false`. Record separate workload and Connector source identities; an unchanged pinned Connector can be retained after comparison and joint acceptance.
 
 ## Prepare
 
