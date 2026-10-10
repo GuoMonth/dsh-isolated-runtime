@@ -1,8 +1,6 @@
-# RC2 G1 real distribution smoke
+# DSH package and browser smoke (English)
 
-This is an A-stage sample, not the production create/stop/start implementation.
-The latter is B's AgentEnvironment adapter. No model network request or real
-external-tool authorization is claimed here.
+These samples check the official package, settings patch and native browser transport. Production lifecycle tests are in [test/environment](../environment/README.md); model/tool authorization uses the platform harness.
 
 1. Install the exact npm closure with `npm ci --prefix images/environment`.
    Before patching, run the browser case with `RC2_EXPECT_UNPATCHED=1` to reproduce
@@ -34,6 +32,4 @@ already be installed from the pinned v1.0.3 release; only the current cluster
 write owner may install it. Wait for Sandbox Ready, then verify the actual Pod.
 
 This minimal sample has no NetworkPolicy and does not prove cross-user isolation;
-B owns the production policy and E proves platform OIDC/isolation. Do not expose
-its application outside the dedicated test cluster. A's detailed results are in
-`docs/evidence/mvp-a-rc2-2026-09-29.md`.
+Production policy and platform OIDC/isolation need their separate harnesses. Keep this sample inside the dedicated test cluster. Previous release results are in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-alpha.1/validation.md).

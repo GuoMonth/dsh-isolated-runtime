@@ -23,5 +23,7 @@ jobs:
           node-version: "24"
       - name: Syntax, Go formatting, whitespace and LF endings
         run: node hack/check-standards.mjs
+      - name: Documentation links and languages
+        run: make docs-check
       - name: Workflow syntax
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11 -shellcheck=""

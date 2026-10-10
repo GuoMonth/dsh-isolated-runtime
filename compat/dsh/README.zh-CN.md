@@ -1,18 +1,13 @@
-# DSH RC2 接入
+# DSH RC2 兼容说明
 
-精确源码身份/npm integrity 见 [baseline.json](baseline.json)。新镜像
-`images/environment/Dockerfile` 按提交的 npm lock 安装官方 `0.2.0-rc.2`，
-不再下载源码或运行 build:official/source deploy。
+[English](README.md)
 
-真实 Chromium 在远程 hostname 复现 Models 页“settings are unavailable in this browser”。
-RC2 没有配置项可改变该 hostname 的持久模式，因此 `apply-patches.mjs` 仅替换发行包
-ui-settings 客户端模块的一行，前后完整 SHA256 校验；不改认证、服务端接口或模型协议。
-旧 `cell-settings.patch` 与源码重构建镜像配方已删除。
+运行镜像使用已提交的 npm 锁文件安装官方 DSH 0.2.0-rc.2。[baseline.json](baseline.json) 记录源码身份、包完整性、传输和数据路径。
 
-单 PVC 包含 workspace/home/dsh。launcher 在 workspace 启动；HOME=home、DSH_HOME=dsh，
-原生凭据在 dsh/.credentials.yaml。用户 npm 工具写 HOME/.local，缓存写 /tmp。
-平台密钥和集群 token 不进入环境；正常保留不等于备份或迁移。
+RC2 在远程 hostname 下禁用原生 Models 配置页。`apply-patches.mjs` 替换发行包 ui-settings 客户端模块的一行，前后校验完整文件 SHA256。认证、服务端路由和模型协议保持原生行为。
 
-`dev-run go=1.27 -- bash hack/verify-dsh-compat.sh` 验证官方包、补丁和 launcher。
-浏览器与真实上游 Sandbox smoke 见 `test/rc2/README.md`；实际证据见
-`docs/evidence/mvp-a-rc2-2026-09-29.md`，未做项不计通过。
+```sh
+bash hack/verify-dsh-compat.sh
+```
+
+此命令检查包安装、补丁哈希和 launcher 传输。浏览器及上游 Sandbox 测试见 [test/rc2（英文）](../../test/rc2/README.md)，实际发行覆盖见 [validation.md（英文）](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-alpha.1/validation.md)。数据和生命周期见[契约](../../docs/zh-CN/contract.md)。

@@ -1,34 +1,24 @@
 # DSH Isolated Runtime
 
-[中文](README.zh-CN.md) · [Install the platform](https://github.com/GuoMonth/dsh-multi-tenant#install) · [AI guide](AI.md)
+[简体中文](README.zh-CN.md)
 
-The Kubernetes resource and execution layer for [DSH multi-tenant](https://github.com/GuoMonth/dsh-multi-tenant). It supplies the fixed DSH workload image, launcher and in-process environment Connector. **Install through the platform**; it bundles the Connector and owns the installation CLI and Helm chart.
+The Kubernetes runtime for self-hosted, multi-user [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It provides the workload image, launcher and in-process Connector used by [dsh-multi-tenant](https://github.com/GuoMonth/dsh-multi-tenant).
 
-DSH is pinned to **0.2.0-rc.2**. Each environment has one independently owned PVC at `/var/lib/dsh/data`, with `workspace/` for files, `home/` for user tools/configuration and `dsh/` for native conversations/credentials. Normal stop/start and Pod recreation retain the same volume. CPU/memory use Kubernetes requests/limits and storage has one requested capacity.
+**Install through the platform repository.** Its npm package bundles the Connector, CLI and Helm chart. The released combination is runtime **0.4.0-alpha.1**, platform **0.10.0-alpha.1**, DSH **0.2.0-rc.2**.
 
-## Responsibilities
+## What runtime does
 
-| Component | Owns |
-| --- | --- |
-| This repository | Fixed workload image and launcher, namespace/PVC/Sandbox identity, explicit create/query/stop/start/delete, verified access channel |
-| [Platform](https://github.com/GuoMonth/dsh-multi-tenant) | OIDC, members, user authorization, allocation bindings, connection revocation, npm CLI and installation |
-| Upstream Agent Sandbox core | Sole controller reconciling Sandbox into Pod/Service |
-| DeepSeek Harness | Native Web, conversations, model/tool execution and user credentials |
+Runtime creates each authorized user's fixed Kubernetes resources, verifies their owner and UIDs, handles explicit stop/start/delete and forwards native DSH traffic. Upstream Agent Sandbox core is the sole Pod/Service controller; the platform owns OIDC and user authorization.
 
-The Connector runs inside the platform process. It is an internal bundled package, not a separate public npm dependency or network service. User authorization always belongs to the platform; resource labels and namespaces are not authorization.
+Each environment has one PVC at `/var/lib/dsh/data`, containing `workspace/`, `home/` and `dsh/`. Normal stop/start and Pod recreation retain files, conversations, configuration and tool credentials. Deletion retains user storage. See the [contract](docs/en/contract.md) for states and failure handling.
 
-## Installation with AI
+Alpha supports Linux/amd64 and trusted organization members. Node-partition recovery, backups, HA and data migration require separate work.
 
-Give your assistant the [platform AI installation guide](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/packages/multi-tenant/AI.md). It checks cluster, OIDC, DNS/TLS, storage and release image identities before using the packaged installer. Runtime contributors use [this repository's AI guide](AI.md) and [executable contract](docs/design/environment-contract.zh-CN.md).
+## Documentation
 
-## Lifecycle and limits
-
-Stop requires positive evidence for the exact writer on a healthy node. Unknown outcomes are inspected against the original allocation; missing/replaced PVC identity fails closed. Delete requires verified stop and retains the PVC, namespace and isolation policy. Automatic node-partition recovery, backup, HA and data migration are outside the Alpha guarantees.
-
-- [Connector implementation](packages/environment-connector/src/runtime.ts) and [fixed template](packages/environment-connector/src/template.ts)
-- [Platform RBAC](config/runtime/cluster-role.yaml)
-- [Development and checks](CONTRIBUTING.md)
-- [Image and Connector distribution](docs/distribution.md)
-- [Releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases)
+- [English guides](docs/en/index.md) · [中文指南](docs/zh-CN/index.md)
+- [Development](docs/en/development.md) · [Releasing](docs/en/releasing.md)
+- [Source and image releases](https://github.com/GuoMonth/dsh-isolated-runtime/releases)
+- [Platform installation](https://github.com/GuoMonth/dsh-multi-tenant) · [AI assistant guide (English)](AI.md)
 
 MIT licensed.

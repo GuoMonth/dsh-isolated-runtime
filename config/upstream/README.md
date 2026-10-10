@@ -1,5 +1,5 @@
-# Upstream core input
+# Upstream Agent Sandbox core (English)
 
-`agent-sandbox-v1.0.3.yaml` is the unmodified official release asset; `source.json` records its SHA-256 and the linux/amd64 controller digest actually loaded in the dedicated kind cluster. Installation packaging verifies the original checksum, then substitutes the recorded digest for the sole controller image tag. It must not deploy extensions controllers or a second product controller.
+`agent-sandbox-v1.0.3.yaml` is the official release asset. [source.json](source.json) records its checksum and Linux/amd64 controller digest. Platform installation packaging verifies the original file and pins the sole controller image.
 
-The pinned upstream asset contains its own generated CRD and RBAC. This repository does not regenerate or fork it. Runtime's separate platform role is `../runtime/cluster-role.yaml`. Full platform installation and installed-resource evidence belong to the platform chart and E acceptance.
+The upstream asset owns its generated CRD/RBAC. The separate platform runtime role is [cluster-role.yaml](../runtime/cluster-role.yaml). Deploy through [dsh-multi-tenant](https://github.com/GuoMonth/dsh-multi-tenant).
