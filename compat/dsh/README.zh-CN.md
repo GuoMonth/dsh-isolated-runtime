@@ -10,4 +10,4 @@ RC2 在远程 hostname 下禁用原生 Models 配置页。`apply-patches.mjs` �
 bash hack/verify-dsh-compat.sh
 ```
 
-此命令检查包安装、补丁哈希和 launcher 传输。浏览器及上游 Sandbox 测试见 [test/rc2（英文）](../../test/rc2/README.md)，实际发行覆盖见 [validation.md（英文）](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-alpha.1/validation.md)。数据和生命周期见[契约](../../docs/zh-CN/contract.md)。
+此命令检查包安装、补丁哈希和 launcher 传输。浏览器及上游 Sandbox 测试见 [test/rc2（英文）](../../test/rc2/README.md)，当前 RC 覆盖见 [validation.md（英文）](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-rc.1/validation.md)。数据和生命周期见[契约](../../docs/zh-CN/contract.md)。
