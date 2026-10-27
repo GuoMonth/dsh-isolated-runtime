@@ -15,20 +15,33 @@ const rpc = (page, method, args) => page.evaluate(async ({method,args}) => {
   const page=await browser.newPage({ignoreHTTPSErrors:true,locale:'en-US'});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url);
-  await page.getByRole('button',{name:'Settings',exact:true}).waitFor();
   await page.waitForTimeout(1000);
-  if(await page.getByRole('button',{name:'Continue',exact:true}).count()) await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await page.waitForTimeout(1000);
-  if(await page.getByRole('button',{name:'Save and continue',exact:true}).count()) {
-   await page.getByRole('textbox',{name:'API key',exact:true}).fill('rc2-smoke-not-a-real-key');
-   await page.getByRole('button',{name:'Save and continue',exact:true}).click();
+  // 0.2.1 adds the Preview Notice and moves Settings under the account menu.
+  // Complete the same prompts a user sees, then open Settings natively.
+  for(let step=0;step<6;step++) {
+   if(await page.getByRole('button',{name:'Continue',exact:true}).count()) {
+    await page.getByRole('button',{name:'Continue',exact:true}).first().click();
+    await page.waitForTimeout(800);
+    continue;
+   }
+   if(await page.getByRole('button',{name:'Add API Key',exact:true}).count()) {
+    await page.getByRole('button',{name:'Add API Key',exact:true}).click();
+    await page.waitForTimeout(800);
+    await page.getByRole('textbox',{name:'API key',exact:true}).fill('rc2-smoke-not-a-real-key');
+    await page.getByRole('button',{name:'Save and continue',exact:true}).click();
+    await page.waitForTimeout(800);
+    continue;
+   }
+   break;
   }
-  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  const accountMenu=page.getByRole('button',{name:'Account menu',exact:true});
+  if(await accountMenu.count()) {
+   await accountMenu.click();
+   await page.getByRole('menuitem',{name:'Settings',exact:true}).click();
+  } else {
+   await page.getByRole('button',{name:'Settings',exact:true}).click();
+  }
   await page.getByRole('button',{name:'Models',exact:true}).click();
-  if(process.env.RC2_EXPECT_UNPATCHED==='1') {
-   await page.getByText('Loading the provider directory failed: settings are unavailable in this browser').waitFor();
-   console.log(JSON.stringify({unpatchedRemoteSettingsFailure:true,errors}));return;
-  }
   await page.getByRole('button',{name:'Edit DeepSeek (deepseek-official)',exact:true}).waitFor();
   const describe=await rpc(page,'settings/describe',{});
   assert.equal(describe.writable,true);

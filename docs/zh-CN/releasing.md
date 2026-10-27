@@ -16,7 +16,7 @@ node hack/pack-environment-connector.mjs /absolute/output-directory
 
 从已提交的干净源码打包。Connector 包含 source.json、SHA256 和 npm integrity，新 tarball 由平台消费并完成联合验证。runtime RBAC 在本仓库维护，平台打包经过校验的副本。
 
-在 main 上运行手动 `prepare-release.yml`，构建运行镜像并上传候选、源码及 digest 信息。拉取精确镜像，执行 runtime/平台验收。settings 补丁及校验见 [DSH 兼容说明（英文）](../../compat/dsh/README.md)。
+在 main 上运行手动 `prepare-release.yml`，构建运行镜像并上传候选、源码及 digest 信息。拉取精确镜像，执行 runtime/平台验收。精确 baseline 与原生设置行为见 [DSH 兼容说明（英文）](../../compat/dsh/README.md)。
 
 ## 发布
 

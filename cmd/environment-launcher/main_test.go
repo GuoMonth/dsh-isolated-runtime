@@ -37,7 +37,7 @@ func TestManagementHandler(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &version); err != nil {
 		t.Fatal(err)
 	}
-	if version["contractVersion"] != "dsh-rc2-single-pvc-v1" || version["dshVersion"] != "0.2.0-rc.2" {
+	if version["contractVersion"] != "dsh-021-single-pvc-v1" || version["dshVersion"] != "0.2.1-rc.3" {
 		t.Fatalf("unexpected version: %#v", version)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/quiesce", nil)
