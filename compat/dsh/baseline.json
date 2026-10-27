@@ -1,23 +1,17 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "source": {
     "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
-    "tag": "dsh-v0.2.0-rc.2",
-    "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
-    "version": "0.2.0-rc.2"
+    "tag": "dsh-v0.2.1-rc.3",
+    "commit": "1f81c047fc48fa190a683e469daa699857e9afe8",
+    "version": "0.2.1-rc.3"
   },
   "distribution": {
     "mode": "npm",
     "package": "@deepseek-ai/dsh",
-    "version": "0.2.0-rc.2",
-    "integrity": "sha512-EAJ3gPNcVt/uv8X19PMm9NkVhWgT7xXNMk0UKCVm+IQ5rpSQOcsMUa0HWlnYYVybKMsccjcRB21vVVsaXQ6IdA==",
-    "lockfile": "images/environment/package-lock.json",
-    "settingsPatch": {
-      "file": "node_modules/@deepseek-ai/dsh-client-ui-settings/lib/client.js",
-      "beforeSHA256": "2ac7f186165c5a8ec2cd90045cf74693e5d3518ec90cd429951360d79754aa94",
-      "afterSHA256": "1be776deb3d9707472770e23fc03c720bf78432ea602bbe93c95dafe03365e43",
-      "reason": "Real Chromium at environment.test: Models fails with settings are unavailable in this browser; no native persistence option exists"
-    }
+    "version": "0.2.1-rc.3",
+    "integrity": "sha512-H+E9HLnHf7fJqzen84Z9Bq8ggb5xbrcbyhZjXTJLE9NabHr3zteGvTRvdvGkxPl4ov80is4WLglFmSo+/olJjg==",
+    "lockfile": "images/environment/package-lock.json"
   },
   "transport": {
     "unaryPrefix": "/api/",
@@ -42,6 +36,6 @@
   "constraints": [
     "No previous session version migration acceptance",
     "No source rebuild or upstream fork",
-    "Models settings patch only in the authenticated per-user image; launcher/proxy authentication is unchanged"
+    "Native authenticated-browser settings persistence; no settings client patch"
   ]
 }

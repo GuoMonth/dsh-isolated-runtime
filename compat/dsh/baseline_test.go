@@ -12,17 +12,21 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 		t.Fatal(err)
 	}
 	var baseline struct {
-		Source       struct{ Version, Commit string }
-		Distribution struct {
+		SchemaVersion int
+		Source        struct{ Version, Commit string }
+		Distribution  struct {
 			Mode, Version, Integrity string
-			SettingsPatch            struct{ BeforeSHA256, AfterSHA256 string }
+			SettingsPatch            *struct{ BeforeSHA256, AfterSHA256 string }
 		}
 		State struct{ Workspace, Home, DshHome, Credentials string }
 	}
 	if err = json.Unmarshal(data, &baseline); err != nil {
 		t.Fatal(err)
 	}
-	if baseline.Source.Version != "0.2.0-rc.2" || baseline.Source.Commit != "639ed015397290b3745d163aafe02ffee4aa3f84" {
+	if baseline.SchemaVersion != 3 {
+		t.Fatal("baseline schema drift")
+	}
+	if baseline.Source.Version != "0.2.1-rc.3" || baseline.Source.Commit != "1f81c047fc48fa190a683e469daa699857e9afe8" {
 		t.Fatal("DSH source pin drift")
 	}
 	if baseline.Distribution.Mode != "npm" || baseline.Distribution.Version != baseline.Source.Version {
@@ -42,8 +46,8 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	if pkg.Version != baseline.Source.Version || pkg.Integrity != baseline.Distribution.Integrity {
 		t.Fatal("npm lock integrity drift")
 	}
-	if len(baseline.Distribution.SettingsPatch.BeforeSHA256) != 64 || len(baseline.Distribution.SettingsPatch.AfterSHA256) != 64 {
-		t.Fatal("settings patch must be exact")
+	if baseline.Distribution.SettingsPatch != nil {
+		t.Fatal("0.2.1 persists settings natively; no settings patch is allowed")
 	}
 	if baseline.State.Workspace != "/var/lib/dsh/data/workspace" || baseline.State.Home != "/var/lib/dsh/data/home" || baseline.State.DshHome != "/var/lib/dsh/data/dsh" || baseline.State.Credentials != "$DSH_HOME/.credentials.yaml" {
 		t.Fatal("single PVC path contract drift")

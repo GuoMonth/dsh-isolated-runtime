@@ -1,11 +1,10 @@
 # DSH package and browser smoke (English)
 
-These samples check the official package, settings patch and native browser transport. Production lifecycle tests are in [test/environment](../environment/README.md); model/tool authorization uses the platform harness.
+These samples check the official package, native settings persistence and native browser transport. Production lifecycle tests are in [test/environment](../environment/README.md); model/tool authorization uses the platform harness.
 
 1. Install the exact npm closure with `npm ci --prefix images/environment`.
-   Before patching, run the browser case with `RC2_EXPECT_UNPATCHED=1` to reproduce
-   remote Models being unavailable. Then run
-   `node compat/dsh/apply-patches.mjs "$PWD/images/environment"` (once per clean install).
+   DSH 0.2.1 persists authenticated-browser settings on the Host natively; no
+   settings-client patch is applied.
 2. Start the test-only TLS carrier with `dev-run go=1.27 -- go run ./test/rc2`.
    Set `DSH_REAL_CLI` to the installed `@deepseek-ai/dsh/lib/bin.js`, `RC2_DATA`
    to a fresh private temp directory, `RC2_URL_FILE` to a private output filename,

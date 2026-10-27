@@ -135,8 +135,8 @@ func newManagementHandler(live, ready *atomic.Bool) http.Handler {
 			ContractVersion string `json:"contractVersion"`
 			DSHVersion      string `json:"dshVersion"`
 		}{
-			ContractVersion: "dsh-rc2-single-pvc-v1",
-			DSHVersion:      "0.2.0-rc.2",
+			ContractVersion: "dsh-021-single-pvc-v1",
+			DSHVersion:      "0.2.1-rc.3",
 		})
 	})
 	return mux

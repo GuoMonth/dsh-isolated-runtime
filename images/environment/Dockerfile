@@ -16,8 +16,6 @@ WORKDIR /opt/dsh
 COPY images/environment/package.json images/environment/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --no-audit --no-fund \
     && node node_modules/@deepseek-ai/dsh/lib/bin.js --version
-COPY compat/dsh /compat/dsh
-RUN node /compat/dsh/apply-patches.mjs /opt/dsh
 
 FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git \
@@ -28,8 +26,8 @@ COPY images/environment/environment.patch.yml /etc/dsh/environment.patch.yml
 ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.source="https://github.com/GuoMonth/dsh-isolated-runtime" \
       org.opencontainers.image.revision=$SOURCE_REVISION \
-      io.dsh.isolated.contract.version="dsh-rc2-single-pvc-v1" \
-      io.dsh.isolated.dsh.version="0.2.0-rc.2"
+      io.dsh.isolated.contract.version="dsh-021-single-pvc-v1" \
+      io.dsh.isolated.dsh.version="0.2.1-rc.3"
 ENV HOME=/var/lib/dsh/data/home DSH_HOME=/var/lib/dsh/data/dsh \
     DSH_TELEMETRY_DISABLED=1 XDG_CACHE_HOME=/tmp/.cache \
     NPM_CONFIG_PREFIX=/var/lib/dsh/data/home/.local NPM_CONFIG_CACHE=/tmp/.npm \

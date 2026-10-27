@@ -1,13 +1,13 @@
-# DSH RC2 compatibility
+# DSH 0.2.1-rc.3 compatibility
 
 [简体中文](README.zh-CN.md)
 
-The workload image installs official DSH 0.2.0-rc.2 using the committed npm lockfile. [baseline.json](baseline.json) records the source identity, package integrity, transport and data paths.
+The workload image installs official DSH 0.2.1-rc.3 using the committed npm lockfile. [baseline.json](baseline.json) records the source identity, package integrity, transport and data paths.
 
-At remote hostnames, RC2 disables the native Models settings page. `apply-patches.mjs` changes one line of the shipped ui-settings client module, verifying the full file SHA256 before and after. Authentication, server routes and model protocols stay native.
+DSH 0.2.1 persists authenticated-browser settings on the Host natively. The workload image does not patch the settings client; authentication, server routes and model protocols stay native.
 
 ```sh
 bash hack/verify-dsh-compat.sh
 ```
 
-This checks package installation, patch hashes and launcher transport. Browser/upstream Sandbox tests are in [test/rc2](../../test/rc2/README.md); current RC coverage is in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-rc.1/validation.md). Data and lifecycle are defined by the [contract](../../docs/en/contract.md).
+This checks package installation and launcher transport. Browser/upstream Sandbox tests are in [test/rc2](../../test/rc2/README.md); the last published RC coverage is in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-rc.1/validation.md). Data and lifecycle are defined by the [contract](../../docs/en/contract.md).

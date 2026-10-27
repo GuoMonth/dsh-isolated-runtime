@@ -16,7 +16,7 @@ node hack/pack-environment-connector.mjs /absolute/output-directory
 
 Pack from a clean committed source. The Connector includes source.json, SHA256 and npm integrity; its new tarball must be consumed and jointly tested by the platform. Runtime RBAC stays here; the platform packages the checksummed copy.
 
-Run the manual `prepare-release.yml` on main. It builds the workload image and uploads candidate/source/digest metadata. Pull that exact image and run runtime/platform acceptance. [DSH compatibility](../../compat/dsh/README.md) describes the checksummed settings patch.
+Run the manual `prepare-release.yml` on main. It builds the workload image and uploads candidate/source/digest metadata. Pull that exact image and run runtime/platform acceptance. [DSH compatibility](../../compat/dsh/README.md) describes the exact baseline and native settings behavior.
 
 ## Publish
 
