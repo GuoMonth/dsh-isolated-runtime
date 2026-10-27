@@ -4,7 +4,7 @@
 
 为自托管、多用户 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 提供 Kubernetes 运行层，维护 [dsh-multi-tenant](https://github.com/GuoMonth/dsh-multi-tenant) 使用的运行镜像、launcher 和同进程 Connector。
 
-**部署从平台仓库开始。** 平台 npm 包已打包 Connector、CLI 和 Helm Chart。RC 组合为 runtime **0.4.0-rc.1**、平台 **0.10.0-rc.1**、DSH **0.2.0-rc.2**。
+**部署从平台仓库开始。** 平台 npm 包已打包 Connector、CLI 和 Helm Chart。RC 组合为 runtime **0.5.0-rc.1**、平台 **0.11.0-rc.1**、DSH **0.2.1-rc.3**。不做兼容性承诺，部署时固定精确版本和制品。
 
 ## runtime 做什么
 

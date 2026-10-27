@@ -10,4 +10,4 @@ DSH 0.2.1 原生支持认证浏览器在 Host 上持久化设置。运行镜像�
 bash hack/verify-dsh-compat.sh
 ```
 
-此命令检查包安装和 launcher 传输。浏览器及上游 Sandbox 测试见 [test/rc2（英文）](../../test/rc2/README.md)，最近一次已发布 RC 的覆盖见 [validation.md（英文）](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-rc.1/validation.md)。数据和生命周期见[契约](../../docs/zh-CN/contract.md)。
+此命令检查包安装和 launcher 传输。浏览器及上游 Sandbox 测试见 [test/rc2（英文）](../../test/rc2/README.md)，当前 RC 候选的覆盖见 [validation.md（英文）](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.1/validation.md)。数据和生命周期见[契约](../../docs/zh-CN/contract.md)。
