@@ -31,4 +31,4 @@ already be installed from the pinned v1.0.3 release; only the current cluster
 write owner may install it. Wait for Sandbox Ready, then verify the actual Pod.
 
 This minimal sample has no NetworkPolicy and does not prove cross-user isolation;
-Production policy and platform OIDC/isolation need their separate harnesses. Keep this sample inside the dedicated test cluster. Previous release results are in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-rc.1/validation.md).
+Production policy and platform OIDC/isolation need their separate harnesses. Keep this sample inside the dedicated test cluster. Current RC results are in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.1/validation.md).

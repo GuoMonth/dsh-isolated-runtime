@@ -2,7 +2,7 @@
 
 [English](../en/releasing.md) · [文档目录](index.md)
 
-runtime 分发 Linux/amd64 运行镜像和源码版本，平台打包内部 Connector 并负责安装。RC 候选：[0.5.0-rc.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.5.0-rc.1)，2026-10-27 准备，配套平台 0.11.0-rc.1、DSH 0.2.1-rc.3。实测范围见[验证报告](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.1/validation.md)。
+runtime 分发 Linux/amd64 运行镜像和源码版本，平台打包内部 Connector 并负责安装。[0.5.0-rc.1](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.5.0-rc.1) 已于 2026-10-27 发布，配套平台 0.11.0-rc.1、DSH 0.2.1-rc.3。实测范围见[验证报告](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.1/validation.md)。
 
 runtime 版本在 `VERSION` 维护。RC/beta 发行使用 `--prerelease --latest=false`。运行镜像和 Connector 分别记录源码来源；实现未变时，可在比对与联合验收后沿用已有精确 Connector。
 
