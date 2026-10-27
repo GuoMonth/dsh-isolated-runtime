@@ -10,4 +10,4 @@ DSH 0.2.1 persists authenticated-browser settings on the Host natively. The work
 bash hack/verify-dsh-compat.sh
 ```
 
-This checks package installation and launcher transport. Browser/upstream Sandbox tests are in [test/rc2](../../test/rc2/README.md); the last published RC coverage is in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.4.0-rc.1/validation.md). Data and lifecycle are defined by the [contract](../../docs/en/contract.md).
+This checks package installation and launcher transport. Browser/upstream Sandbox tests are in [test/rc2](../../test/rc2/README.md); the current RC candidate coverage is in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.1/validation.md). Data and lifecycle are defined by the [contract](../../docs/en/contract.md).

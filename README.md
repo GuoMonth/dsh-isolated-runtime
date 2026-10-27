@@ -4,7 +4,7 @@
 
 The Kubernetes runtime for self-hosted, multi-user [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It provides the workload image, launcher and in-process Connector used by [dsh-multi-tenant](https://github.com/GuoMonth/dsh-multi-tenant).
 
-**Install through the platform repository.** Its npm package bundles the Connector, CLI and Helm chart. The RC combination is runtime **0.4.0-rc.1**, platform **0.10.0-rc.1**, DSH **0.2.0-rc.2**.
+**Install through the platform repository.** Its npm package bundles the Connector, CLI and Helm chart. The RC combination is runtime **0.5.0-rc.1**, platform **0.11.0-rc.1**, DSH **0.2.1-rc.3**. No compatibility guarantee; pin the exact versions and artifacts you deploy.
 
 ## What runtime does
 
