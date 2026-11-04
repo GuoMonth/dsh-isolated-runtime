@@ -67,7 +67,7 @@
                   "value": "/tmp/.npm"
                 }
               ],
-              "image": "docker.io/library/dsh-mvp-rc2@sha256:3a3d58acd85ef98ee2fa794aeb323cba29fa0c8be79539d4cb8644b975694c6c",
+              "image": "docker.io/library/dsh-environment@sha256:3a3d58acd85ef98ee2fa794aeb323cba29fa0c8be79539d4cb8644b975694c6c",
               "imagePullPolicy": "IfNotPresent",
               "livenessProbe": {
                 "httpGet": {
@@ -195,7 +195,7 @@
           "type": "PodScheduled"
         }
       ],
-      "nodeName": "dsh-mvp-rc2-control-plane",
+      "nodeName": "dsh-environment-control-plane",
       "podIPs": [
         "10.244.11.26"
       ],
@@ -277,7 +277,7 @@
                 "value": "/tmp/.npm"
               }
             ],
-            "image": "docker.io/library/dsh-mvp-rc2@sha256:3a3d58acd85ef98ee2fa794aeb323cba29fa0c8be79539d4cb8644b975694c6c",
+            "image": "docker.io/library/dsh-environment@sha256:3a3d58acd85ef98ee2fa794aeb323cba29fa0c8be79539d4cb8644b975694c6c",
             "imagePullPolicy": "IfNotPresent",
             "livenessProbe": {
               "failureThreshold": 3,
@@ -361,7 +361,7 @@
         ],
         "dnsPolicy": "ClusterFirst",
         "enableServiceLinks": false,
-        "nodeName": "dsh-mvp-rc2-control-plane",
+        "nodeName": "dsh-environment-control-plane",
         "preemptionPolicy": "PreemptLowerPriority",
         "priority": 0,
         "restartPolicy": "Always",
@@ -457,8 +457,8 @@
               "memory": "256Mi"
             },
             "containerID": "containerd://8cdf495760daa6a1dcd550a1ea8b1f8a9cb8210a75f9dd3d1696e7d68f438f4f",
-            "image": "docker.io/library/dsh-mvp-rc2:candidate",
-            "imageID": "docker.io/library/dsh-mvp-rc2@sha256:3a3d58acd85ef98ee2fa794aeb323cba29fa0c8be79539d4cb8644b975694c6c",
+            "image": "docker.io/library/dsh-environment:candidate",
+            "imageID": "docker.io/library/dsh-environment@sha256:3a3d58acd85ef98ee2fa794aeb323cba29fa0c8be79539d4cb8644b975694c6c",
             "lastState": {},
             "name": "dsh",
             "ready": true,
@@ -597,7 +597,7 @@
             "serving": true,
             "terminating": false
           },
-          "nodeName": "dsh-mvp-rc2-control-plane",
+          "nodeName": "dsh-environment-control-plane",
           "targetRef": {
             "kind": "Pod",
             "name": "environment",
@@ -658,7 +658,7 @@
           "pv.kubernetes.io/bind-completed": "yes",
           "pv.kubernetes.io/bound-by-controller": "yes",
           "volume.beta.kubernetes.io/storage-provisioner": "rancher.io/local-path",
-          "volume.kubernetes.io/selected-node": "dsh-mvp-rc2-control-plane",
+          "volume.kubernetes.io/selected-node": "dsh-environment-control-plane",
           "volume.kubernetes.io/storage-provisioner": "rancher.io/local-path"
         },
         "finalizers": [

@@ -1,6 +1,7 @@
 package dsh
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"testing"
@@ -26,7 +27,11 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	if baseline.SchemaVersion != 3 {
 		t.Fatal("baseline schema drift")
 	}
-	if baseline.Source.Version != "0.2.1-rc.3" || baseline.Source.Commit != "1f81c047fc48fa190a683e469daa699857e9afe8" {
+	const (
+		wantVersion = "0.2.1-rc.5"
+		wantCommit  = "b830ec950faba0a46dda564be3e2d854afed94f1"
+	)
+	if baseline.Source.Version != wantVersion || baseline.Source.Commit != wantCommit || Version() != wantVersion || Commit() != wantCommit {
 		t.Fatal("DSH source pin drift")
 	}
 	if baseline.Distribution.Mode != "npm" || baseline.Distribution.Version != baseline.Source.Version {
@@ -51,5 +56,29 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	}
 	if baseline.State.Workspace != "/var/lib/dsh/data/workspace" || baseline.State.Home != "/var/lib/dsh/data/home" || baseline.State.DshHome != "/var/lib/dsh/data/dsh" || baseline.State.Credentials != "$DSH_HOME/.credentials.yaml" {
 		t.Fatal("single PVC path contract drift")
+	}
+	var manifest struct {
+		Dependencies map[string]string `json:"dependencies"`
+		AllowScripts map[string]bool   `json:"allowScripts"`
+	}
+	manifestData, err := os.ReadFile("../../images/environment/package.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Dependencies["@deepseek-ai/dsh"] != wantVersion {
+		t.Fatal("workload package.json pin drift")
+	}
+	if !manifest.AllowScripts["@deepseek-ai/dsh-subprocess-local@"+wantVersion] {
+		t.Fatal("allowScripts must approve the locked subprocess-local install script")
+	}
+	dockerfile, err := os.ReadFile("../../images/environment/Dockerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(dockerfile, []byte(`io.dsh.isolated.dsh.version="`+wantVersion+`"`)) || !bytes.Contains(dockerfile, []byte(`io.dsh.isolated.contract.version="`+ContractVersion+`"`)) {
+		t.Fatal("image label drift")
 	}
 }

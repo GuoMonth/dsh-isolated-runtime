@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+
+	"github.com/GuoMonth/dsh-isolated-runtime/compat/dsh"
 )
 
 func TestManagementHandler(t *testing.T) {
@@ -37,7 +39,7 @@ func TestManagementHandler(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &version); err != nil {
 		t.Fatal(err)
 	}
-	if version["contractVersion"] != "dsh-021-single-pvc-v1" || version["dshVersion"] != "0.2.1-rc.3" {
+	if version["contractVersion"] != dsh.ContractVersion || version["dshVersion"] != dsh.Version() {
 		t.Fatalf("unexpected version: %#v", version)
 	}
 	request := httptest.NewRequest(http.MethodPost, "/quiesce", nil)
