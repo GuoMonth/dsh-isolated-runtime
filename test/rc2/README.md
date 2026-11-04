@@ -3,8 +3,7 @@
 These samples check the official package, native settings persistence and native browser transport. Production lifecycle tests are in [test/environment](../environment/README.md); model/tool authorization uses the platform harness.
 
 1. Install the exact npm closure with `npm ci --prefix images/environment`.
-   DSH 0.2.1 persists authenticated-browser settings on the Host natively; no
-   settings-client patch is applied.
+   Native settings persistence is recorded in [compat/dsh](../../compat/dsh/README.md).
 2. Start the test-only TLS carrier with `dev-run go=1.27 -- go run ./test/rc2`.
    Set `DSH_REAL_CLI` to the installed `@deepseek-ai/dsh/lib/bin.js`, `RC2_DATA`
    to a fresh private temp directory, `RC2_URL_FILE` to a private output filename,
@@ -31,4 +30,4 @@ already be installed from the pinned v1.0.3 release; only the current cluster
 write owner may install it. Wait for Sandbox Ready, then verify the actual Pod.
 
 This minimal sample has no NetworkPolicy and does not prove cross-user isolation;
-Production policy and platform OIDC/isolation need their separate harnesses. Keep this sample inside the dedicated test cluster. Current RC results are in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.1/validation.md).
+Production policy and platform OIDC/isolation need their separate harnesses. Keep this sample inside the dedicated test cluster. Published runtime 0.5.0-rc.1 results are in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.1/validation.md).

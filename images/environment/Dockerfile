@@ -7,6 +7,7 @@ RUN go mod download
 COPY cmd/environment-launcher ./cmd/environment-launcher
 COPY internal/accesscontract ./internal/accesscontract
 COPY internal/dshcompat ./internal/dshcompat
+COPY compat/dsh/baseline.json compat/dsh/pin.go ./compat/dsh/
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w -buildid=' -o /out/environment-launcher ./cmd/environment-launcher
 
 FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS dsh
@@ -27,7 +28,7 @@ ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.source="https://github.com/GuoMonth/dsh-isolated-runtime" \
       org.opencontainers.image.revision=$SOURCE_REVISION \
       io.dsh.isolated.contract.version="dsh-021-single-pvc-v1" \
-      io.dsh.isolated.dsh.version="0.2.1-rc.3"
+      io.dsh.isolated.dsh.version="0.2.1-rc.5"
 ENV HOME=/var/lib/dsh/data/home DSH_HOME=/var/lib/dsh/data/dsh \
     DSH_TELEMETRY_DISABLED=1 XDG_CACHE_HOME=/tmp/.cache \
     NPM_CONFIG_PREFIX=/var/lib/dsh/data/home/.local NPM_CONFIG_CACHE=/tmp/.npm \

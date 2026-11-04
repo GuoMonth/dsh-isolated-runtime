@@ -1,4 +1,3 @@
-export const ENVIRONMENT_TEMPLATE = "dsh-rc2-single-pvc-v1";
 export interface EnvironmentTemplateOptions {
   readonly image: string;
   readonly authority: string;
