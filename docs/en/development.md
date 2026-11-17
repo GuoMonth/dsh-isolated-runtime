@@ -2,7 +2,9 @@
 
 [简体中文](../zh-CN/development.md) · [Guides](index.md)
 
-Use Go 1.27.1 and Node 24.9.0 or newer within Node 24, or Node 26. [.node-version](../../.node-version) selects Node 24; Corepack reads `packageManager` from the root [package.json](../../package.json). Exact development tools are locked in [pnpm-lock.yaml](../../pnpm-lock.yaml) against official [DSH 0.2.2-rc.3](https://github.com/deepseek-ai/deepseek-harness/tree/38a6a5c965aa99ab525161efb7cc5cf1fe62fced). This engineering baseline does not change the separate [application pin](../../compat/dsh/baseline.json). Make and the launcher image builder pin Go. `dev-run` is optional; standard Go/Node installations work too.
+Use Go 1.27.1 and Node 24.11.0 or newer within Node 24, or Node 26 for development. [.node-version](../../.node-version) selects Node 24; Corepack reads `packageManager` from the root [package.json](../../package.json). Exact development tools are locked in [pnpm-lock.yaml](../../pnpm-lock.yaml) against official [DSH 0.2.2-rc.3](https://github.com/deepseek-ai/deepseek-harness/tree/38a6a5c965aa99ab525161efb7cc5cf1fe62fced). This engineering baseline does not change the separate [application pin](../../compat/dsh/baseline.json). Make and the launcher image builder pin Go. `dev-run` is optional; standard Go/Node installations work too.
+
+The published application and Connector retain the Node 24.9.0 compatibility floor. The development floor is higher because the official declaration-build closure includes Babel packages requiring Node 24.11.0. Keep strict install checks enabled; run floor compatibility against built artifacts.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -19,7 +21,7 @@ TypeScript and JavaScript use two spaces, single quotes, no statement-ending sem
 
 `pnpm lint` runs official strict TypeScript rules. Existing diagnostics are frozen by file, rule, owning statement and declaration, and occurrence count in [lint-baseline.json](../../hack/lint-baseline.json). New or relocated diagnostics fail. `pnpm lint --prune` can only remove resolved allowances; PR CI compares against its trusted base commit and rejects growth. Fetch `origin/main` before local linting; `LINT_BASE_REF` may select a trusted base SHA. `pnpm lint:raw` shows unresolved debt as well. `pnpm test:tooling` exercises the gate's rejection cases.
 
-`make verify` runs source/format/lint checks, builds Go and Connector, runs Go race, Connector and tooling tests, then vet and documentation checks. PR CI runs it on Node 24; Node 24.9 and 26 run Connector format/lint/types/tests and tooling tests. Workflow syntax is checked on the Node 24 lane. Cluster and publication workflows stay manual. `make verify-dsh` installs the exact DSH package and tests its identity and launcher transport.
+`make verify` runs source/format/lint checks, builds Go and Connector, runs Go race, Connector and tooling tests, then vet and documentation checks. PR CI runs it on Node 24; Node 26 runs Connector format/lint/types/tests and tooling tests. The Node 24.9 compatibility lane installs and builds with Node 24, then runs the compiled Connector tests on Node 24.9. Workflow syntax is checked on the Node 24 lane. Cluster and publication workflows stay manual. `make verify-dsh` installs the exact DSH package and tests its identity and launcher transport.
 
 `make docs-check` checks paths, anchors, paired languages and command/version agreement. Set `DSH_PLATFORM_DOCS` and `DSH_RUNTIME_DOCS` to paired checkouts for cross-repository links. Technical harness READMEs are English; public guides have both languages.
 

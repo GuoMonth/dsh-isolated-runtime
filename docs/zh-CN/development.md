@@ -2,7 +2,9 @@
 
 [English](../en/development.md) · [指南](index.md)
 
-使用 Go 1.27.1，以及 Node 24 系列中不低于 24.9.0 的版本，或 Node 26。[.node-version](../../.node-version) 选择 Node 24；Corepack 读取根 [package.json](../../package.json) 的 `packageManager`。[pnpm-lock.yaml](../../pnpm-lock.yaml) 按官方 [DSH 0.2.2-rc.3](https://github.com/deepseek-ai/deepseek-harness/tree/38a6a5c965aa99ab525161efb7cc5cf1fe62fced) 固定开发工具的精确版本。该工程基线不改变独立维护的[应用版本针](../../compat/dsh/baseline.json)。Make 和 launcher 镜像构建固定 Go 工具链。`dev-run` 是可选包装器，也可使用标准 Go/Node 安装。
+开发使用 Go 1.27.1，以及 Node 24 系列中不低于 24.11.0 的版本，或 Node 26。[.node-version](../../.node-version) 选择 Node 24；Corepack 读取根 [package.json](../../package.json) 的 `packageManager`。[pnpm-lock.yaml](../../pnpm-lock.yaml) 按官方 [DSH 0.2.2-rc.3](https://github.com/deepseek-ai/deepseek-harness/tree/38a6a5c965aa99ab525161efb7cc5cf1fe62fced) 固定开发工具的精确版本。该工程基线不改变独立维护的[应用版本针](../../compat/dsh/baseline.json)。Make 和 launcher 镜像构建固定 Go 工具链。`dev-run` 是可选包装器，也可使用标准 Go/Node 安装。
+
+发布的应用和 Connector 保留 Node 24.9.0 兼容下限。开发下限更高，因为官方声明构建依赖中的 Babel 包要求 Node 24.11.0。保持严格安装检查，在已构建制品上验证最低兼容版本。
 
 ```sh
 pnpm install --frozen-lockfile
@@ -19,7 +21,7 @@ TypeScript 和 JavaScript 使用两空格、单引号、无语句末尾分号，
 
 `pnpm lint` 执行官方严格 TypeScript 规则。[lint-baseline.json](../../hack/lint-baseline.json) 按文件、规则、所属语句和声明及出现次数冻结存量诊断；新增或迁移诊断会失败。`pnpm lint --prune` 只能删除已解决的例外；PR CI 对照受信任的基线提交，拒绝扩大例外。本地 lint 前先获取 `origin/main`；`LINT_BASE_REF` 可以指定受信任的基线 SHA。`pnpm lint:raw` 同时展示未解决的债务，`pnpm test:tooling` 验证门禁的拒绝路径。
 
-`make verify` 执行源码、格式和 lint 检查，构建 Go 和 Connector，运行 Go race、Connector 和工具测试，再执行 vet 与文档检查。PR CI 在 Node 24 上运行完整命令；Node 24.9 和 26 执行 Connector 格式、lint、类型和行为测试及工具测试。工作流语法在 Node 24 上检查。集群和发布工作流保持手动执行。`make verify-dsh` 安装精确 DSH 包，验证身份和 launcher 传输。
+`make verify` 执行源码、格式和 lint 检查，构建 Go 和 Connector，运行 Go race、Connector 和工具测试，再执行 vet 与文档检查。PR CI 在 Node 24 上运行完整命令；Node 26 执行 Connector 格式、lint、类型和行为测试及工具测试。Node 24.9 兼容任务先用 Node 24 安装和构建，再用 Node 24.9 执行已编译的 Connector 测试。工作流语法在 Node 24 上检查。集群和发布工作流保持手动执行。`make verify-dsh` 安装精确 DSH 包，验证身份和 launcher 传输。
 
 `make docs-check` 检查路径、锚点、双语配对以及命令和版本一致性。跨仓链接检查使用 `DSH_PLATFORM_DOCS` 和 `DSH_RUNTIME_DOCS` 指定配套 checkout。技术 harness 的 README 使用英文，公开指南提供双语。
 
