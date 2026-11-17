@@ -1,13 +1,13 @@
 {
   "dependencies": {
-    "@deepseek-ai/dsh": "0.2.1-rc.5"
+    "@deepseek-ai/dsh": "0.2.2-rc.3"
   },
   "allowScripts": {
-    "@deepseek-ai/dsh-subprocess-local@0.2.1-rc.5": true,
     "koffi@3.1.1": true,
     "node-pty@1.2.0-beta.15": true,
     "protobufjs@7.6.6": false,
-    "@google/genai@2.21.0": false
+    "@google/genai@2.21.0": false,
+    "@deepseek-ai/dsh-subprocess-local@0.2.2-rc.3": true
   },
   "engines": {
     "node": "^24.9.0 || ^26.0.0"

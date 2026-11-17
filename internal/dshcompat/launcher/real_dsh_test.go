@@ -2,8 +2,10 @@ package launcher
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -16,9 +18,14 @@ func TestRealDSHBrowserExchange(t *testing.T) {
 		t.Skip("DSH_REAL_CLI is set by the exact-upstream compatibility gate")
 	}
 
+	patch, err := filepath.Abs(filepath.Join("..", "..", "..", "images", "environment", "environment.patch.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	var logs lockedBuffer
 	instance, err := Start(Config{
-		DSHCommand:      []string{"node", "--expose-internals", cli},
+		DSHCommand:      []string{"node", cli},
+		PatchFiles:      []string{patch},
 		WorkingDir:      t.TempDir(),
 		Environment:     append(os.Environ(), "DSH_HOME="+t.TempDir(), "DSH_TELEMETRY_DISABLED=1"),
 		PublicAuthority: "cell.test",
@@ -57,11 +64,11 @@ func TestRealDSHBrowserExchange(t *testing.T) {
 	}
 	cookies := exchange.Cookies()
 	if len(cookies) != 1 || !cookies[0].HttpOnly || !cookies[0].Secure {
-		t.Fatalf("unexpected browser cookie: %#v", cookies)
+		t.Fatal("expected one secure, HttpOnly native browser cookie")
 	}
 	credentialPattern := regexp.MustCompile(`[?&]token=[A-Za-z0-9_-]{43}`)
 	if strings.Contains(logs.String(), cookies[0].Value) || credentialPattern.MatchString(logs.String()) {
-		t.Fatalf("credential appeared in launcher logs: %q", logs.String())
+		t.Fatal("credential appeared in launcher logs")
 	}
 
 	authorized, err := http.NewRequestWithContext(context.Background(), http.MethodGet, instance.URL+"/", nil)
@@ -77,5 +84,50 @@ func TestRealDSHBrowserExchange(t *testing.T) {
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("authorized root status = %d", response.StatusCode)
+	}
+	for _, test := range []struct {
+		name, authority, origin string
+		cookie                  bool
+		status                  int
+	}{
+		{name: "anonymous API", authority: "cell.test", origin: "https://cell.test", status: http.StatusUnauthorized},
+		{name: "foreign Origin", authority: "cell.test", origin: "https://foreign.test", cookie: true, status: http.StatusForbidden},
+		{name: "foreign authority", authority: "foreign.test", origin: "https://foreign.test", cookie: true, status: http.StatusForbidden},
+		{name: "native settings", authority: "cell.test", origin: "https://cell.test", cookie: true, status: http.StatusOK},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, instance.URL+"/api/settings/describe", strings.NewReader(`{"type":"client-request","rpcId":"compat","method":"settings/describe","payload":{"args":{}}}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Host = test.authority
+			request.Header.Set("Origin", test.origin)
+			request.Header.Set("Content-Type", "application/json")
+			if test.cookie {
+				request.AddCookie(cookies[0])
+			}
+			response, err := client.Do(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = response.Body.Close() }()
+			if response.StatusCode != test.status {
+				t.Fatalf("native request status = %d, want %d", response.StatusCode, test.status)
+			}
+			if test.status == http.StatusOK {
+				var body struct {
+					Result struct {
+						OK    bool
+						Value struct{ Writable bool }
+					}
+				}
+				if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+					t.Fatal(err)
+				}
+				if !body.Result.OK || !body.Result.Value.Writable {
+					t.Fatal("native authenticated-browser settings must remain writable")
+				}
+			}
+		})
 	}
 }

@@ -13,7 +13,8 @@ These samples check the official package, native settings persistence and native
    `PLAYWRIGHT_SKIP_BROWSER_GC=1`. Run `node test/rc2/browser.cjs` with the same
    `RC2_URL_FILE` and `PLAYWRIGHT_MODULE` pointing to Playwright's installed module.
    It visits real `environment.test` through Chromium host resolution and a
-   test-only self-signed TLS carrier, writes a deliberately non-functional key
+   test-only self-signed TLS carrier. Its context proxy bypass keeps that host
+   direct even when macOS has a system proxy, without changing host settings. It writes a deliberately non-functional key
    through DSH's own onboarding UI, edits native model configuration, creates a
    Session and verifies a native WebSocket snapshot. No credential value is logged.
 4. Restart the carrier on the same data root and rerun. Inspect file existence

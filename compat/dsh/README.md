@@ -1,13 +1,33 @@
-# DSH 0.2.1-rc.5 compatibility
+# DSH 0.2.2-rc.3 compatibility
 
 [简体中文](README.zh-CN.md)
 
-The workload image installs official DSH 0.2.1-rc.5 using the committed npm lockfile. [baseline.json](baseline.json) records the source identity, package integrity, transport and data paths. The launcher `/version` field and image label read that same pin.
+The workload installs the official npm release at source [38a6a5c](https://github.com/deepseek-ai/deepseek-harness/tree/38a6a5c965aa99ab525161efb7cc5cf1fe62fced). [baseline.json](baseline.json) records its version, package integrity, transport and data paths; the committed npm lockfile fixes the full closure. The launcher `/version` response and image label carry that pin. Runtime 0.5.0-rc.3 and platform 0.12.0-rc.2 are new candidates; the published 0.5.0-rc.2 / 0.12.0-rc.1 pair remains on DSH 0.2.1-rc.5.
 
-DSH 0.2.1 persists authenticated-browser settings on the Host natively. The workload image does not patch the settings client; authentication, server routes and model protocols stay native.
+## Reuse official capabilities
+
+Follow the upstream [architecture](https://github.com/deepseek-ai/deepseek-harness/blob/38a6a5c965aa99ab525161efb7cc5cf1fe62fced/docs/architecture.md): supported applications start through profiles, and plugins contribute capabilities through Cordis. Consume published artifacts rather than forking the application or rebuilding its plugin tree here.
+
+| Capability | Choice |
+| --- | --- |
+| Launch and composition | Plain Node launches the official `dsh web` profile. Profiles, bundles, plugin installation and config reload stay upstream. The old `--expose-internals` requirement is removed after a real-package startup check. |
+| UI, worktrees, subagents and teams | Use capabilities delivered by the official profile and Plugin Manager; experimental capabilities keep their upstream status. The platform does not run a second agent loop or enable extra plugins automatically. |
+| Settings, credentials and Sessions | Use the native Host APIs and storage. No settings-client patch, alternate Session store or data converter. |
+| Unary RPC and streaming | Forward native HTTP and `/api/remote.mux` WebSockets without implementing model/tool protocols, codecs, stream recovery or heartbeat policy. |
+| Organization identity | OIDC membership and access revocation remain platform responsibilities; a DSH account or browser cookie does not authorize access to another environment. |
+| Resource lifecycle | Runtime verifies exact owner, Sandbox/PVC/Pod identities and positive writer termination. These Kubernetes deployment obligations are separate from DSH's application lifecycle. |
+
+The only deployment overlay sets `workspace-controller.documentsDirectory` to the persistent working directory. Headless Linux has no desktop Documents lookup; the official controller still owns workspace layout and persistence.
+
+The launcher retains a narrow cookie adapter: official browser authentication still emits `SameSite=Strict` and exposes no SameSite configuration. An external OIDC redirect chain needs `Lax` for safe top-level navigation. The proxy adds `Secure` for the platform's HTTPS entry, while cookie values, signatures, authority checks and authentication remain native. It does not reconstruct upstream authentication. Keep the native token process-local, preserve Host/Origin, and reject unauthorized or foreign-authority requests.
+
+## Verify the exact distribution
 
 ```sh
-bash hack/verify-dsh-compat.sh
+make verify
+make verify-dsh
 ```
 
-This checks package installation and launcher transport. Browser/upstream Sandbox tests are in [test/rc2](../../test/rc2/README.md); published runtime 0.5.0-rc.1 coverage is in [validation.md](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.1/validation.md). Data and lifecycle are defined by the [contract](../../docs/en/contract.md).
+The native gate consumes the committed npm closure and starts the real web profile without model calls. PR CI runs it on Node 24 when DSH integration inputs change. Browser settings, Session and WebSocket checks use [test/rc2](../../test/rc2/README.md); Linux workload checks use [test/environment](../../test/environment/README.md). Platform authorization and real provider acceptance have separate harnesses.
+
+Fresh installation and same-version restart are distinct from old-data migration. Keep upstream Session generations and storage unchanged; this candidate does not establish an in-place upgrade or downgrade path. A successful SIGTERM exit is not a durable flush acknowledgement. The [runtime contract](../../docs/en/contract.md) retains those boundaries.

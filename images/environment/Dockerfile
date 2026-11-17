@@ -28,7 +28,7 @@ ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.source="https://github.com/GuoMonth/dsh-isolated-runtime" \
       org.opencontainers.image.revision=$SOURCE_REVISION \
       io.dsh.isolated.contract.version="dsh-021-single-pvc-v1" \
-      io.dsh.isolated.dsh.version="0.2.1-rc.5"
+      io.dsh.isolated.dsh.version="0.2.2-rc.3"
 ENV HOME=/var/lib/dsh/data/home DSH_HOME=/var/lib/dsh/data/dsh \
     DSH_TELEMETRY_DISABLED=1 XDG_CACHE_HOME=/tmp/.cache \
     NPM_CONFIG_PREFIX=/var/lib/dsh/data/home/.local NPM_CONFIG_CACHE=/tmp/.npm \

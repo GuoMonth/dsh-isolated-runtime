@@ -34,6 +34,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - if: matrix.node == '24'
         run: make verify
+      - name: Verify the official DSH distribution when its integration changes
+        if: matrix.node == '24'
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || ! git diff --quiet "$LINT_BASE_REF...HEAD" -- compat/dsh images/environment internal/dshcompat cmd/environment-launcher hack/verify-dsh-compat.sh; then
+            make verify-dsh
+          fi
       - if: matrix.node == '26'
         run: |
           pnpm fmt:check

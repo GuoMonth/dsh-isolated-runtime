@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -28,8 +29,8 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 		t.Fatal("baseline schema drift")
 	}
 	const (
-		wantVersion = "0.2.1-rc.5"
-		wantCommit  = "b830ec950faba0a46dda564be3e2d854afed94f1"
+		wantVersion = "0.2.2-rc.3"
+		wantCommit  = "38a6a5c965aa99ab525161efb7cc5cf1fe62fced"
 	)
 	if baseline.Source.Version != wantVersion || baseline.Source.Commit != wantCommit || Version() != wantVersion || Commit() != wantCommit {
 		t.Fatal("DSH source pin drift")
@@ -52,7 +53,7 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 		t.Fatal("npm lock integrity drift")
 	}
 	if baseline.Distribution.SettingsPatch != nil {
-		t.Fatal("0.2.1 persists settings natively; no settings patch is allowed")
+		t.Fatal("DSH persists settings natively; no settings patch is allowed")
 	}
 	if baseline.State.Workspace != "/var/lib/dsh/data/workspace" || baseline.State.Home != "/var/lib/dsh/data/home" || baseline.State.DshHome != "/var/lib/dsh/data/dsh" || baseline.State.Credentials != "$DSH_HOME/.credentials.yaml" {
 		t.Fatal("single PVC path contract drift")
@@ -70,6 +71,11 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	}
 	if manifest.Dependencies["@deepseek-ai/dsh"] != wantVersion {
 		t.Fatal("workload package.json pin drift")
+	}
+	for name, dependency := range lock.Packages {
+		if strings.HasPrefix(name, "node_modules/@deepseek-ai/dsh-") && !strings.Contains(strings.TrimPrefix(name, "node_modules/"), "/node_modules/") && dependency.Version != wantVersion {
+			t.Errorf("official package closure differs from the DSH pin: %s at %s", name, dependency.Version)
+		}
 	}
 	if !manifest.AllowScripts["@deepseek-ai/dsh-subprocess-local@"+wantVersion] {
 		t.Fatal("allowScripts must approve the locked subprocess-local install script")
