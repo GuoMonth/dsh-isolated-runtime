@@ -34,6 +34,6 @@ make verify
 make verify-dsh
 ```
 
-原生门禁消费已提交的 npm 依赖，启动真实 web profile，不调用模型。DSH 集成输入变化时，PR CI 在 Node 24 执行该门禁。浏览器设置、Session 与 WebSocket 检查使用 [test/rc2](../../test/rc2/README.md)，Linux 运行镜像检查使用 [test/environment](../../test/environment/README.md)。平台授权和真实 provider 验收有独立 harness。
+原生门禁消费已提交的 npm 依赖，启动真实 web profile，不调用模型。DSH 集成输入变化时，PR CI 在 Node 24.9、24 和 26 执行该门禁。浏览器设置、Session 与 WebSocket 检查使用 [test/rc2](../../test/rc2/README.md)，Linux 运行镜像检查使用 [test/environment](../../test/environment/README.md)。平台授权和真实 provider 验收有独立 harness。
 
 全新安装、相同版本重启与旧数据迁移是不同证据。保持上游 Session 代际与存储原样，本候选不代表支持原地升级或降级。SIGTERM 成功退出不等于持久化 flush 确认。[runtime 契约](../../docs/zh-CN/contract.md)保留这些边界。
