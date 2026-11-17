@@ -27,6 +27,8 @@ TypeScript and JavaScript use two spaces, single quotes, no statement-ending sem
 
 Identity roles are distinct TypeScript types: owner tenant/principal, allocation, namespace, Sandbox/PVC/Pod UID and resource revision. Admit external values through the exported parsers; keep exact strings. Kubernetes JSON and watch events are parsed before use, preserving unknown fields for exact template comparisons. Incomplete lists cannot establish absence. Transport and domain errors retain internal causes; public diagnostics expose only the fixed contract. A failed write response does not authorize replay.
 
+Allocation operations may receive a platform binding with additional control metadata. Project its allocation key and owner before constructing a resource reference; never spread platform state into that strict identity. Both initial creation and read-only discovery must return the same exact reference without replaying accepted writes.
+
 The launcher reaps its child, closes proxy transports and owns hijacked connections. Management binds before the child starts, and every exit path joins both servers and child cleanup. `os/exec` owns output copying; output is drained before process completion is published, and `Cmd.WaitDelay` bounds inherited pipes after child exit. Forced SIGKILL is not a successful environment stop.
 
 Use the official `go fix -diff ./...` to review applicable modernizations; `errors.AsType`, `strings.SplitSeq`, typed atomics and `WaitGroup.Go` keep intent explicit. Connection-drain tests use `testing/synctest` and its virtual clock instead of scheduling sleeps. Preserve JSON wire semantics when choosing a newer API.

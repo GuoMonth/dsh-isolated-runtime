@@ -27,6 +27,8 @@ TypeScript 和 JavaScript 使用两空格、单引号、无语句末尾分号，
 
 身份按角色使用独立 TypeScript 类型：owner 的 tenant/principal、allocation、namespace、Sandbox/PVC/Pod UID 和资源修订号。外部值先经过导出的解析器，保留精确字符串。Kubernetes JSON 和 watch 事件在使用前解析，保留未知字段供精确模板比较；不完整列表不能证明资源不存在。传输和领域错误保留内部 cause，对外诊断只输出固定契约；写响应失败不代表允许重放。
 
+分配操作可能收到附带平台控制元数据的绑定记录。构造资源引用前只提取 allocationKey 和 owner，不能把平台状态展开进严格身份。首次创建与只读发现都必须返回同一精确引用，不重放已接受的写入。
+
 launcher 回收子进程、关闭代理传输并负责已接管连接。管理端口在启动子进程前完成绑定，每条退出路径均等待两个服务及子进程清理完成。`os/exec` 负责输出复制，输出读完后才公布进程结束；`Cmd.WaitDelay` 限制子进程退出后继承管道的等待时间。强制 SIGKILL 不算成功停止环境。
 
 使用官方 `go fix -diff ./...` 审核适用的现代化改写；`errors.AsType`、`strings.SplitSeq`、原子类型和 `WaitGroup.Go` 明确表达意图。连接排空测试使用 `testing/synctest` 虚拟时钟，避免靠睡眠猜测调度顺序。选择新 API 时保持 JSON 线协议语义。
