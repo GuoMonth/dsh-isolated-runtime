@@ -1,0 +1,27 @@
+{
+  "name": "dsh-isolated-runtime-root",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.28.5",
+  "engines": {
+    "node": "^24.11.0 || ^26.0.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter @dsh/environment-connector-internal build",
+    "typecheck": "pnpm --filter @dsh/environment-connector-internal typecheck",
+    "test": "pnpm --filter @dsh/environment-connector-internal test",
+    "fmt": "node hack/format.mjs",
+    "fmt:check": "oxlint --config .oxlintrc.format.json --deny-warnings",
+    "lint": "node hack/lint.mjs",
+    "lint:raw": "oxlint --format json",
+    "test:tooling": "node --test hack/lint.test.mjs"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "5.10.0",
+    "@types/node": "22.20.1",
+    "oxlint": "1.81.0",
+    "oxlint-tsgolint": "7.0.2001",
+    "tsx": "4.23.13",
+    "typescript": "6.0.3"
+  }
+}

@@ -1,17 +1,25 @@
 GO ?= go
 export GOTOOLCHAIN := go1.27.1
-.PHONY: build test verify verify-dsh images docs-check
+.PHONY: build test lint fmt verify verify-dsh images docs-check
 build:
 	$(GO) build ./...
-	npm run build --prefix packages/environment-connector
+	pnpm build
 
 test:
 	$(GO) test -race ./...
-	npm test --prefix packages/environment-connector
+	pnpm test
+	pnpm test:tooling
 
-verify: build test
-	$(GO) vet ./...
+lint:
 	node hack/check-standards.mjs
+	pnpm fmt:check
+	pnpm lint
+
+fmt:
+	pnpm fmt
+
+verify: lint build test
+	$(GO) vet ./...
 	$(MAKE) docs-check
 
 docs-check:

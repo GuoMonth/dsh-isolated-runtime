@@ -5,25 +5,53 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: standards-${{ github.ref }}
+  group: checks-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   standards:
-    name: Source standards
+    name: ${{ matrix.node == '24' && 'Source standards' || format('Node {0} compatibility', matrix.node) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['24.9', '24', '26']
+    env:
+      LINT_BASE_REF: ${{ github.event.pull_request.base.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: "1.27.1"
           cache: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: "24"
-      - name: Syntax, Go formatting, whitespace and LF endings
-        run: node hack/check-standards.mjs
-      - name: Documentation links and languages
-        run: make docs-check
+          node-version: ${{ matrix.node == '24.9' && '24' || matrix.node }}
+          package-manager-cache: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - run: pnpm install --frozen-lockfile
+      - if: matrix.node == '24'
+        run: make verify
+      - if: matrix.node == '26'
+        run: |
+          pnpm fmt:check
+          pnpm lint
+          pnpm test:tooling
+          pnpm typecheck
+          pnpm test
+      - name: Build the Connector for the supported floor
+        if: matrix.node == '24.9'
+        run: pnpm build
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        if: matrix.node == '24.9'
+        with:
+          node-version: '24.9'
+          package-manager-cache: false
+      - name: Exercise the compiled Connector at the supported floor
+        if: matrix.node == '24.9'
+        run: node --test packages/environment-connector/test/*.test.mjs
       - name: Workflow syntax
+        if: matrix.node == '24'
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11 -shellcheck=""
