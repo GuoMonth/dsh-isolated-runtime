@@ -28,7 +28,7 @@ func main() {
 	var handler http.Handler
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { handler.ServeHTTP(w, r) }))
 	authority := "environment.test:" + fmt.Sprint(server.Listener.Addr().(*net.TCPAddr).Port)
-	instance, err := launcher.Start(launcher.Config{PatchFiles: []string{os.Getenv("RC2_PATCH")}, DSHCommand: []string{"node", "--expose-internals", os.Getenv("DSH_REAL_CLI")}, WorkingDir: filepath.Join(root, "workspace"), Environment: append(os.Environ(), "HOME="+filepath.Join(root, "home"), "DSH_HOME="+filepath.Join(root, "dsh"), "DSH_TELEMETRY_DISABLED=1"), PublicAuthority: authority, LogWriter: os.Stderr})
+	instance, err := launcher.Start(launcher.Config{PatchFiles: []string{os.Getenv("RC2_PATCH")}, DSHCommand: []string{"node", os.Getenv("DSH_REAL_CLI")}, WorkingDir: filepath.Join(root, "workspace"), Environment: append(os.Environ(), "HOME="+filepath.Join(root, "home"), "DSH_HOME="+filepath.Join(root, "dsh"), "DSH_TELEMETRY_DISABLED=1"), PublicAuthority: authority, LogWriter: os.Stderr})
 	if err != nil {
 		panic(err)
 	}

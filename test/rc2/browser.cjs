@@ -27,6 +27,9 @@ const rpc = (page, method, args) => page.evaluate(async ({ method, args }) => {
   try {
     const page = await browser.newPage({
       ignoreHTTPSErrors: true, locale: 'en-US',
+      // Context proxy policy overrides system proxy settings without changing the host.
+      // Only this fixture goes direct; other browser destinations have no proxy listener.
+      proxy: { server: 'http://127.0.0.1:9', bypass: new URL(url).hostname },
     })
     const errors = []
     page.on('pageerror', e => errors.push(e.message))

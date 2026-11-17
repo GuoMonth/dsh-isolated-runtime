@@ -66,9 +66,8 @@ func run() error {
 	}()
 
 	instance, err := launcher.StartContext(runCtx, launcher.Config{
-		// The official web profile uses the Node module loader's
-		// watch service and therefore requires Node's internal loader API.
-		DSHCommand:      []string{"/usr/local/bin/node", "--expose-internals", "/opt/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"},
+		// Launch the supported official web profile with plain Node.
+		DSHCommand:      []string{"/usr/local/bin/node", "/opt/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"},
 		PatchFiles:      []string{"/etc/dsh/environment.patch.yml"},
 		WorkingDir:      "/var/lib/dsh/data/workspace",
 		Environment:     os.Environ(),
