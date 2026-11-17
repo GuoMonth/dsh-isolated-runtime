@@ -45,7 +45,17 @@ test('DELETE sends UID/RV preconditions as a framed body, preserving next keep-a
           assert.equal(Number(req.headers['content-length']), body.length)
           received = JSON.parse(body)
         }
-        res.end(JSON.stringify({ metadata: { name: 'test' } }))
+        if (req.url === '/malformed') return res.end('{')
+        if (req.url === '/watch') {
+          return res.end(JSON.stringify({ type: 'MODIFIED', object: { metadata: {} } }) + '\n')
+        }
+        if (req.method === 'DELETE') return res.end(JSON.stringify({ apiVersion: 'v1', kind: 'Status', status: 'Success' }))
+        const encoded = Buffer.from(JSON.stringify({ apiVersion: 'v1', kind: 'Pod', metadata: {
+          name: 'test', uid: 'exact-writer', resourceVersion: '23', annotations: { text: '汉字' },
+        } }))
+        const offset = encoded.indexOf(Buffer.from('汉')) + 1
+        res.write(encoded.subarray(0, offset))
+        setImmediate(() => res.end(encoded.subarray(offset)))
       })
     },
   )
@@ -61,13 +71,24 @@ test('DELETE sends UID/RV preconditions as a framed body, preserving next keep-a
       kind: 'DeleteOptions',
       preconditions: { uid: 'exact-writer', resourceVersion: '23' },
     }
-    await api.call('DELETE', '/resource', AbortSignal.timeout(3000), body)
+    await api.remove('/resource', AbortSignal.timeout(3000), body)
     assert.deepEqual(received, body)
     assert.equal(
       (await api.call('GET', '/resource', AbortSignal.timeout(3000))).metadata
         .name,
       'test',
     )
+    assert.equal((await api.call('GET', '/resource', AbortSignal.timeout(3000))).metadata.annotations.text, '汉字')
+    await assert.rejects(api.call('POST', '/malformed', AbortSignal.timeout(3000), {}), (error) => {
+      assert.equal(error.submitted, true)
+      assert.ok(error.cause instanceof SyntaxError)
+      return true
+    })
+    await assert.rejects(api.terminal('/watch', 'exact-writer', AbortSignal.timeout(3000)), (error) => {
+      assert.equal(error.submitted, false)
+      assert.ok(error.cause)
+      return true
+    })
   } finally {
     server.closeAllConnections()
     await new Promise(r => server.close(r))

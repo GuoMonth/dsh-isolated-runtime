@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { identities } from './identity.ts'
 import type { EnvironmentIntent, EnvironmentRuntimeOptions } from './index.ts'
 export const annotation = 'environment.dsh.io/'
 export const group = 'agents.x-k8s.io/v1beta1'
@@ -13,7 +14,7 @@ export function coordinates(
     .update(intent.allocationKey)
     .digest('hex')
     .slice(0, 32)
-  const namespace = `${options.namespacePrefix}-${key}`
+  const namespace = identities.namespace(`${options.namespacePrefix}-${key}`)
   return { namespace, origin: `https://${key}.${options.domain}` }
 }
 export function ownership(intent: EnvironmentIntent) {

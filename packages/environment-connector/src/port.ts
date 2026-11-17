@@ -1,20 +1,21 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Duplex } from 'node:stream'
+import type { TenantId, PrincipalId, AllocationKey, EnvironmentNamespace, SandboxUID, PVCUID, ResourceVersion } from './identity.ts'
 
 export interface EnvironmentOwner {
-  readonly tenantId: string
-  readonly principalId: string
+  readonly tenantId: TenantId
+  readonly principalId: PrincipalId
 }
 /** Platform creates one allocation key per owner and never replaces an unknown write. */
 export interface EnvironmentIntent {
-  readonly allocationKey: string
+  readonly allocationKey: AllocationKey
   readonly owner: EnvironmentOwner
 }
 /** Exact bindings, opaque to platform routing. PVC has no Sandbox ownerReference. */
 export interface EnvironmentRef extends EnvironmentIntent {
-  readonly namespace: string
-  readonly sandbox: { readonly name: string; readonly uid: string }
-  readonly data: { readonly name: string; readonly uid: string }
+  readonly namespace: EnvironmentNamespace
+  readonly sandbox: { readonly name: string; readonly uid: SandboxUID }
+  readonly data: { readonly name: string; readonly uid: PVCUID }
 }
 export interface EnvironmentContext {
   readonly signal: AbortSignal
@@ -35,7 +36,7 @@ export interface EnvironmentRuntimeOptions {
     readonly size: string
     readonly storageClassName: string
   }
-  readonly resources: import('./template.js').EnvironmentTemplateOptions['resources']
+  readonly resources: import('./template.ts').EnvironmentTemplateOptions['resources']
   /** Platform namespace; fixed workload ingress admits only its platform-labelled pods. */
   readonly platformNamespace: string
 }
@@ -50,7 +51,7 @@ export type EnvironmentState =
 export interface EnvironmentView {
   readonly ref: EnvironmentRef
   /** API-server resourceVersion. Mutations compare both UID and this revision. */
-  readonly revision: string
+  readonly revision: ResourceVersion
   readonly state: EnvironmentState
   readonly origin: string
   readonly reason?: string
@@ -99,19 +100,19 @@ export interface AgentEnvironmentRuntime {
   /** Stops access first; Stopped requires positive termination proof for the exact writer. */
   stop(
     ref: EnvironmentRef,
-    revision: string,
+    revision: ResourceVersion,
     context: EnvironmentContext,
   ): Promise<EnvironmentMutation>
   /** Only a positively Stopped environment with the same PVC UID may start. */
   start(
     ref: EnvironmentRef,
-    revision: string,
+    revision: ResourceVersion,
     context: EnvironmentContext,
   ): Promise<EnvironmentMutation>
   /** Deletes runtime resources only, after verified stop; retains the sole data PVC. */
   delete(
     ref: EnvironmentRef,
-    revision: string,
+    revision: ResourceVersion,
     context: EnvironmentContext,
   ): Promise<EnvironmentDeletion>
 }
@@ -150,14 +151,14 @@ export interface EnvironmentFailure {
   readonly effect: 'not-submitted' | 'accepted' | 'unknown'
   readonly observedState: EnvironmentState | 'Missing' | 'unverified'
   readonly retry: 'never' | 'read-first'
-  readonly allocationKey: string
+  readonly allocationKey: AllocationKey | ''
   readonly correlationId: string
   readonly nextAction: string
 }
 /** Caller supplies redacted diagnostics, never raw Kubernetes responses or credentials. */
 export class EnvironmentError extends Error {
-  constructor(readonly failure: EnvironmentFailure) {
-    super(failure.code)
+  constructor(readonly failure: EnvironmentFailure, options?: ErrorOptions) {
+    super(failure.code, options)
     this.name = 'EnvironmentError'
   }
   toJSON(): EnvironmentFailure {

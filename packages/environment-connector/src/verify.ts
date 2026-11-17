@@ -10,6 +10,7 @@ import {
   serviceAccount,
 } from './resources.ts'
 import type { Resource } from './api.ts'
+import type { Endpoint } from './parse.ts'
 import type { EnvironmentRef, EnvironmentRuntimeOptions } from './index.ts'
 export class Mismatch extends Error {
   constructor(
@@ -22,7 +23,7 @@ export class Mismatch extends Error {
     super(code)
   }
 }
-const fail = (code: Mismatch['code']): never => {
+function fail(code: Mismatch['code']): never {
   throw new Mismatch(code)
 }
 export function own(
@@ -80,9 +81,10 @@ export function quantity(value: string): number {
     (suffix === '' ? 1 : (units[suffix] ?? 10 ** Number(suffix.slice(1))))
   )
 }
-function normalized(spec: any, live: boolean) {
+function normalized(spec: Resource['spec'], live: boolean) {
+  if (!spec) return undefined
   const result = structuredClone(spec)
-  const defaults: any = {
+  const defaults: Record<string, unknown> = {
     dnsPolicy: 'ClusterFirst',
     restartPolicy: 'Always',
     schedulerName: 'default-scheduler',
@@ -90,7 +92,7 @@ function normalized(spec: any, live: boolean) {
     preemptionPolicy: 'PreemptLowerPriority',
   }
   for (const [key, value] of Object.entries(defaults))
-    if (same(result[key], value)) delete result[key]
+    if (same(result[key], value)) Reflect.deleteProperty(result, key)
   if (live) {
     if (typeof result.nodeName === 'string') delete result.nodeName
     if (result.serviceAccount === result.serviceAccountName)
@@ -118,20 +120,18 @@ function normalized(spec: any, live: boolean) {
       delete c.terminationMessagePolicy
     for (const port of c.ports ?? [])
       if (port.protocol === 'TCP') delete port.protocol
-    for (const key of ['startupProbe', 'readinessProbe', 'livenessProbe'])
-      if (c[key]) {
-        const p = c[key]
-        p.timeoutSeconds ??= 1
-        p.successThreshold ??= 1
-        p.failureThreshold ??= 3
-        p.httpGet.scheme ??= 'HTTP'
-      }
-    for (const resource of Object.values(c.resources ?? {}) as Record<
-      string,
-      string
-    >[])
+    for (const key of ['startupProbe', 'readinessProbe', 'livenessProbe'] as const)
+    {
+      const p = c[key]
+      if (!p) continue
+      p.timeoutSeconds ??= 1
+      p.successThreshold ??= 1
+      p.failureThreshold ??= 3
+      p.httpGet.scheme ??= 'HTTP'
+    }
+    for (const resource of [c.resources?.requests, c.resources?.limits])
       for (const key of ['cpu', 'memory'])
-        if (resource[key]) resource[key] = String(quantity(resource[key]))
+        if (resource?.[key]) resource[key] = String(quantity(resource[key]))
   }
   return result
 }
@@ -181,18 +181,20 @@ export function verifyBase(
     sandbox.metadata.annotations?.[annotation + 'data-uid'] !== ref.data.uid
   )
     fail('StorageMismatch')
+  if (!pvc.spec) fail('StorageMismatch')
   if (
-    pvc.spec?.storageClassName !== options.storage.storageClassName ||
-    !same(pvc.spec?.accessModes, ['ReadWriteOnce']) ||
-    quantity(pvc.spec?.resources?.requests?.storage) !==
+    pvc.spec.storageClassName !== options.storage.storageClassName ||
+    !same(pvc.spec.accessModes, ['ReadWriteOnce']) ||
+    quantity(pvc.spec.resources?.requests?.storage ?? '') !==
       quantity(options.storage.size)
   )
     fail('StorageMismatch')
+  if (!sandbox.spec) fail('TemplateMismatch')
   const expected = templateFor(ref, options)
   if (
     sandbox.apiVersion !== group ||
     sandbox.kind !== 'Sandbox' ||
-    Object.keys(sandbox.spec ?? {}).some(
+    Object.keys(sandbox.spec).some(
       k =>
         !['operatingMode', 'podTemplate', 'service', 'shutdownPolicy'].includes(
           k,
@@ -200,7 +202,7 @@ export function verifyBase(
     ) ||
     sandbox.spec.service !== true ||
     sandbox.spec.shutdownPolicy !== 'Retain' ||
-    !['Running', 'Suspended'].includes(sandbox.spec.operatingMode) ||
+    !['Running', 'Suspended'].includes(sandbox.spec.operatingMode ?? '') ||
     !same(
       normalized(sandbox.spec.podTemplate?.spec, false),
       normalized(expected.spec, false),
@@ -262,12 +264,12 @@ export function readyTarget(
     !pod ||
     pod.metadata.deletionTimestamp ||
     pvc.status?.phase !== 'Bound' ||
-    !pvc.spec.volumeName
+    !pvc.spec?.volumeName
   )
     return null
   const ready = (r: Resource, current = false) =>
     r.status?.conditions?.some(
-      (c: any) =>
+      c =>
         c.type === 'Ready' &&
         c.status === 'True' &&
         (!current || c.observedGeneration === r.metadata.generation),
@@ -275,23 +277,24 @@ export function readyTarget(
   if (!ready(sandbox, true) || !ready(pod) || !isIP(pod.status?.podIP ?? ''))
     return null
   if (!service) return null
+  if (!service.spec) fail('TemplateMismatch')
   if (
     service.metadata.deletionTimestamp ||
     !controlled(service, 'Sandbox', ref.sandbox.name, ref.sandbox.uid, group) ||
-    service.spec?.type !== 'ClusterIP' ||
-    service.spec?.clusterIP !== 'None' ||
-    service.spec?.publishNotReadyAddresses === true ||
-    !same(service.spec?.selector, {
+    service.spec.type !== 'ClusterIP' ||
+    service.spec.clusterIP !== 'None' ||
+    service.spec.publishNotReadyAddresses === true ||
+    !same(service.spec.selector, {
       'agents.x-k8s.io/sandbox-name-hash':
         pod.metadata.labels?.['agents.x-k8s.io/sandbox-name-hash'],
     }) ||
-    !same(service.spec?.ports, [
+    !same(service.spec.ports, [
       { name: 'http', port: 8080, protocol: 'TCP', targetPort: 8080 },
       { name: 'management', port: 8081, protocol: 'TCP', targetPort: 8081 },
     ])
   )
     fail('TemplateMismatch')
-  const endpoints: any[] = []
+  const endpoints: Endpoint[] = []
   for (const slice of slices) {
     if (
       !controlled(
@@ -312,15 +315,16 @@ export function readyTarget(
   if (!endpoints.length) return null
   if (endpoints.length !== 1) fail('TemplateMismatch')
   const e = endpoints[0]
+  if (!e?.targetRef) fail('TemplateMismatch')
   if (
-    e.targetRef?.uid !== pod.metadata.uid ||
-    e.targetRef?.name !== pod.metadata.name ||
-    e.targetRef?.namespace !== ref.namespace ||
-    e.targetRef?.kind !== 'Pod' ||
-    !same(e.addresses, [pod.status.podIP])
+    e.targetRef.uid !== pod.metadata.uid ||
+    e.targetRef.name !== pod.metadata.name ||
+    e.targetRef.namespace !== ref.namespace ||
+    e.targetRef.kind !== 'Pod' ||
+    !same(e.addresses, [pod.status?.podIP])
   )
     fail('TemplateMismatch')
-  return e.conditions?.ready === true && e.conditions?.terminating !== true
-    ? pod.status.podIP
+  return e.conditions?.ready === true && e.conditions.terminating !== true
+    ? pod.status?.podIP ?? null
     : null
 }
