@@ -25,6 +25,8 @@ TypeScript and JavaScript use two spaces, single quotes, no statement-ending sem
 
 `make docs-check` checks paths, anchors, paired languages and command/version agreement. Set `DSH_PLATFORM_DOCS` and `DSH_RUNTIME_DOCS` to paired checkouts for cross-repository links. Technical harness READMEs are English; public guides have both languages.
 
+Identity roles are distinct TypeScript types: owner tenant/principal, allocation, namespace, Sandbox/PVC/Pod UID and resource revision. Admit external values through the exported parsers; keep exact strings. Kubernetes JSON and watch events are parsed before use, preserving unknown fields for exact template comparisons. Incomplete lists cannot establish absence. Transport and domain errors retain internal causes; public diagnostics expose only the fixed contract. A failed write response does not authorize replay.
+
 The launcher reaps its child, closes proxy transports and owns hijacked connections. Every goroutine needs an owner and exit condition. Forced SIGKILL is not a successful environment stop. Go tests use the race detector and goleak; optional pprof captures stay private.
 
 Real Kubernetes lifecycle/volume/network checks use [test/environment](../../test/environment/README.md). Browser and upstream package smoke use [test/rc2](../../test/rc2/README.md); [compat/dsh](../../compat/dsh/README.md) describes the exact DSH baseline and native settings behavior. Use disposable fixtures and one cluster write owner. Model/tool authorization, OIDC and two-user acceptance use the [platform](https://github.com/GuoMonth/dsh-multi-tenant) harness.

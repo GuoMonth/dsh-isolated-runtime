@@ -1,3 +1,4 @@
+import { identities, type ResourceVersion, type SandboxUID } from './identity.ts'
 import { setTimeout as delay } from 'node:timers/promises'
 import { API, APIError, isTerminal, type Resource } from './api.ts'
 import {
@@ -21,6 +22,7 @@ import {
   verifyPod,
 } from './verify.ts'
 import { connector } from './proxy.ts'
+import { parseAllocationIdentity, parseEnvironmentRef, parseEnvironmentRuntimeOptions } from './parse.ts'
 import {
   EnvironmentError,
   type AgentEnvironmentRuntime,
@@ -57,15 +59,15 @@ const validName = (s: string) => /^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$/.test(s)
 export function createAgentEnvironmentRuntime(
   input: EnvironmentRuntimeOptions,
 ): AgentEnvironmentRuntime {
-  const options = structuredClone(input)
-  const connections = new Map<string, Set<AbortController>>()
+  const connections = new Map<SandboxUID, Set<AbortController>>()
   const error = (
     code: EnvironmentErrorCode,
     ctx: EnvironmentContext,
-    intent: EnvironmentIntent,
+    intent: Pick<EnvironmentFailure, 'allocationKey'>,
     stage: EnvironmentFailure['stage'],
     effect: EnvironmentFailure['effect'] = 'not-submitted',
     state: EnvironmentFailure['observedState'] = 'unverified',
+    cause?: unknown,
   ) =>
     new EnvironmentError({
       code,
@@ -90,8 +92,8 @@ export function createAgentEnvironmentRuntime(
         effect === 'unknown'
           ? 'Inspect the original allocation and exact UIDs before any further operation; never allocate another key'
           : 'Inspect the exact Sandbox, PVC and Pod events; resolve the reported condition before an explicit new request',
-    })
-  const invalid = () =>
+    }, { cause })
+  const invalid = (cause?: unknown) =>
     new EnvironmentError({
       code: 'InvalidConfiguration',
       stage: 'configuration',
@@ -102,7 +104,13 @@ export function createAgentEnvironmentRuntime(
       correlationId: 'configuration',
       nextAction:
         'Provide the fixed image digest, native resources, one storage size, namespace prefix and Kubernetes credentials',
-    })
+    }, { cause })
+  let options: EnvironmentRuntimeOptions
+  try {
+    options = parseEnvironmentRuntimeOptions(input)
+  } catch (cause) {
+    throw invalid(cause)
+  }
   if (
     !validName(options.namespacePrefix) ||
     options.namespacePrefix.length > 24 ||
@@ -126,51 +134,34 @@ export function createAgentEnvironmentRuntime(
   try {
     templateFor(
       {
-        allocationKey: 'configuration',
-        owner: { tenantId: 'configuration', principalId: 'configuration' },
-        namespace: 'configuration',
-        sandbox: { name: sandboxName, uid: 'configuration' },
-        data: { name: dataName, uid: 'configuration' },
+        allocationKey: identities.allocationKey('configuration'),
+        owner: { tenantId: identities.tenantId('configuration'), principalId: identities.principalId('configuration') },
+        namespace: identities.namespace('configuration'),
+        sandbox: { name: sandboxName, uid: identities.sandboxUID('configuration') },
+        data: { name: dataName, uid: identities.pvcUID('configuration') },
       },
       options,
     )
-  } catch {
-    throw invalid()
+  } catch (cause) {
+    throw invalid(cause)
   }
   let api: API
   try {
     api = new API(options.kubernetes)
-  } catch {
-    throw invalid()
-  }
-  function intentOK(intent: EnvironmentIntent, ctx: EnvironmentContext) {
-    if (
-      !intent ||
-      typeof intent.allocationKey !== 'string' ||
-      !intent.allocationKey ||
-      intent.allocationKey.length > 256 ||
-      !intent.owner ||
-      ![intent.owner.tenantId, intent.owner.principalId].every(
-        x => typeof x === 'string' && x.length > 0 && x.length <= 256,
-      )
-    )
-      throw error(
-        'InvalidConfiguration',
-        ctx,
-        intent ?? {
-          allocationKey: '',
-          owner: { tenantId: '', principalId: '' },
-        },
-        'configuration',
-      )
+  } catch (cause) {
+    throw invalid(cause)
   }
   function refOK(ref: EnvironmentRef, ctx: EnvironmentContext) {
-    intentOK(ref, ctx)
+    try {
+      parseEnvironmentRef(ref)
+    } catch (cause) {
+      throw error('StaleInstance', ctx, ref, 'inspect', 'not-submitted', 'unverified', cause)
+    }
     if (
       ref.namespace !== coordinates(ref, options).namespace ||
-      ref.sandbox?.name !== sandboxName ||
+      ref.sandbox.name !== sandboxName ||
       !ref.sandbox.uid ||
-      ref.data?.name !== dataName ||
+      ref.data.name !== dataName ||
       !ref.data.uid
     )
       throw error('StaleInstance', ctx, ref, 'inspect')
@@ -181,22 +172,26 @@ export function createAgentEnvironmentRuntime(
     ctx: EnvironmentContext,
     fn: (accepted: () => void) => Promise<T>,
   ): Promise<T> {
-    intentOK(intent, ctx)
-    let accepted = false
+    const submission = { accepted: false }
     try {
       ctx.signal.throwIfAborted()
+      try {
+        parseAllocationIdentity(intent)
+      } catch (cause) {
+        throw error('InvalidConfiguration', ctx, { allocationKey: '' }, 'configuration', 'not-submitted', 'unverified', cause)
+      }
       return await fn(() => {
-        accepted = true
+        submission.accepted = true
       })
     } catch (e) {
       if (e instanceof EnvironmentError) {
-        if (accepted && e.failure.effect === 'not-submitted')
+        if (submission.accepted && e.failure.effect === 'not-submitted')
           throw new EnvironmentError({
             ...e.failure,
             stage,
             effect: 'accepted',
             retry: 'read-first',
-          })
+          }, { cause: e })
         throw e
       }
       if (e instanceof Mismatch)
@@ -205,7 +200,9 @@ export function createAgentEnvironmentRuntime(
           ctx,
           intent,
           stage,
-          accepted ? 'accepted' : 'not-submitted',
+          submission.accepted ? 'accepted' : 'not-submitted',
+          'unverified',
+          e,
         )
       const unknown =
         e instanceof APIError &&
@@ -238,7 +235,9 @@ export function createAgentEnvironmentRuntime(
         ctx,
         intent,
         stage,
-        unknown ? 'unknown' : accepted ? 'accepted' : 'not-submitted',
+        unknown ? 'unknown' : submission.accepted ? 'accepted' : 'not-submitted',
+        'unverified',
+        e,
       )
     }
   }
@@ -246,10 +245,11 @@ export function createAgentEnvironmentRuntime(
     sb: Resource,
     ctx: EnvironmentContext,
     changes: unknown[],
-  ) =>
-    api.call(
+  ) => {
+    if (!sb.metadata.namespace) throw new Mismatch('StaleInstance')
+    return api.call(
       'PATCH',
-      `${sbPath(sb.metadata.namespace!)}/${sb.metadata.name}`,
+      `${sbPath(sb.metadata.namespace)}/${sb.metadata.name}`,
       ctx.signal,
       [
         { op: 'test', path: '/metadata/uid', value: sb.metadata.uid },
@@ -261,12 +261,13 @@ export function createAgentEnvironmentRuntime(
         ...changes,
       ],
     )
+  }
   const add = (key: string, value: string) => ({
     op: 'add',
     path: '/metadata/annotations/' + (annotation + key).replace(/\//g, '~1'),
     value,
   })
-  const revoke = (uid: string) => {
+  const revoke = (uid: SandboxUID) => {
     for (const c of connections.get(uid) ?? []) c.abort()
     connections.delete(uid)
   }
@@ -284,10 +285,9 @@ export function createAgentEnvironmentRuntime(
           ctx.signal,
         ),
         api.call('GET', `${policyPath(ref.namespace)}/workload`, ctx.signal),
-        api.call('GET', `${root}/pods`, ctx.signal),
+        api.list(`${root}/pods`, ctx.signal),
         api.maybe(`${root}/services/${sandboxName}`, ctx.signal),
-        api.call(
-          'GET',
+        api.list(
           `/apis/discovery.k8s.io/v1/namespaces/${ref.namespace}/endpointslices?labelSelector=kubernetes.io%2Fservice-name%3D${sandboxName}`,
           ctx.signal,
         ),
@@ -295,8 +295,8 @@ export function createAgentEnvironmentRuntime(
     if (!pvc) throw error('StorageMismatch', ctx, ref, 'inspect')
     verifyBase(ref, options, namespace, sb, pvc)
     verifyAncillary(ref, options, sa, policy)
-    const pods = podList.items ?? [],
-      slices = sliceList.items ?? []
+    const pods = podList.items,
+      slices = sliceList.items
     for (const pod of pods) verifyPod(pod, ref, options)
     let state: EnvironmentView['state'] = 'Pending',
       address: string | null = null
@@ -310,19 +310,19 @@ export function createAgentEnvironmentRuntime(
       state =
         proof &&
         pods.length === 0 &&
-        sb.spec.operatingMode === 'Suspended' &&
+        sb.spec?.operatingMode === 'Suspended' &&
         sb.status?.conditions?.some(
-          (c: any) =>
+          c =>
             c.type === 'Suspended' &&
             c.status === 'True' &&
             c.observedGeneration === sb.metadata.generation,
         ) &&
         !slices.some(s =>
-          (s.endpoints ?? []).some((e: any) => e.conditions?.ready === true),
+          (s.endpoints ?? []).some(e => e.conditions?.ready === true),
         )
           ? 'Stopped'
           : 'StopUnverified'
-    } else if (phase === 'running' && sb.spec.operatingMode === 'Running') {
+    } else if (phase === 'running' && sb.spec?.operatingMode === 'Running') {
       address = readyTarget(ref, options, sb, pvc, pods, service, slices)
       if (address) state = 'Ready'
       else if (pods.some(p => p.status?.phase === 'Failed'))
@@ -384,8 +384,8 @@ export function createAgentEnvironmentRuntime(
         {
           ...intent,
           namespace,
-          sandbox: { name: sandboxName, uid: sb.metadata.uid },
-          data: { name: dataName, uid },
+          sandbox: { name: sandboxName, uid: identities.sandboxUID(sb.metadata.uid) },
+          data: { name: dataName, uid: identities.pvcUID(uid) },
         },
         ctx,
       )
@@ -436,8 +436,8 @@ export function createAgentEnvironmentRuntime(
             {
               ...intent,
               namespace,
-              sandbox: { name: sandboxName, uid: 'pending' },
-              data: { name: dataName, uid: 'pending' },
+              sandbox: { name: sandboxName, uid: identities.sandboxUID('pending') },
+              data: { name: dataName, uid: identities.pvcUID('pending') },
             },
             options,
           ),
@@ -508,8 +508,8 @@ export function createAgentEnvironmentRuntime(
           {
             ...intent,
             namespace,
-            sandbox: { name: sandboxName, uid: sb.metadata.uid },
-            data: { name: dataName, uid: pvc.metadata.uid },
+            sandbox: { name: sandboxName, uid: identities.sandboxUID(sb.metadata.uid) },
+            data: { name: dataName, uid: identities.pvcUID(pvc.metadata.uid) },
           },
           ctx,
         )
@@ -533,9 +533,9 @@ export function createAgentEnvironmentRuntime(
     if (
       node.metadata.deletionTimestamp ||
       !node.status?.conditions?.some(
-        (c: any) => c.type === 'Ready' && c.status === 'True',
+        c => c.type === 'Ready' && c.status === 'True',
       ) ||
-      node.spec?.taints?.some((t: any) =>
+      node.spec?.taints?.some(t =>
         [
           'node.kubernetes.io/not-ready',
           'node.kubernetes.io/unreachable',
@@ -553,7 +553,7 @@ export function createAgentEnvironmentRuntime(
   }
   async function stop(
     ref: EnvironmentRef,
-    revision: string,
+    revision: ResourceVersion,
     ctx: EnvironmentContext,
   ) {
     return execute('stop', ref, ctx, async (accepted) => {
@@ -579,11 +579,12 @@ export function createAgentEnvironmentRuntime(
       accepted()
       try {
         if (!pod) throw new Error('No positive writer identity')
+        const writerUID = identities.podUID(pod.metadata.uid)
         const nodeUID = await healthyWriter(pod, ctx)
-        if (!isTerminal(pod, pod.metadata.uid))
+        if (!isTerminal(pod, writerUID))
           await api.terminal(
             `${nsPath(ref.namespace)}/pods?watch=true&fieldSelector=metadata.name%3D${encodeURIComponent(pod.metadata.name)}&resourceVersion=${encodeURIComponent(watchRevision)}&timeoutSeconds=50`,
-            pod.metadata.uid,
+            writerUID,
             ctx.signal,
           )
         const deadline = Date.now() + 15_000
@@ -591,9 +592,9 @@ export function createAgentEnvironmentRuntime(
           current = await read(ref, ctx)
           if (
             current.pods.length === 0 &&
-            current.sb.spec.operatingMode === 'Suspended' &&
+            current.sb.spec?.operatingMode === 'Suspended' &&
             current.sb.status?.conditions?.some(
-              (c: any) =>
+              c =>
                 c.type === 'Suspended' &&
                 c.status === 'True' &&
                 c.observedGeneration === current.sb.metadata.generation,
@@ -607,14 +608,15 @@ export function createAgentEnvironmentRuntime(
           throw new Error('Writer node replaced')
         await patch(current.sb, ctx, [
           add('phase', 'stopped'),
-          add('terminal-uid', pod.metadata.uid),
+          add('terminal-uid', writerUID),
         ])
         const result = await read(ref, ctx)
         if (result.view.state !== 'Stopped')
           throw new Error('Stop still unverified')
         return { view: result.view, effect: 'accepted' as const }
-      } catch {
+      } catch (cause) {
         // Best effort diagnostic only; the durable stopping gate already denies start.
+        let failure = cause
         try {
           const latest = await api.call(
             'GET',
@@ -628,7 +630,9 @@ export function createAgentEnvironmentRuntime(
             await patch(latest, { ...ctx, signal: AbortSignal.timeout(3000) }, [
               add('phase', 'unverified'),
             ])
-        } catch {}
+        } catch (diagnosticCause) {
+          failure = new AggregateError([cause, diagnosticCause], 'Stop proof and diagnostic update failed')
+        }
         throw error(
           'StopUnverified',
           ctx,
@@ -636,13 +640,14 @@ export function createAgentEnvironmentRuntime(
           'stop',
           'accepted',
           'StopUnverified',
+          failure,
         )
       }
     })
   }
   async function start(
     ref: EnvironmentRef,
-    revision: string,
+    revision: ResourceVersion,
     ctx: EnvironmentContext,
   ) {
     return execute('start', ref, ctx, async (accepted) => {
@@ -658,7 +663,7 @@ export function createAgentEnvironmentRuntime(
           'not-submitted',
           current.view.state,
         )
-      if (current.pvc.status?.phase !== 'Bound' || !current.pvc.spec.volumeName)
+      if (current.pvc.status?.phase !== 'Bound' || !current.pvc.spec?.volumeName)
         throw error('StorageMismatch', ctx, ref, 'start')
       await patch(current.sb, ctx, [
         add('phase', 'running'),
@@ -676,7 +681,7 @@ export function createAgentEnvironmentRuntime(
   }
   async function remove(
     ref: EnvironmentRef,
-    revision: string,
+    revision: ResourceVersion,
     ctx: EnvironmentContext,
   ) {
     return execute('delete', ref, ctx, async (accepted) => {
@@ -697,12 +702,11 @@ export function createAgentEnvironmentRuntime(
         if (!pvc || pvc.metadata.uid !== ref.data.uid)
           throw error('StorageMismatch', ctx, ref, 'delete')
         own(pvc, ref)
-        const pods = await api.call(
-          'GET',
+        const pods = await api.list(
           `${nsPath(ref.namespace)}/pods`,
           ctx.signal,
         )
-        if (a(ns, 'deleted-uid') !== ref.sandbox.uid || pods.items?.length)
+        if (a(ns, 'deleted-uid') !== ref.sandbox.uid || pods.items.length)
           throw error('StaleInstance', ctx, ref, 'delete')
         return {
           ref,
@@ -765,8 +769,7 @@ export function createAgentEnvironmentRuntime(
         },
         add('deleted-uid', ref.sandbox.uid),
       ])
-      await api.call(
-        'DELETE',
+      await api.remove(
         `${sbPath(ref.namespace)}/${sandboxName}`,
         ctx.signal,
         {

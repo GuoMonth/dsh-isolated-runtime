@@ -25,6 +25,8 @@ TypeScript 和 JavaScript 使用两空格、单引号、无语句末尾分号，
 
 `make docs-check` 检查路径、锚点、双语配对以及命令和版本一致性。跨仓链接检查使用 `DSH_PLATFORM_DOCS` 和 `DSH_RUNTIME_DOCS` 指定配套 checkout。技术 harness 的 README 使用英文，公开指南提供双语。
 
+身份按角色使用独立 TypeScript 类型：owner 的 tenant/principal、allocation、namespace、Sandbox/PVC/Pod UID 和资源修订号。外部值先经过导出的解析器，保留精确字符串。Kubernetes JSON 和 watch 事件在使用前解析，保留未知字段供精确模板比较；不完整列表不能证明资源不存在。传输和领域错误保留内部 cause，对外诊断只输出固定契约；写响应失败不代表允许重放。
+
 launcher 回收子进程、关闭代理传输并负责已接管连接。每个 goroutine 都需要归属和退出条件，强制 SIGKILL 不算成功停止环境。Go 测试使用 race detector 和 goleak；可选 pprof 采集保存在私有目录。
 
 真实 Kubernetes 生命周期、卷和网络检查使用 [test/environment](../../test/environment/README.md)。浏览器和上游包 smoke 使用 [test/rc2](../../test/rc2/README.md)；[compat/dsh](../../compat/dsh/README.md) 说明精确 DSH 基线与原生设置行为。使用一次性 fixture，同一集群仅一个写入负责人。模型/工具授权、OIDC 和双用户验收使用[平台](https://github.com/GuoMonth/dsh-multi-tenant) harness。

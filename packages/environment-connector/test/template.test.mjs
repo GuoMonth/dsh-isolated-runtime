@@ -47,4 +47,7 @@ test('unknown create is structured, does not imply safe retry', () => {
     nextAction: 'Inspect the same allocation; do not create another key',
   }
   assert.deepEqual(new EnvironmentError(failure).toJSON(), failure)
+  const error = new EnvironmentError({ ...failure, privateResponse: 'credential-marker' }, { cause: new Error('credential-marker') })
+  assert.deepEqual(error.toJSON(), failure)
+  assert.equal(JSON.stringify(error).includes('credential-marker'), false)
 })
