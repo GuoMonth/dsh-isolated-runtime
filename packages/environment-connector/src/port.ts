@@ -162,6 +162,7 @@ export class EnvironmentError extends Error {
     this.name = 'EnvironmentError'
   }
   toJSON(): EnvironmentFailure {
-    return { ...this.failure }
+    const { code, stage, effect, observedState, retry, allocationKey, correlationId, nextAction } = this.failure
+    return { code, stage, effect, observedState, retry, allocationKey, correlationId, nextAction }
   }
 }

@@ -30,6 +30,8 @@ export const runtimeOptionsSchema = z.strictObject({
 
 export const parseEnvironmentOwner = (value: unknown) => ownerSchema.parse(value)
 export const parseEnvironmentIntent = (value: unknown) => intentSchema.parse(value)
+// Runtime operations also receive a full ref/binding; admit only its allocation identity here.
+export const parseAllocationIdentity = (value: unknown) => z.object(intentSchema.shape).parse(value)
 export const parseEnvironmentRef = (value: unknown) => refSchema.parse(value)
 export const parseEnvironmentRuntimeOptions = (value: unknown) => runtimeOptionsSchema.parse(value)
 

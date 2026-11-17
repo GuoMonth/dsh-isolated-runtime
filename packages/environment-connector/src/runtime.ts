@@ -22,7 +22,7 @@ import {
   verifyPod,
 } from './verify.ts'
 import { connector } from './proxy.ts'
-import { parseEnvironmentRuntimeOptions } from './parse.ts'
+import { parseAllocationIdentity, parseEnvironmentRef, parseEnvironmentRuntimeOptions } from './parse.ts'
 import {
   EnvironmentError,
   type AgentEnvironmentRuntime,
@@ -63,7 +63,7 @@ export function createAgentEnvironmentRuntime(
   const error = (
     code: EnvironmentErrorCode,
     ctx: EnvironmentContext,
-    intent: EnvironmentIntent,
+    intent: Pick<EnvironmentFailure, 'allocationKey'>,
     stage: EnvironmentFailure['stage'],
     effect: EnvironmentFailure['effect'] = 'not-submitted',
     state: EnvironmentFailure['observedState'] = 'unverified',
@@ -152,6 +152,11 @@ export function createAgentEnvironmentRuntime(
     throw invalid(cause)
   }
   function refOK(ref: EnvironmentRef, ctx: EnvironmentContext) {
+    try {
+      parseEnvironmentRef(ref)
+    } catch (cause) {
+      throw error('StaleInstance', ctx, ref, 'inspect', 'not-submitted', 'unverified', cause)
+    }
     if (
       ref.namespace !== coordinates(ref, options).namespace ||
       ref.sandbox.name !== sandboxName ||
@@ -170,6 +175,11 @@ export function createAgentEnvironmentRuntime(
     const submission = { accepted: false }
     try {
       ctx.signal.throwIfAborted()
+      try {
+        parseAllocationIdentity(intent)
+      } catch (cause) {
+        throw error('InvalidConfiguration', ctx, { allocationKey: '' }, 'configuration', 'not-submitted', 'unverified', cause)
+      }
       return await fn(() => {
         submission.accepted = true
       })

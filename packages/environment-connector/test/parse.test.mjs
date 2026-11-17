@@ -40,6 +40,17 @@ test('malformed submitted write retains cause and unknown outcome without replay
     return true
   })
   assert.equal(writes, 1)
+  for (const invalid of [null, { allocationKey: '', owner: { tenantId: 'tenant', principalId: 'alice' } },
+    { allocationKey: 'key', owner: { tenantId: 42, principalId: 'alice' } }]) {
+    await assert.rejects(runtime.create(invalid, { correlationId: 'invalid', signal: AbortSignal.timeout(3000) }), (error) => {
+      assert.equal(error.failure.code, 'InvalidConfiguration')
+      assert.equal(error.failure.effect, 'not-submitted')
+      assert.equal(error.failure.correlationId, 'invalid')
+      assert.ok(error.cause)
+      return true
+    })
+  }
+  assert.equal(writes, 1)
 })
 
 test('external resource parsing preserves unexpected privileges for template rejection', () => {
