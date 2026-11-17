@@ -7,4 +7,5 @@ cd "$repo_root"
 npm ci --prefix images/environment --omit=dev --no-audit --no-fund
 DSH_REAL_CLI="$repo_root/images/environment/node_modules/@deepseek-ai/dsh/lib/bin.js"
 export DSH_REAL_CLI
-go test ./compat/dsh ./cmd/environment-launcher ./internal/dshcompat/launcher -count=1
+go test -race -timeout 3m ./compat/dsh ./cmd/environment-launcher ./internal/dshcompat/launcher -count=1
+node --test compat/dsh/sdk-security.test.mjs

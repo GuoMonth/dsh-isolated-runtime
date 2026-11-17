@@ -21,6 +21,12 @@ The only deployment overlay sets `workspace-controller.documentsDirectory` to th
 
 The launcher retains a narrow cookie adapter: official browser authentication still emits `SameSite=Strict` and exposes no SameSite configuration. An external OIDC redirect chain needs `Lax` for safe top-level navigation. The proxy adds `Secure` for the platform's HTTPS entry, while cookie values, signatures, authority checks and authentication remain native. It does not reconstruct upstream authentication. Keep the native token process-local, preserve Host/Origin, and reject unauthorized or foreign-authority requests.
 
+## SDK security updates
+
+All official DSH packages and their source/integrity pin remain at RC3. The workload manifest adds three exact transitive security overrides, reproduced by its npm lockfile: MCP client 2.4.0 ([cross-origin redirect credentials](https://github.com/advisories/GHSA-6prh-2h8m-c8cw)), Undici 8.12.4 ([TLS validation and related fixes](https://github.com/advisories/GHSA-2m5v-pch6-74hx)) and fflate 0.8.3 ([malformed ZIP64 loop](https://github.com/advisories/GHSA-px8p-9vwx-vf98)). This updates dependencies without patching DSH source or reimplementing their protocols. Reassess these overrides when adopting a newer official release.
+
+`make security` audits both Node closures and Go application/test dependencies; network/database errors fail the gate. The native gate checks every nested SDK copy against the security pins, then runs same-origin MCP RPC and a real two-origin redirect rejection fixture with synthetic headers. Browser and volume checks validate this modified workload closure separately from upstream package identity.
+
 ## Verify the exact distribution
 
 ```sh
@@ -28,6 +34,6 @@ make verify
 make verify-dsh
 ```
 
-The native gate consumes the committed npm closure and starts the real web profile without model calls. PR CI runs it on Node 24 when DSH integration inputs change. Browser settings, Session and WebSocket checks use [test/rc2](../../test/rc2/README.md); Linux workload checks use [test/environment](../../test/environment/README.md). Platform authorization and real provider acceptance have separate harnesses.
+The native gate consumes the committed npm closure and starts the real web profile without model calls. PR CI runs it on Node 24.9, 24 and 26 when DSH integration inputs change. Browser settings, Session and WebSocket checks use [test/rc2](../../test/rc2/README.md); Linux workload checks use [test/environment](../../test/environment/README.md). Platform authorization and real provider acceptance have separate harnesses.
 
 Fresh installation and same-version restart are distinct from old-data migration. Keep upstream Session generations and storage unchanged; this candidate does not establish an in-place upgrade or downgrade path. A successful SIGTERM exit is not a durable flush acknowledgement. The [runtime contract](../../docs/en/contract.md) retains those boundaries.

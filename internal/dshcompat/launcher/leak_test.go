@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/goleak"
+	"github.com/GuoMonth/dsh-isolated-runtime/internal/testutil/leakcheck"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	leakcheck.VerifyTestMain(m)
 }
 
 func TestStartCancellationAndRepeatedClose(t *testing.T) {

@@ -109,7 +109,7 @@ func TestLauncherBrokersDSHWithoutLeakingItsToken(t *testing.T) {
 	if strings.Contains(exchange.Header.Get("Location"), "token=") {
 		t.Fatal("launch token leaked into redirect")
 	}
-	cookie := strings.SplitN(setCookie, ";", 2)[0]
+	cookie, _, _ := strings.Cut(setCookie, ";")
 	_ = exchange.Body.Close()
 	secondExchange := request(t, client, http.MethodGet, instance.URL+"/", "", nil)
 	if secondExchange.StatusCode != http.StatusSeeOther || secondExchange.Header.Get("Set-Cookie") == "" {
@@ -286,6 +286,34 @@ func TestLauncherReadinessTimeoutStopsDSH(t *testing.T) {
 	}
 }
 
+func TestChildExitDrainsBothOutputStreams(t *testing.T) {
+	var logs lockedBuffer
+	instance, err := StartContext(t.Context(), Config{
+		DSHCommand:      []string{os.Args[0], "-test.run=TestDSHHelperProcess", "--"},
+		Environment:     append(os.Environ(), "GO_WANT_DSH_HELPER=1", "DSH_HELPER_CRASH_AFTER_READY=1", "DSH_HELPER_FINAL_OUTPUT=1"),
+		PublicAuthority: "cell.test",
+		ReadyTimeout:    5 * time.Second,
+		ShutdownTimeout: 5 * time.Second,
+		LogWriter:       &logs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-instance.Done()
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	if err := instance.Close(ctx); err == nil {
+		t.Fatal("unexpected child exit must remain an error")
+	}
+	output := logs.String()
+	if strings.Count(output, "final stdout") != 1024 || strings.Count(output, "final stderr") != 1024 {
+		t.Fatal("child exit lost output before both streams reached EOF")
+	}
+	if strings.Contains(output, helperToken) {
+		t.Fatal("final output leaked a launch token")
+	}
+}
+
 func TestCloseBoundsHijackedConnectionsBeforeStoppingDSH(t *testing.T) {
 	t.Parallel()
 	instance, err := Start(Config{
@@ -301,7 +329,7 @@ func TestCloseBoundsHijackedConnectionsBeforeStoppingDSH(t *testing.T) {
 
 	client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 	exchange := request(t, client, http.MethodGet, instance.URL+"/", "", nil)
-	cookie := strings.SplitN(exchange.Header.Get("Set-Cookie"), ";", 2)[0]
+	cookie, _, _ := strings.Cut(exchange.Header.Get("Set-Cookie"), ";")
 	_ = exchange.Body.Close()
 	parsed, err := url.Parse(instance.URL)
 	if err != nil {
@@ -418,6 +446,12 @@ func TestDSHHelperProcess(t *testing.T) {
 	}
 	if os.Getenv("DSH_HELPER_CRASH_AFTER_READY") == "1" {
 		time.Sleep(100 * time.Millisecond)
+		if os.Getenv("DSH_HELPER_FINAL_OUTPUT") == "1" {
+			for index := range 1024 {
+				_, _ = fmt.Fprintf(os.Stdout, "final stdout %d token=?token=%s\n", index, helperToken)
+				_, _ = fmt.Fprintf(os.Stderr, "final stderr %d token=?token=%s\n", index, helperToken)
+			}
+		}
 		os.Exit(23)
 	}
 

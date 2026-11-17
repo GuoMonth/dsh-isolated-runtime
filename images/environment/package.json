@@ -2,6 +2,11 @@
   "dependencies": {
     "@deepseek-ai/dsh": "0.2.2-rc.3"
   },
+  "overrides": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "fflate": "0.8.3",
+    "undici": "8.12.4"
+  },
   "allowScripts": {
     "koffi@3.1.1": true,
     "node-pty@1.2.0-beta.15": true,

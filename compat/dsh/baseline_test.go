@@ -3,6 +3,7 @@ package dsh
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"os"
 	"strings"
 	"testing"
@@ -60,6 +61,7 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	}
 	var manifest struct {
 		Dependencies map[string]string `json:"dependencies"`
+		Overrides    map[string]string `json:"overrides"`
 		AllowScripts map[string]bool   `json:"allowScripts"`
 	}
 	manifestData, err := os.ReadFile("../../images/environment/package.json")
@@ -75,6 +77,24 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	for name, dependency := range lock.Packages {
 		if strings.HasPrefix(name, "node_modules/@deepseek-ai/dsh-") && !strings.Contains(strings.TrimPrefix(name, "node_modules/"), "/node_modules/") && dependency.Version != wantVersion {
 			t.Errorf("official package closure differs from the DSH pin: %s at %s", name, dependency.Version)
+		}
+	}
+	wantOverrides := map[string]string{
+		"@modelcontextprotocol/client": "2.4.0",
+		"fflate":                       "0.8.3",
+		"undici":                       "8.12.4",
+	}
+	if !maps.Equal(manifest.Overrides, wantOverrides) {
+		t.Fatal("only the reviewed SDK security overrides are allowed")
+	}
+	for name, version := range wantOverrides {
+		if lock.Packages["node_modules/"+name].Version != version {
+			t.Errorf("security override absent from the lockfile: %s", name)
+		}
+		for path, dependency := range lock.Packages {
+			if strings.HasSuffix(path, "/node_modules/"+name) && dependency.Version != version {
+				t.Errorf("unpatched nested SDK: %s at %s", path, dependency.Version)
+			}
 		}
 	}
 	if !manifest.AllowScripts["@deepseek-ai/dsh-subprocess-local@"+wantVersion] {

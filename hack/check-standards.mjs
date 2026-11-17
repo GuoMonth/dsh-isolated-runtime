@@ -9,6 +9,9 @@ const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclud
   encoding: 'utf8',
 }).split('\0').filter(Boolean)
 const errors = []
+const goVersion = fs.readFileSync('go.mod', 'utf8').match(/^go (\d+\.\d+\.\d+)$/m)?.[1]
+if (!goVersion || !fs.readFileSync('images/environment/Dockerfile', 'utf8').includes(`golang:${goVersion}-bookworm@sha256:`))
+  errors.push('The launcher builder must pin the go.mod Go version and an image digest')
 for (const file of files) {
   if (!fs.existsSync(file) || !fs.lstatSync(file).isFile())
     continue
