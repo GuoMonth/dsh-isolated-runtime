@@ -1,6 +1,7 @@
 import { request } from 'node:https'
 import { readFile } from 'node:fs/promises'
 import type { EnvironmentRuntimeOptions } from './index.ts'
+import type { PodUID } from './identity.ts'
 import { parseResource, parseResourceList, parseDeletion, parseWatchEvent, type Resource } from './parse.ts'
 export type { Resource } from './parse.ts'
 export class APIError extends Error {
@@ -127,7 +128,7 @@ export class API {
   /** A single bounded watch from the pre-stop Pod list RV, never an infinite reconnect. */
   async terminal(
     path: string,
-    uid: string,
+    uid: PodUID,
     signal: AbortSignal,
   ): Promise<void> {
     const auth = await this.auth()
@@ -194,7 +195,7 @@ export class API {
     })
   }
 }
-export function isTerminal(pod: Resource | undefined, uid: string): boolean {
+export function isTerminal(pod: Resource | undefined, uid: PodUID): boolean {
   const states = pod?.status?.containerStatuses
   return (
     pod?.metadata.uid === uid &&

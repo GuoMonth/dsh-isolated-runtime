@@ -579,11 +579,12 @@ export function createAgentEnvironmentRuntime(
       accepted()
       try {
         if (!pod) throw new Error('No positive writer identity')
+        const writerUID = identities.podUID(pod.metadata.uid)
         const nodeUID = await healthyWriter(pod, ctx)
-        if (!isTerminal(pod, pod.metadata.uid))
+        if (!isTerminal(pod, writerUID))
           await api.terminal(
             `${nsPath(ref.namespace)}/pods?watch=true&fieldSelector=metadata.name%3D${encodeURIComponent(pod.metadata.name)}&resourceVersion=${encodeURIComponent(watchRevision)}&timeoutSeconds=50`,
-            pod.metadata.uid,
+            writerUID,
             ctx.signal,
           )
         const deadline = Date.now() + 15_000
@@ -607,7 +608,7 @@ export function createAgentEnvironmentRuntime(
           throw new Error('Writer node replaced')
         await patch(current.sb, ctx, [
           add('phase', 'stopped'),
-          add('terminal-uid', pod.metadata.uid),
+          add('terminal-uid', writerUID),
         ])
         const result = await read(ref, ctx)
         if (result.view.state !== 'Stopped')
