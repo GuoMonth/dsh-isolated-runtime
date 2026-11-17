@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: "1.27.1"
+          go-version-file: go.mod
           cache: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -34,12 +34,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - if: matrix.node == '24'
         run: make verify
-      - name: Verify the official DSH distribution when its integration changes
-        if: matrix.node == '24'
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || ! git diff --quiet "$LINT_BASE_REF...HEAD" -- compat/dsh images/environment internal/dshcompat cmd/environment-launcher hack/verify-dsh-compat.sh; then
-            make verify-dsh
-          fi
       - if: matrix.node == '26'
         run: |
           pnpm fmt:check
@@ -58,6 +52,11 @@ jobs:
       - name: Exercise the compiled Connector at the supported floor
         if: matrix.node == '24.9'
         run: node --test packages/environment-connector/test/*.test.mjs
+      - name: Verify the official DSH distribution when its integration changes
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || ! git diff --quiet "$LINT_BASE_REF...HEAD" -- go.mod go.sum compat/dsh images/environment internal/dshcompat cmd/environment-launcher hack/verify-dsh-compat.sh; then
+            make verify-dsh
+          fi
       - name: Workflow syntax
         if: matrix.node == '24'
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11 -shellcheck=""

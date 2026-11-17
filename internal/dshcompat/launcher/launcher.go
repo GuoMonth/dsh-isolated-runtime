@@ -123,15 +123,18 @@ func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
 	if cfg.Environment != nil {
 		cmd.Env = append([]string(nil), cfg.Environment...)
 	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("launcher: DSH stdout: %w", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("launcher: DSH stderr: %w", err)
-	}
+	stdout, stdoutWriter := io.Pipe()
+	stderr, stderrWriter := io.Pipe()
+	cmd.Stdout = stdoutWriter
+	cmd.Stderr = stderrWriter
+	// Let os/exec own and join its output copying. WaitDelay also bounds pipes
+	// inherited by descendants after the DSH process itself has exited.
+	cmd.WaitDelay = cfg.ShutdownTimeout
 	if err := cmd.Start(); err != nil {
+		_ = stdout.Close()
+		_ = stdoutWriter.Close()
+		_ = stderr.Close()
+		_ = stderrWriter.Close()
 		return nil, fmt.Errorf("launcher: start DSH: %w", err)
 	}
 
@@ -139,7 +142,9 @@ func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
 	ready := make(chan readiness, 1)
 	var readyOnce sync.Once
 	var logMu sync.Mutex
-	scan := func(reader io.Reader) {
+	scan := func(reader *io.PipeReader) {
+		// Unblock the copying writer even if Scanner stops at its size limit.
+		defer func() { _ = reader.Close() }()
 		scanner := bufio.NewScanner(reader)
 		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 		for scanner.Scan() {
@@ -159,6 +164,8 @@ func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
 	scanners.Go(func() { scan(stderr) })
 	go state.complete(func() error {
 		err := cmd.Wait()
+		_ = stdoutWriter.Close()
+		_ = stderrWriter.Close()
 		scanners.Wait()
 		return err
 	})
@@ -169,19 +176,16 @@ func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
 	select {
 	case observed = <-ready:
 	case <-ctx.Done():
-		_ = terminate(cmd.Process, cfg.ShutdownTimeout, state)
-		return nil, ctx.Err()
+		return nil, errors.Join(ctx.Err(), terminate(cmd.Process, cfg.ShutdownTimeout, state))
 	case <-state.done:
 		return nil, fmt.Errorf("launcher: DSH exited before readiness: %w", exitError(state.result()))
 	case <-timer.C:
-		_ = terminate(cmd.Process, cfg.ShutdownTimeout, state)
-		return nil, errors.New("launcher: DSH readiness timeout")
+		return nil, errors.Join(errors.New("launcher: DSH readiness timeout"), terminate(cmd.Process, cfg.ShutdownTimeout, state))
 	}
 
 	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", cfg.ListenAddress)
 	if err != nil {
-		_ = terminate(cmd.Process, cfg.ShutdownTimeout, state)
-		return nil, fmt.Errorf("launcher: listen: %w", err)
+		return nil, errors.Join(fmt.Errorf("launcher: listen: %w", err), terminate(cmd.Process, cfg.ShutdownTimeout, state))
 	}
 	proxy := newProxy(observed.target, observed.token)
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -439,7 +443,7 @@ func stripEnvoyOAuthCookies(header http.Header) {
 	header.Del("Cookie")
 	kept := make([]string, 0)
 	for _, line := range lines {
-		for _, segment := range strings.Split(line, ";") {
+		for segment := range strings.SplitSeq(line, ";") {
 			segment = strings.TrimSpace(segment)
 			name, _, valid := strings.Cut(segment, "=")
 			if !valid || strings.TrimSpace(name) == "" || accesscontract.IsEnvoyOAuthCookie(strings.TrimSpace(name)) {
@@ -498,7 +502,7 @@ func redactTokens(line string) string {
 }
 
 func hasCookieAttribute(cookie, attribute string) bool {
-	for _, segment := range strings.Split(cookie, ";") {
+	for segment := range strings.SplitSeq(cookie, ";") {
 		if strings.EqualFold(strings.TrimSpace(segment), attribute) {
 			return true
 		}
@@ -550,8 +554,7 @@ func normalizeExit(err error) error {
 	if err == nil {
 		return nil
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		if status, ok := exitErr.Sys().(syscall.WaitStatus); ok && status.Signaled() && status.Signal() == syscall.SIGTERM {
 			return nil
 		}

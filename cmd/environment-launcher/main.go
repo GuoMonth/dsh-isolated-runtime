@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -48,67 +50,69 @@ func run() error {
 		}
 	}
 
-	var live atomic.Bool
-	var ready atomic.Bool
-	live.Store(true)
-	management := &http.Server{
-		Addr:              fmt.Sprintf(":%d", 8081),
-		Handler:           newManagementHandler(&live, &ready),
-		ReadHeaderTimeout: 5 * time.Second,
-		IdleTimeout:       30 * time.Second,
-	}
-	managementErrors := make(chan error, 1)
-	go func() {
-		err := management.ListenAndServe()
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			managementErrors <- err
-		}
-	}()
-
-	instance, err := launcher.StartContext(runCtx, launcher.Config{
+	return serveEnvironment(runCtx, launcher.Config{
 		// Launch the supported official web profile with plain Node.
 		DSHCommand:      []string{"/usr/local/bin/node", "/opt/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"},
 		PatchFiles:      []string{"/etc/dsh/environment.patch.yml"},
 		WorkingDir:      "/var/lib/dsh/data/workspace",
 		Environment:     os.Environ(),
 		PublicAuthority: authority,
-		ListenAddress:   fmt.Sprintf(":%d", 8080),
+		ListenAddress:   ":8080",
 		ReadyTimeout:    readyTimeout,
 		ShutdownTimeout: shutdownTimeout,
 		LogWriter:       os.Stdout,
-	})
+	}, ":8081")
+}
+
+func serveEnvironment(ctx context.Context, cfg launcher.Config, managementAddress string) (result error) {
+	var live atomic.Bool
+	var ready atomic.Bool
+	live.Store(true)
+	management := &http.Server{
+		Addr:              managementAddress,
+		Handler:           newManagementHandler(&live, &ready),
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       30 * time.Second,
+	}
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", management.Addr)
 	if err != nil {
+		return fmt.Errorf("management listen: %w", err)
+	}
+	managementErrors := make(chan error, 1)
+	var background sync.WaitGroup
+	background.Go(func() {
+		managementErrors <- management.Serve(listener)
+	})
+	defer func() {
+		ready.Store(false)
 		live.Store(false)
 		shutdownManagement(management)
+		background.Wait()
+	}()
+
+	instance, err := launcher.StartContext(ctx, cfg)
+	if err != nil {
 		return err
 	}
+	defer func() {
+		ready.Store(false)
+		drain, cancel := context.WithTimeout(context.Background(), drainTimeout)
+		defer cancel()
+		result = errors.Join(result, instance.Close(drain))
+	}()
 	ready.Store(true)
 
 	for {
 		select {
-		case <-runCtx.Done():
-			ready.Store(false)
-			ctx, cancel := context.WithTimeout(context.Background(), drainTimeout)
-			err := instance.Close(ctx)
-			cancel()
-			live.Store(false)
-			shutdownManagement(management)
-			return err
+		case <-ctx.Done():
+			return nil
 		case <-instance.Done():
-			ready.Store(false)
-			live.Store(false)
-			shutdownManagement(management)
 			if err := instance.Wait(); err != nil {
 				return fmt.Errorf("DSH exited unexpectedly: %w", err)
 			}
 			return errors.New("DSH exited unexpectedly without an error")
 		case err := <-managementErrors:
-			ready.Store(false)
-			ctx, cancel := context.WithTimeout(context.Background(), drainTimeout)
-			closeErr := instance.Close(ctx)
-			cancel()
-			live.Store(false)
-			return errors.Join(fmt.Errorf("management server: %w", err), closeErr)
+			return fmt.Errorf("management server: %w", err)
 		}
 	}
 }

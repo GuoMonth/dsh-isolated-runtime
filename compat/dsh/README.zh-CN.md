@@ -21,6 +21,12 @@
 
 launcher 保留小范围 cookie 适配：官方浏览器认证仍发出 `SameSite=Strict`，没有 SameSite 配置项。外部 OIDC 回跳链需要 `Lax` 才能完成安全的顶层导航。代理为平台 HTTPS 入口补 `Secure`；cookie 值、签名、authority 校验与认证仍由原生实现负责，不重建上游认证。原生 token 仅留在进程内，保留 Host/Origin，拒绝未授权或其他 authority 的请求。
 
+## SDK 安全更新
+
+全部官方 DSH 包及其源码、integrity 版本针仍为 RC3。工作负载 manifest 仅增加三个精确的传递依赖安全覆盖，由 npm 锁文件复现：MCP client 2.4.0（[跨域重定向泄漏凭据](https://github.com/advisories/GHSA-6prh-2h8m-c8cw)）、Undici 8.12.4（[TLS 校验及相关修复](https://github.com/advisories/GHSA-2m5v-pch6-74hx)）、fflate 0.8.3（[畸形 ZIP64 死循环](https://github.com/advisories/GHSA-px8p-9vwx-vf98)）。更新依赖，不修改 DSH 源码或另建协议实现；采用后续官方版本时重新评估这些覆盖项。
+
+`make security` 审计两套 Node 闭包和 Go 应用、测试依赖；网络或漏洞库错误同样使门禁失败。原生门禁检查所有嵌套 SDK 副本是否符合安全版本针，并以合成请求头验证同源 MCP RPC 和真实双源重定向拒绝。浏览器及卷检查单独验证这份调整后的工作负载闭包，不能仅用上游包身份代替运行证明。
+
 ## 验证精确发行物
 
 ```sh

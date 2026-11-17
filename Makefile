@@ -1,6 +1,6 @@
 GO ?= go
-export GOTOOLCHAIN := go1.27.1
-.PHONY: build test lint fmt verify verify-dsh images docs-check
+export GOTOOLCHAIN := go$(shell sed -n 's/^go //p' go.mod)
+.PHONY: build test lint fmt verify verify-dsh security images docs-check
 build:
 	$(GO) build ./...
 	pnpm build
@@ -21,6 +21,13 @@ fmt:
 verify: lint build test
 	$(GO) vet ./...
 	$(MAKE) docs-check
+	$(MAKE) security
+
+security:
+	$(GO) mod verify
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -test ./...
+	pnpm security
+	npm audit --prefix images/environment --omit=dev --audit-level=low
 
 docs-check:
 	node hack/check-docs.mjs
