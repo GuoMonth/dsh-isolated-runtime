@@ -1,6 +1,11 @@
 name: Prepare runtime release candidate
 on:
   workflow_dispatch:
+    inputs:
+      accept_picomatch:
+        description: Accept the authorized GHSA-fc5q-39xc-vjpf known issue until 2026-12-02
+        type: boolean
+        default: false
 permissions:
   contents: read
   packages: write
@@ -11,6 +16,9 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      ACCEPT_PICOMATCH_GHSA: ${{ inputs.accept_picomatch && 'GHSA-fc5q-39xc-vjpf' || '' }}
+      AUDIT_EVIDENCE_DIRECTORY: candidate/audit
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
@@ -31,7 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = refs/heads/main
-          mkdir candidate
+          mkdir -p candidate
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           image="ghcr.io/guomonth/dsh-isolated-runtime:source-${GITHUB_SHA}"
           docker buildx build --platform linux/amd64 --provenance=false --push --build-arg SOURCE_REVISION="$GITHUB_SHA" --metadata-file candidate/image.json -f images/environment/Dockerfile -t "$image" .

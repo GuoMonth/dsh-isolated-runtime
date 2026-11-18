@@ -27,7 +27,7 @@ security:
 	$(GO) mod verify
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -test ./...
 	pnpm security
-	npm audit --prefix images/environment --omit=dev --audit-level=low
+	node hack/audit-node.mjs --workload
 
 docs-check:
 	node hack/check-docs.mjs

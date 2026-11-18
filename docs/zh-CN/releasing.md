@@ -23,3 +23,7 @@ node hack/pack-environment-connector.mjs /absolute/output-directory
 验收通过并获得发布授权后，在受测源码提交上建立轻量 `vVERSION` 标签。GitHub Release 附带运行镜像 digest、源码 SHA、DSH 身份、Connector 来源和验证报告，链接配套平台发行。平台随后发布受测 npm 归档及对应 Release。
 
 已发布版本和制品保持原样。双方发布流程见[平台仓库](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/README.zh-CN.md)。旧 runtime npm 安装器已弃用，安装使用 dsh-multi-tenant。
+
+## 已接受的已知安全问题
+
+2026-11-18，发行负责人授权将 picomatch 4.0.7 的 GHSA-fc5q-39xc-vjpf 作为本次发行的已知问题，重复 extglob 导致的 ReDoS 风险没有修复。接受期限截至 2026-12-02；其他公告、依赖版本变化、不完整报告及扫描失败仍阻断。默认本地审计保持严格，CI 显式携带该项授权并强制检查期限；仅显式接受的准备任务（`accept_picomatch=true`）启用该项例外，并在候选制品中保留原始审计报告及非零风险评估。最终验证报告和发行说明必须披露。

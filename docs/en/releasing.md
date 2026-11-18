@@ -23,3 +23,7 @@ Run the manual `prepare-release.yml` on main. It builds the workload image and u
 After acceptance and publication authorization, create a lightweight `vVERSION` tag at the verified source commit. Attach the workload digest, source SHA, DSH identity, Connector provenance and validation report to its GitHub Release; link the paired platform release. Platform then publishes the verified npm archive and its matching Release.
 
 Published versions and artifacts remain immutable. See the [platform repository](https://github.com/GuoMonth/dsh-multi-tenant) for the paired release procedure. The legacy runtime npm installer is deprecated; installation uses dsh-multi-tenant.
+
+## Accepted known security issue
+
+On 2026-11-18 the release owner authorized GHSA-fc5q-39xc-vjpf on picomatch 4.0.7 as a known issue for this release. Its repeated-extglob ReDoS risk is not fixed. Acceptance expires on 2026-12-02; all other findings, changed dependency versions, incomplete reports and scan failures still fail. The default local audit remains strict; CI supplies this explicitly authorized exception until its enforced expiry. Only an explicitly accepted preparation run (`accept_picomatch=true`) applies the exception and retains both raw audit reports and a non-clean assessment in the candidate artifact. The final validation report and release notes must disclose it.
