@@ -102,10 +102,24 @@ const resource = z.looseObject({
   automountServiceAccountToken: z.boolean().optional(), endpoints: z.array(endpoint).optional(), ports: z.array(port).optional(),
 })
 export type Resource = z.infer<typeof resource>
-const list = z.looseObject({
-  metadata: z.looseObject({ resourceVersion: opaque.transform(identities.revision), continue: z.literal('').optional() }),
-  items: z.array(resource),
-})
+const listMetadata = z.looseObject({ resourceVersion: opaque.transform(identities.revision), continue: z.literal('').optional() })
+const listedResource = resource.extend({ apiVersion: z.string().min(1).optional(), kind: z.string().min(1).optional() })
+const list = z.discriminatedUnion('kind', [
+  z.looseObject({ apiVersion: z.literal('v1'), kind: z.literal('PodList'), metadata: listMetadata, items: z.array(listedResource) }),
+  z.looseObject({ apiVersion: z.literal('discovery.k8s.io/v1'), kind: z.literal('EndpointSliceList'), metadata: listMetadata, items: z.array(listedResource) }),
+]).superRefine((value, ctx) => {
+  const kind = value.kind === 'PodList' ? 'Pod' : 'EndpointSlice'
+  for (const [index, item] of value.items.entries()) {
+    if (item.apiVersion !== undefined && item.apiVersion !== value.apiVersion)
+      ctx.addIssue({ code: 'custom', path: ['items', index, 'apiVersion'], message: 'Item version differs from its typed list' })
+    if (item.kind !== undefined && item.kind !== kind)
+      ctx.addIssue({ code: 'custom', path: ['items', index, 'kind'], message: 'Item kind differs from its typed list' })
+  }
+}).transform(value => ({
+  ...value,
+  // Kubernetes typed lists omit TypeMeta from items; kubectl's printer adds it.
+  items: value.items.map(item => ({ ...item, apiVersion: value.apiVersion, kind: value.kind === 'PodList' ? 'Pod' : 'EndpointSlice' })),
+}))
 export type ResourceList = z.infer<typeof list>
 export const parseResource = (value: unknown): Resource => resource.parse(value)
 export const parseResourceList = (value: unknown): ResourceList => list.parse(value)

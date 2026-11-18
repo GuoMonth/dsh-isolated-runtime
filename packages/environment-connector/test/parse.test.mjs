@@ -69,3 +69,22 @@ test('external resource parsing preserves unexpected privileges for template rej
   assert.throws(() => parseResourceList({ metadata: { resourceVersion: '42' } }))
   assert.throws(() => parseWatchEvent({ type: 'MODIFIED', object: { metadata: { uid: pod.metadata.uid }, status: { phase: 'Succeeded' } } }))
 })
+
+test('typed Kubernetes lists supply item type metadata while retaining exact resource fields', () => {
+  const snapshot = JSON.parse(readFileSync(new URL('./fixtures/ready.json', import.meta.url)))
+  for (const [apiVersion, kind, itemKind] of [['v1', 'PodList', 'Pod'], ['discovery.k8s.io/v1', 'EndpointSliceList', 'EndpointSlice']]) {
+    const item = structuredClone(snapshot.resources.find(resource => resource.kind === itemKind))
+    delete item.apiVersion
+    delete item.kind
+    if (itemKind === 'Pod') item.spec.hostPID = true
+    const wire = { apiVersion, kind, metadata: { resourceVersion: 'collection-rv' }, items: [item] }
+    const parsed = parseResourceList(wire)
+    assert.equal(parsed.metadata.resourceVersion, 'collection-rv')
+    assert.deepEqual(parsed.items[0], { ...item, apiVersion, kind: itemKind })
+    assert.throws(() => parseResourceList({ ...wire, items: [{ ...item, kind: 'Secret' }] }))
+    assert.throws(() => parseResourceList({ ...wire, items: [{ ...item, apiVersion: 'other/v1' }] }))
+    assert.throws(() => parseResourceList({ ...wire, metadata: { resourceVersion: 'collection-rv', continue: 'next-page' } }))
+    assert.throws(() => parseResourceList({ ...wire, kind: 'List' }))
+    assert.throws(() => parseResourceList({ ...wire, metadata: {}, items: [] }))
+  }
+})
