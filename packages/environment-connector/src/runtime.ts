@@ -382,7 +382,7 @@ export function createAgentEnvironmentRuntime(
     return (
       await read(
         {
-          ...intent,
+          ...parseAllocationIdentity(intent),
           namespace,
           sandbox: { name: sandboxName, uid: identities.sandboxUID(sb.metadata.uid) },
           data: { name: dataName, uid: identities.pvcUID(uid) },
@@ -434,7 +434,7 @@ export function createAgentEnvironmentRuntime(
           service: true,
           podTemplate: templateFor(
             {
-              ...intent,
+              ...parseAllocationIdentity(intent),
               namespace,
               sandbox: { name: sandboxName, uid: identities.sandboxUID('pending') },
               data: { name: dataName, uid: identities.pvcUID('pending') },
@@ -506,7 +506,7 @@ export function createAgentEnvironmentRuntime(
       return (
         await read(
           {
-            ...intent,
+            ...parseAllocationIdentity(intent),
             namespace,
             sandbox: { name: sandboxName, uid: identities.sandboxUID(sb.metadata.uid) },
             data: { name: dataName, uid: identities.pvcUID(pvc.metadata.uid) },

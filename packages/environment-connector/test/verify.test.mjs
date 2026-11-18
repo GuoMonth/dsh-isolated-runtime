@@ -54,6 +54,50 @@ test('actual API defaults and canonical native quantities preserve ready identit
   assert.equal(quantity('100m'), quantity('0.1'))
   assert.ok(Number.isNaN(quantity('1garbage')))
 })
+test('platform binding metadata stays outside created and recovered resource references', async (t) => {
+  const { API, APIError } = await import('../dist/api.js')
+  const { createAgentEnvironmentRuntime, parseEnvironmentRef } = await import('../dist/index.js')
+  const original = API.prototype.call
+  t.after(() => { API.prototype.call = original })
+  let exists = false, writes = 0
+  API.prototype.call = async function (method, path) {
+    if (method !== 'GET') {
+      writes++
+      if (path === '/api/v1/namespaces') { exists = true; return ns }
+      if (path.includes('/sandboxes')) return sb
+      if (path.endsWith('/persistentvolumeclaims')) return pvc
+      if (path.endsWith('/serviceaccounts')) return get('ServiceAccount')
+      if (path.endsWith('/networkpolicies')) return get('NetworkPolicy')
+      return ns
+    }
+    if (!exists) throw new APIError(404, false)
+    if (path.includes('/sandboxes/')) return sb
+    if (path.endsWith('/persistentvolumeclaims/data')) return pvc
+    if (path.endsWith('/serviceaccounts/workload')) return get('ServiceAccount')
+    if (path.includes('/networkpolicies/')) return get('NetworkPolicy')
+    if (path.endsWith('/pods')) return { metadata: { resourceVersion: 'list-rv' }, items: [pod] }
+    if (path.includes('/services/')) return service
+    if (path.includes('/endpointslices?')) return { items: slices }
+    return ns
+  }
+  const runtime = createAgentEnvironmentRuntime({ ...options,
+    kubernetes: { server: 'https://cluster.test', caFile: 'unused', tokenFile: 'unused' } })
+  const binding = { allocationKey: ref.allocationKey, owner: ref.owner, id: 'platform-environment', phase: 'submitted' }
+  const ctx = () => ({ signal: AbortSignal.timeout(3000), correlationId: 'platform-binding' })
+  const created = await runtime.create(binding, ctx())
+  assert.equal(created.state, 'Ready')
+  assert.deepEqual(parseEnvironmentRef(created.ref), ref)
+  assert.ok(writes > 0)
+  const acceptedWrites = writes
+  const recovered = await runtime.inspectAllocation(binding, undefined, ctx())
+  assert.deepEqual(recovered.ref, ref)
+  assert.deepEqual((await runtime.create(binding, ctx())).ref, ref)
+  assert.equal(writes, acceptedWrites, 'Discover the original allocation without another write')
+  assert.throws(() => parseEnvironmentRef({ ...ref, id: binding.id }), 'Resource references remain strict')
+  await assert.rejects(runtime.inspectAllocation({ ...binding, owner: { ...binding.owner, principalId: 'mallory' } }, undefined, ctx()),
+    error => error.failure.code === 'OwnerMismatch')
+  assert.equal(writes, acceptedWrites)
+})
 test('reject replaced data, owner, writer, unexpected privilege and ambiguous endpoints', () => {
   for (const mutate of [
     p => (p.metadata.uid = 'replacement'),
