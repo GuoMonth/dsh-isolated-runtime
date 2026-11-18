@@ -88,3 +88,16 @@ test('typed Kubernetes lists supply item type metadata while retaining exact res
     assert.throws(() => parseResourceList({ ...wire, metadata: {}, items: [] }))
   }
 })
+
+test('empty Kubernetes EndpointSlices retain null collections in reads, lists and watches', () => {
+  const snapshot = JSON.parse(readFileSync(new URL('./fixtures/ready.json', import.meta.url)))
+  const slice = { ...snapshot.resources.find(resource => resource.kind === 'EndpointSlice'), endpoints: null, ports: null }
+  assert.deepEqual(parseResource(slice), slice)
+  assert.deepEqual(parseWatchEvent({ type: 'MODIFIED', object: slice }).object, slice)
+  const { apiVersion, kind, ...item } = slice
+  const list = { apiVersion, kind: `${kind}List`, metadata: { resourceVersion: 'empty-rv' }, items: [item] }
+  assert.deepEqual(parseResourceList(list).items[0], slice)
+  for (const field of ['endpoints', 'ports'])
+    for (const invalid of ['', {}, [42]])
+      assert.throws(() => parseResource({ ...slice, [field]: invalid }))
+})

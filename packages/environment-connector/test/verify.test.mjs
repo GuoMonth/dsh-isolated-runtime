@@ -8,6 +8,7 @@ import {
   quantity,
 } from '../dist/verify.js'
 import { isTerminal } from '../dist/api.js'
+import { parseResourceList } from '../dist/parse.js'
 const snapshot = JSON.parse(
   readFileSync(new URL('./fixtures/ready.json', import.meta.url)),
 )
@@ -53,6 +54,51 @@ test('actual API defaults and canonical native quantities preserve ready identit
   assert.equal(quantity('1Gi'), quantity('1024Mi'))
   assert.equal(quantity('100m'), quantity('0.1'))
   assert.ok(Number.isNaN(quantity('1garbage')))
+})
+test('owned empty EndpointSlices mean Pending while a controller catches up to a ready Pod', () => {
+  for (const collections of [null, []]) {
+    const empty = { ...structuredClone(slices[0]), ports: collections, endpoints: collections }
+    assert.equal(readyTarget(ref, options, sb, pvc, [pod], service, [empty]), null)
+    assert.equal(readyTarget(ref, options, sb, pvc, [pod], service, [empty, ...slices]), pod.status.podIP)
+    const foreign = structuredClone(empty)
+    foreign.metadata.ownerReferences[0].uid = 'other-service'
+    assert.throws(() => readyTarget(ref, options, sb, pvc, [pod], service, [foreign]))
+    assert.throws(() => readyTarget(ref, options, sb, pvc, [pod], service, [{ ...empty, endpoints: slices[0].endpoints }]))
+    assert.throws(() => readyTarget(ref, options, sb, pvc, [pod], service, [{ ...empty, ports: [{ name: 'other', port: 9090 }] }]))
+  }
+})
+test('read-only allocation inspection advances from an empty wire slice without replaying creation', async (t) => {
+  const { API } = await import('../dist/api.js')
+  const { createAgentEnvironmentRuntime } = await import('../dist/index.js')
+  const original = API.prototype.call
+  t.after(() => { API.prototype.call = original })
+  let empty = true, writes = 0
+  API.prototype.call = async function (method, path) {
+    if (method !== 'GET') { writes++; throw new Error('Inspection must not write') }
+    if (path.includes('/sandboxes/')) return sb
+    if (path.endsWith('/persistentvolumeclaims/data')) return pvc
+    if (path.endsWith('/serviceaccounts/workload')) return get('ServiceAccount')
+    if (path.includes('/networkpolicies/')) return get('NetworkPolicy')
+    if (path.endsWith('/pods')) return { metadata: { resourceVersion: 'list-rv' }, items: [pod] }
+    if (path.includes('/services/')) return service
+    if (path.includes('/endpointslices?')) {
+      const item = structuredClone(slices[0])
+      delete item.apiVersion
+      delete item.kind
+      if (empty) { item.endpoints = null; item.ports = null }
+      return parseResourceList({ apiVersion: 'discovery.k8s.io/v1', kind: 'EndpointSliceList', metadata: { resourceVersion: 'slice-rv' }, items: [item] })
+    }
+    return ns
+  }
+  const runtime = createAgentEnvironmentRuntime({ ...options,
+    kubernetes: { server: 'https://cluster.test', caFile: 'unused', tokenFile: 'unused' } })
+  const ctx = () => ({ signal: AbortSignal.timeout(3000), correlationId: 'empty-slice' })
+  const pending = await runtime.inspectAllocation({ allocationKey: ref.allocationKey, owner: ref.owner }, ref, ctx())
+  assert.equal(pending.state, 'Pending')
+  assert.deepEqual(pending.ref, ref)
+  empty = false
+  assert.equal((await runtime.inspectAllocation({ allocationKey: ref.allocationKey, owner: ref.owner }, ref, ctx())).state, 'Ready')
+  assert.equal(writes, 0)
 })
 test('platform binding metadata stays outside created and recovered resource references', async (t) => {
   const { API, APIError } = await import('../dist/api.js')
