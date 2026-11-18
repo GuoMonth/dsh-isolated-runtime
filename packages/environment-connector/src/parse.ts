@@ -99,7 +99,8 @@ const status = z.looseObject({
 const resource = z.looseObject({
   apiVersion: z.string().min(1), kind: z.string().min(1), metadata,
   spec: spec.optional(), status: status.optional(),
-  automountServiceAccountToken: z.boolean().optional(), endpoints: z.array(endpoint).optional(), ports: z.array(port).optional(),
+  automountServiceAccountToken: z.boolean().optional(),
+  endpoints: z.array(endpoint).nullable().optional(), ports: z.array(port).nullable().optional(),
 })
 export type Resource = z.infer<typeof resource>
 const listMetadata = z.looseObject({ resourceVersion: opaque.transform(identities.revision), continue: z.literal('').optional() })

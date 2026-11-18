@@ -31,6 +31,8 @@ Allocation operations may receive a platform binding with additional control met
 
 Parse Kubernetes wire responses rather than assuming kubectl's printed shape. Typed PodList/EndpointSliceList items may omit apiVersion/kind; derive those fields only from a validated list header, reject conflicting item types and incomplete pagination, and retain every other field for identity and template verification.
 
+New Services can have owned EndpointSlices with null endpoints and ports. Preserve these empty wire collections and report Pending until the controller publishes a ready target; ownership and populated endpoint/port checks remain strict.
+
 The launcher reaps its child, closes proxy transports and owns hijacked connections. Management binds before the child starts, and every exit path joins both servers and child cleanup. `os/exec` owns output copying; output is drained before process completion is published, and `Cmd.WaitDelay` bounds inherited pipes after child exit. Forced SIGKILL is not a successful environment stop.
 
 Use the official `go fix -diff ./...` to review applicable modernizations; `errors.AsType`, `strings.SplitSeq`, typed atomics and `WaitGroup.Go` keep intent explicit. Connection-drain tests use `testing/synctest` and its virtual clock instead of scheduling sleeps. Preserve JSON wire semantics when choosing a newer API.

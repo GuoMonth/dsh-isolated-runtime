@@ -296,6 +296,8 @@ export function readyTarget(
     fail('TemplateMismatch')
   const endpoints: Endpoint[] = []
   for (const slice of slices) {
+    // A new Service has an owned empty slice before the controller publishes ports/endpoints.
+    const empty = !slice.endpoints?.length && !slice.ports?.length
     if (
       !controlled(
         slice,
@@ -304,10 +306,10 @@ export function readyTarget(
         service.metadata.uid,
         'v1',
       ) ||
-      !same(slice.ports, [
+      (!empty && !same(slice.ports, [
         { name: 'http', port: 8080, protocol: 'TCP' },
         { name: 'management', port: 8081, protocol: 'TCP' },
-      ])
+      ]))
     )
       fail('TemplateMismatch')
     endpoints.push(...(slice.endpoints ?? []))

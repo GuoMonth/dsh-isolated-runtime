@@ -31,6 +31,8 @@ TypeScript 和 JavaScript 使用两空格、单引号、无语句末尾分号，
 
 解析 Kubernetes 原始响应，不能假定 kubectl 打印后的结构。PodList/EndpointSliceList 列表项可能省略 apiVersion/kind，只能根据已验证的列表头补齐；冲突的条目类型和不完整分页仍拒绝，其他字段完整保留供身份与模板验证。
 
+新 Service 可能存在 endpoints 和 ports 为 null 的受控 EndpointSlice。保留这些空集合的原始形式，等待控制器发布就绪目标前报告 Pending；归属校验及非空端点、端口校验保持严格。
+
 launcher 回收子进程、关闭代理传输并负责已接管连接。管理端口在启动子进程前完成绑定，每条退出路径均等待两个服务及子进程清理完成。`os/exec` 负责输出复制，输出读完后才公布进程结束；`Cmd.WaitDelay` 限制子进程退出后继承管道的等待时间。强制 SIGKILL 不算成功停止环境。
 
 使用官方 `go fix -diff ./...` 审核适用的现代化改写；`errors.AsType`、`strings.SplitSeq`、原子类型和 `WaitGroup.Go` 明确表达意图。连接排空测试使用 `testing/synctest` 虚拟时钟，避免靠睡眠猜测调度顺序。选择新 API 时保持 JSON 线协议语义。
