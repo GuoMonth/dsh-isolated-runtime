@@ -17,6 +17,8 @@ jobs:
       matrix:
         node: ['24.9', '24', '26']
     env:
+      # Release-owner acceptance; audit-node enforces the 2026-12-02 expiry and exact advisory/version.
+      ACCEPT_PICOMATCH_GHSA: GHSA-fc5q-39xc-vjpf
       LINT_BASE_REF: ${{ github.event.pull_request.base.sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
