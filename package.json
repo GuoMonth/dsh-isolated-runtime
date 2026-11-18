@@ -10,7 +10,7 @@
     "build": "pnpm --filter @dsh/environment-connector-internal build",
     "typecheck": "pnpm --filter @dsh/environment-connector-internal typecheck",
     "test": "pnpm --filter @dsh/environment-connector-internal test",
-    "security": "pnpm audit --audit-level low",
+    "security": "node --test hack/audit-node.test.mjs && node hack/audit-node.mjs",
     "fmt": "node hack/format.mjs",
     "fmt:check": "oxlint --config .oxlintrc.format.json --deny-warnings",
     "lint": "node hack/lint.mjs",
