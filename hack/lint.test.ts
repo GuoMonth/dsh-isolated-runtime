@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { assertNoGrowth, compareDiagnostics, fingerprint, validateBaseline } from './lint.mjs'
+import { assertNoGrowth, compareDiagnostics, fingerprint, validateBaseline } from './lint.ts'
 
 const filename = 'packages/example/src/example.ts'
 const source = 'const first: any = 1\nconst second = 2\n'
-function diagnostic(text, token = 'any') {
+function diagnostic(text: string, token = 'any') {
   return {
     filename,
     code: 'typescript(no-explicit-any)',
@@ -15,7 +15,7 @@ const entry = { ...fingerprint(diagnostic(source), source), count: 1 }
 const baseline = { version: 1, entries: [entry] }
 const read = () => source
 
-test('allows only the exact existing statement and occurrence count', () => {
+void test('allows only the exact existing statement and occurrence count', () => {
   const d = diagnostic(source)
   assert.equal(compareDiagnostics([d], baseline, read).unexpected.length, 0)
   assert.equal(compareDiagnostics([d, d], baseline, read).unexpected.length, 1)
@@ -25,7 +25,7 @@ test('allows only the exact existing statement and occurrence count', () => {
   assert.equal(compareDiagnostics([{ ...d, code: 'typescript(no-unsafe-assignment)' }], baseline, read).unexpected.length, 1)
 })
 
-test('fingerprints survive formatting and account for UTF-8 diagnostic offsets', () => {
+void test('fingerprints survive formatting and account for UTF-8 diagnostic offsets', () => {
   const formatted = '// 中文 😀\nconst first : any = 1\n\nconst second = 2\n'
   assert.deepEqual(fingerprint(diagnostic(formatted), formatted), fingerprint(diagnostic(source), source))
   const stringA = "const first: any = 'value'\n"
@@ -33,28 +33,28 @@ test('fingerprints survive formatting and account for UTF-8 diagnostic offsets',
   assert.deepEqual(fingerprint(diagnostic(stringA), stringA), fingerprint(diagnostic(stringB), stringB))
 })
 
-test('cannot move an identical unsafe parameter to a different owner', () => {
+void test('cannot move an identical unsafe parameter to a different owner', () => {
   const first = 'function first(value: any) { return value }'
   const second = first.replace('first', 'second')
   assert.notDeepEqual(fingerprint(diagnostic(first), first), fingerprint(diagnostic(second), second))
 })
 
-test('style and infrastructure errors cannot be hidden by the TypeScript baseline', () => {
+void test('style and infrastructure errors cannot be hidden by the TypeScript baseline', () => {
   const d = { ...diagnostic(source), code: '@stylistic(semi)' }
   assert.equal(compareDiagnostics([d], baseline, read).unexpected.length, 1)
   assert.throws(() => fingerprint(d, source), /Only existing TypeScript debt/)
   assert.throws(() => validateBaseline({ version: 1, entries: [{ ...entry, code: d.code }] }))
 })
 
-test('requires pruning resolved debt and rejects every allowance expansion', () => {
+void test('requires pruning resolved debt and rejects every allowance expansion', () => {
   assert.equal(compareDiagnostics([], baseline, read).stale.length, 1)
-  assert.doesNotThrow(() => assertNoGrowth({ version: 1, entries: [] }, baseline))
-  assert.throws(() => assertNoGrowth({ version: 1, entries: [{ ...entry, count: 2 }] }, baseline), /cannot grow/)
-  assert.throws(() => assertNoGrowth(baseline, { version: 1, entries: [] }), /cannot grow/)
-  assert.throws(() => assertNoGrowth({ version: 1, entries: [{ ...entry, hash: 'a'.repeat(64) }] }, baseline), /cannot grow/)
+  assert.doesNotThrow(() => { assertNoGrowth({ version: 1, entries: [] }, baseline) })
+  assert.throws(() => { assertNoGrowth({ version: 1, entries: [{ ...entry, count: 2 }] }, baseline) }, /cannot grow/)
+  assert.throws(() => { assertNoGrowth(baseline, { version: 1, entries: [] }) }, /cannot grow/)
+  assert.throws(() => { assertNoGrowth({ version: 1, entries: [{ ...entry, hash: 'a'.repeat(64) }] }, baseline) }, /cannot grow/)
 })
 
-test('rejects invalid and duplicate baseline entries', () => {
+void test('rejects invalid and duplicate baseline entries', () => {
   assert.throws(() => validateBaseline({ version: 2, entries: [] }))
   for (const bad of [{ count: 0 }, { hash: 'x' }, { file: '../outside.ts' }, { file: 'packages/../outside.ts' }]) {
     assert.throws(() => validateBaseline({ version: 1, entries: [{ ...entry, ...bad }] }))

@@ -86,8 +86,11 @@ func serveEnvironment(ctx context.Context, cfg launcher.Config, managementAddres
 	defer func() {
 		ready.Store(false)
 		live.Store(false)
-		shutdownManagement(management)
+		err := shutdownManagement(management)
 		background.Wait()
+		if err != nil {
+			result = errors.Join(result, fmt.Errorf("close management server: %w", err))
+		}
 	}()
 
 	instance, err := launcher.StartContext(ctx, cfg)
@@ -98,22 +101,22 @@ func serveEnvironment(ctx context.Context, cfg launcher.Config, managementAddres
 		ready.Store(false)
 		drain, cancel := context.WithTimeout(context.Background(), drainTimeout)
 		defer cancel()
-		result = errors.Join(result, instance.Close(drain))
+		if err := instance.Close(drain); err != nil {
+			result = errors.Join(result, fmt.Errorf("close launcher: %w", err))
+		}
 	}()
 	ready.Store(true)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-instance.Done():
-			if err := instance.Wait(); err != nil {
-				return fmt.Errorf("DSH exited unexpectedly: %w", err)
-			}
-			return errors.New("DSH exited unexpectedly without an error")
-		case err := <-managementErrors:
-			return fmt.Errorf("management server: %w", err)
+	select {
+	case <-ctx.Done():
+		return nil
+	case <-instance.Done():
+		if err := instance.Wait(); err != nil {
+			return fmt.Errorf("DSH exited unexpectedly: %w", err)
 		}
+		return errors.New("DSH exited unexpectedly without an error")
+	case err := <-managementErrors:
+		return fmt.Errorf("management server: %w", err)
 	}
 }
 
@@ -146,10 +149,19 @@ func newManagementHandler(live, ready *atomic.Bool) http.Handler {
 	return mux
 }
 
-func shutdownManagement(server *http.Server) {
+func shutdownManagement(server *http.Server) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := server.Shutdown(ctx); err != nil {
-		_ = server.Close()
+	shutdownErr := server.Shutdown(ctx)
+	if shutdownErr == nil {
+		return nil
 	}
+	closeErr := server.Close()
+	if closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+		return errors.Join(shutdownErr, closeErr)
+	}
+	if errors.Is(shutdownErr, context.DeadlineExceeded) || errors.Is(shutdownErr, net.ErrClosed) {
+		return nil
+	}
+	return shutdownErr
 }

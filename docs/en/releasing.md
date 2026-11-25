@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/releasing.md) · [Guides](index.md)
 
-Runtime distributes a Linux/amd64 workload image and source release. The platform bundles the private Connector and owns installation. Published RC: [0.5.0-rc.3](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.5.0-rc.3), released 2026-11-18 with platform 0.12.0-rc.2 and DSH 0.2.2-rc.3. Exact sources, image digests, accepted security risk and tested/untested scope are in the [validation report](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.3/validation.md). Source `VERSION` matches this release. Published tags and artifacts remain immutable.
+Runtime distributes a Linux/amd64 workload image and source release. The platform bundles the private Connector and owns installation. Published RC: [0.5.0-rc.3](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.5.0-rc.3), released 2026-11-18 with platform 0.12.0-rc.2 and DSH 0.2.2-rc.3. Exact sources, image digests, accepted security risk and tested/untested scope are in the [validation report](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.3/validation.md). Source `VERSION` selects the next candidate 0.5.0-rc.4 with DSH 0.2.2-rc.5. Published tags and artifacts remain immutable.
 
 Runtime version is maintained in `VERSION`. RC/beta releases use `--prerelease --latest=false`. Record separate workload and Connector source identities; an unchanged pinned Connector can be retained after comparison and joint acceptance.
 
@@ -24,6 +24,6 @@ After acceptance and publication authorization, create a lightweight `vVERSION` 
 
 Published versions and artifacts remain immutable. See the [platform repository](https://github.com/GuoMonth/dsh-multi-tenant) for the paired release procedure. The legacy runtime npm installer is deprecated; installation uses dsh-multi-tenant.
 
-## Accepted known security issue
+## Security reports
 
-On 2026-11-18 the release owner authorized GHSA-fc5q-39xc-vjpf on picomatch 4.0.7 as a known issue for this release. Its repeated-extglob ReDoS risk is not fixed. Acceptance expires on 2026-12-02; all other findings, changed dependency versions, incomplete reports and scan failures still fail. The default local audit remains strict; CI supplies this explicitly authorized exception until its enforced expiry. Only an explicitly accepted preparation run (`accept_picomatch=true`) applies the exception and retains both raw audit reports and a non-clean assessment in the candidate artifact. The final validation report and release notes must disclose it.
+Candidate preparation records raw audit reports and their assessment. Node audits require zero findings. The 0.5.0-rc.3 validation report documents its historical Picomatch exception. GitHub withdrew the advisory on 2026-11-18. [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf)

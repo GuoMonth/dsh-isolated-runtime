@@ -12,7 +12,8 @@
       "files": [
         "packages/*/src/**/*.ts",
         "packages/*/tests/**/*.ts",
-        "integration/**/*.ts"
+        "integration/**/*.ts",
+        "hack/**/*.ts"
       ],
       "plugins": [
         "typescript"

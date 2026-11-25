@@ -6,6 +6,8 @@
 
 **部署从平台仓库开始。** 平台 npm 包已打包 Connector、CLI 和 Helm Chart。已发布 RC 组合为 runtime **0.5.0-rc.3**、平台 **0.12.0-rc.2**、DSH **0.2.2-rc.3**。[验证报告](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.3/validation.md)记录精确制品、已接受的 Picomatch 问题及模型/工具未测边界。不做兼容性承诺，部署时固定精确版本和制品。
 
+当前源码以 runtime **0.5.0-rc.4** 和 DSH **0.2.2-rc.5** 为目标。[DSH 兼容说明](compat/dsh/README.zh-CN.md)
+
 ## runtime 做什么
 
 runtime 为已授权用户创建固定 Kubernetes 资源，核对 owner 和 UID，处理显式停止/启动/删除，并转发原生 DSH 流量。上游 Agent Sandbox core 是唯一的 Pod/Service 控制器；平台负责 OIDC 和用户授权。

@@ -4,18 +4,18 @@
   "type": "module",
   "packageManager": "pnpm@11.28.5",
   "engines": {
-    "node": "^24.11.0 || ^26.0.0"
+    "node": "^24.22.3 || >=26.13.1"
   },
   "scripts": {
     "build": "pnpm --filter @dsh/environment-connector-internal build",
-    "typecheck": "pnpm --filter @dsh/environment-connector-internal typecheck",
+    "typecheck": "tsc --noEmit && pnpm --filter @dsh/environment-connector-internal typecheck",
     "test": "pnpm --filter @dsh/environment-connector-internal test",
-    "security": "node --test hack/audit-node.test.mjs && node hack/audit-node.mjs",
-    "fmt": "node hack/format.mjs",
+    "security": "node --test hack/audit-node.test.ts && node hack/audit-node.ts",
+    "fmt": "node hack/format.ts",
     "fmt:check": "oxlint --config .oxlintrc.format.json --deny-warnings",
-    "lint": "node hack/lint.mjs",
+    "lint": "node hack/lint.ts",
     "lint:raw": "oxlint --format json",
-    "test:tooling": "node --test hack/lint.test.mjs"
+    "test:tooling": "node --test hack/lint.test.ts"
   },
   "devDependencies": {
     "@stylistic/eslint-plugin": "5.10.0",

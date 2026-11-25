@@ -1,12 +1,12 @@
-# DSH 0.2.2-rc.3 兼容说明
+# DSH 0.2.2-rc.5 兼容说明
 
 [English](README.md)
 
-运行镜像安装官方 npm 发行物，对应源码 [38a6a5c](https://github.com/deepseek-ai/deepseek-harness/tree/38a6a5c965aa99ab525161efb7cc5cf1fe62fced)。[baseline.json](baseline.json) 记录版本、包完整性、传输和数据路径；已提交的 npm 锁文件固定完整依赖。launcher 的 `/version` 和镜像标签携带同一针。runtime 0.5.0-rc.3、平台 0.12.0-rc.2 是新候选，已发布的 0.5.0-rc.2 / 0.12.0-rc.1 组合仍使用 DSH 0.2.1-rc.5。
+运行镜像安装官方 npm 发行物，对应源码 [9c2670d](https://github.com/deepseek-ai/deepseek-harness/tree/9c2670d3bce5275e0d1610272958121af87787bb)。[baseline.json](baseline.json) 记录版本、包完整性、传输和数据路径；已提交的 npm 锁文件固定完整依赖。launcher 的 `/version` 和镜像标签携带同一针。runtime 0.5.0-rc.4 候选以该版本为目标。已发布的 runtime 0.5.0-rc.3 和平台 0.12.0-rc.2 组合使用 DSH 0.2.2-rc.3。
 
 ## 复用官方能力
 
-遵循上游[架构](https://github.com/deepseek-ai/deepseek-harness/blob/38a6a5c965aa99ab525161efb7cc5cf1fe62fced/docs/architecture.md)：受支持应用通过 profile 启动，插件经 Cordis 提供能力。消费发布制品，不 fork 应用，也不在这里重建插件树。
+遵循上游[架构](https://github.com/deepseek-ai/deepseek-harness/blob/9c2670d3bce5275e0d1610272958121af87787bb/docs/architecture.md)：受支持应用通过 profile 启动，插件经 Cordis 提供能力。消费发布制品，不 fork 应用，也不在这里重建插件树。
 
 | 能力 | 取舍 |
 | --- | --- |
@@ -23,7 +23,7 @@ launcher 保留小范围 cookie 适配：官方浏览器认证仍发出 `SameSit
 
 ## SDK 安全更新
 
-全部官方 DSH 包及其源码、integrity 版本针仍为 RC3。工作负载 manifest 仅增加三个精确的传递依赖安全覆盖，由 npm 锁文件复现：MCP client 2.4.0（[跨域重定向泄漏凭据](https://github.com/advisories/GHSA-6prh-2h8m-c8cw)）、Undici 8.12.4（[TLS 校验及相关修复](https://github.com/advisories/GHSA-2m5v-pch6-74hx)）、fflate 0.8.3（[畸形 ZIP64 死循环](https://github.com/advisories/GHSA-px8p-9vwx-vf98)）。更新依赖，不修改 DSH 源码或另建协议实现；采用后续官方版本时重新评估这些覆盖项。
+全部官方 DSH 包及其源码、integrity 版本针仍为 RC5。工作负载 manifest 仅增加三个精确的传递依赖安全覆盖，由 npm 锁文件复现：MCP client 2.4.0（[跨域重定向泄漏凭据](https://github.com/advisories/GHSA-6prh-2h8m-c8cw)）、Undici 8.12.4（[TLS 校验及相关修复](https://github.com/advisories/GHSA-2m5v-pch6-74hx)）、fflate 0.8.3（[畸形 ZIP64 死循环](https://github.com/advisories/GHSA-px8p-9vwx-vf98)）。更新依赖，不修改 DSH 源码或另建协议实现；采用后续官方版本时重新评估这些覆盖项。
 
 `make security` 审计两套 Node 闭包和 Go 应用、测试依赖；网络或漏洞库错误同样使门禁失败。原生门禁检查所有嵌套 SDK 副本是否符合安全版本针，并以合成请求头验证同源 MCP RPC 和真实双源重定向拒绝。浏览器及卷检查单独验证这份调整后的工作负载闭包，不能仅用上游包身份代替运行证明。
 
@@ -34,6 +34,6 @@ make verify
 make verify-dsh
 ```
 
-原生门禁消费已提交的 npm 依赖，启动真实 web profile，不调用模型。DSH 集成输入变化时，PR CI 在 Node 24.9、24 和 26 执行该门禁。浏览器设置、Session 与 WebSocket 检查使用 [test/rc2](../../test/rc2/README.md)，Linux 运行镜像检查使用 [test/environment](../../test/environment/README.md)。平台授权和真实 provider 验收有独立 harness。
+原生门禁消费已提交的 npm 依赖，启动真实 web profile，不调用模型。DSH 集成输入变化时，PR CI 在 Node 24.22.3 和 26.13.1 执行该门禁。Go 探针验证 Session RPC、WebSocket 快照、导出及 launcher 重启恢复。扩展浏览器检查使用 [test/rc2](../../test/rc2/README.md)，Linux 运行镜像检查使用 [test/environment](../../test/environment/README.md)。平台授权和真实 provider 验收有独立 harness。
 
 全新安装、相同版本重启与旧数据迁移是不同证据。保持上游 Session 代际与存储原样，本候选不代表支持原地升级或降级。SIGTERM 成功退出不等于持久化 flush 确认。[runtime 契约](../../docs/zh-CN/contract.md)保留这些边界。

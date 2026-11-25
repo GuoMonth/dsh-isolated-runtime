@@ -3,15 +3,31 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { readJson, record } from './json.ts'
 const root = path.resolve(import.meta.dirname, '..')
 process.chdir(root)
 const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
   encoding: 'utf8',
 }).split('\0').filter(Boolean)
-const errors = []
+const errors: string[] = []
 const goVersion = fs.readFileSync('go.mod', 'utf8').match(/^go (\d+\.\d+\.\d+)$/m)?.[1]
-if (!goVersion || !fs.readFileSync('images/environment/Dockerfile', 'utf8').includes(`golang:${goVersion}-bookworm@sha256:`))
+const nodeVersion = fs.readFileSync('.node-version', 'utf8').trim()
+const dockerfile = fs.readFileSync('images/environment/Dockerfile', 'utf8')
+if (!goVersion || !dockerfile.includes(`golang:${goVersion}-bookworm@sha256:`))
   errors.push('The launcher builder must pin the go.mod Go version and an image digest')
+const nodeImages = dockerfile.split('\n').filter(line => line.startsWith('FROM node:'))
+const nodePrefix = `FROM node:${nodeVersion}-bookworm-slim@sha256:`
+const hasNodePin = (line: string) =>
+  line.startsWith(nodePrefix) && /^[a-f0-9]{64}(?: AS dsh)?$/.test(line.slice(nodePrefix.length))
+if (nodeImages.length !== 2 || !nodeImages.every(hasNodePin))
+  errors.push('Workload stages must pin the .node-version Node image and digest')
+const rootEngines = record(record(readJson('package.json'), 'workspace manifest').engines, 'workspace engines')
+for (const path of ['images/environment/package.json', 'packages/environment-connector/package.json']) {
+  const manifest = record(readJson(path), 'runtime manifest')
+  const engines = record(manifest.engines, 'runtime engines')
+  if (engines.node !== rootEngines.node)
+    errors.push(`${path}: Node engines differ from the workspace`)
+}
 for (const file of files) {
   if (!fs.existsSync(file) || !fs.lstatSync(file).isFile())
     continue
@@ -51,7 +67,9 @@ for (const file of files) {
       })
   }
   catch (error) {
-    errors.push(`${file}: ${error.stderr?.toString().trim() || error.message}`)
+    const stderr = error instanceof Error && 'stderr' in error ? error.stderr : undefined
+    const details = Buffer.isBuffer(stderr) ? stderr.toString('utf8').trim() : typeof stderr === 'string' ? stderr.trim() : ''
+    errors.push(`${file}: ${details || (error instanceof Error ? error.message : 'Source check failed')}`)
   }
 }
 const go = files.filter(file => file.endsWith('.go'))

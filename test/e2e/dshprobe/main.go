@@ -16,7 +16,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
+	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -27,15 +30,51 @@ type probeState struct {
 	SessionID string `json:"sessionId"`
 }
 
+type sessionRecord struct {
+	SessionID string `json:"sessionId"`
+}
+
+type rpcArguments struct {
+	Request     *struct{} `json:"request,omitempty"`
+	ListRequest *struct{} `json:"_request,omitempty"`
+}
+
+type rpcPayload struct {
+	Args rpcArguments `json:"args"`
+}
+
+type rpcRequest struct {
+	Type    string     `json:"type"`
+	RPCID   string     `json:"rpcId"`
+	Method  string     `json:"method"`
+	Payload rpcPayload `json:"payload"`
+}
+
 type rpcResponse[T any] struct {
 	Result struct {
 		OK    bool `json:"ok"`
 		Value T    `json:"value"`
 		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
+			Code string `json:"code"`
 		} `json:"error"`
 	} `json:"result"`
+}
+
+type sessionAddress struct {
+	Kind      string `json:"kind"`
+	SessionID string `json:"sessionId"`
+}
+
+type followRequest struct {
+	Address sessionAddress `json:"address"`
+}
+
+type followFrame struct {
+	Type     string `json:"type"`
+	StreamID string `json:"streamId"`
+	Value    struct {
+		Type string `json:"type"`
+	} `json:"value"`
 }
 
 func main() {
@@ -51,13 +90,15 @@ func main() {
 		fmt.Printf("%x\n", hash.Sum32())
 		return
 	}
-	if err := run(*connect, *authority, *stateFile, *resume); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
+	defer stop()
+	if err := run(ctx, *connect, *authority, *stateFile, *resume); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "dshprobe: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(connect, authority, stateFile string, resume bool) error {
+func run(ctx context.Context, connect, authority, stateFile string, resume bool) error {
 	if connect == "" || authority == "" || stateFile == "" {
 		return errors.New("--connect, --authority and --state-file are required")
 	}
@@ -65,6 +106,7 @@ func run(connect, authority, stateFile string, resume bool) error {
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return dialer.DialContext(ctx, "tcp", connect)
 	}}
+	defer transport.CloseIdleConnections()
 	client := &http.Client{
 		Transport: transport,
 		Timeout:   30 * time.Second,
@@ -78,44 +120,27 @@ func run(connect, authority, stateFile string, resume bool) error {
 	if resume {
 		value, err := os.ReadFile(stateFile)
 		if err != nil {
-			return err
+			return fmt.Errorf("read probe state: %w", err)
 		}
 		if err := json.Unmarshal(value, &state); err != nil {
-			return err
+			return fmt.Errorf("decode probe state: %w", err)
 		}
 		if state.Cookie == "" || state.SessionID == "" {
 			return errors.New("probe state is incomplete")
 		}
 	} else {
-		request, err := http.NewRequest(http.MethodGet, base+"/", nil)
+		cookie, err := exchangeCookie(ctx, client, base)
 		if err != nil {
 			return err
 		}
-		response, err := client.Do(request)
-		if err != nil {
-			return fmt.Errorf("cookie exchange: %w", err)
-		}
-		defer func() { _ = response.Body.Close() }()
-		if response.StatusCode != http.StatusSeeOther {
-			return fmt.Errorf("cookie exchange status = %d", response.StatusCode)
-		}
-		if strings.Contains(response.Header.Get("Location"), "token=") {
-			return errors.New("launch token escaped into redirect")
-		}
-		cookies := response.Cookies()
-		if len(cookies) != 1 || !cookies[0].Secure || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteLaxMode {
-			return fmt.Errorf("unexpected DSH cookie attributes")
-		}
-		state.Cookie = cookies[0].Name + "=" + cookies[0].Value
+		state.Cookie = cookie
 	}
 
-	if _, err := rpc[map[string]any](client, base, authority, state.Cookie, "settings/describe", map[string]any{}); err != nil {
+	if _, err := rpc[json.RawMessage](ctx, client, base, authority, state.Cookie, "settings/describe", rpcArguments{}); err != nil {
 		return err
 	}
 	if !resume {
-		created, err := rpc[struct {
-			SessionID string `json:"sessionId"`
-		}](client, base, authority, state.Cookie, "session/create", map[string]any{"request": map[string]any{}})
+		created, err := rpc[sessionRecord](ctx, client, base, authority, state.Cookie, "session/create", rpcArguments{Request: &struct{}{}})
 		if err != nil {
 			return err
 		}
@@ -125,97 +150,128 @@ func run(connect, authority, stateFile string, resume bool) error {
 		state.SessionID = created.SessionID
 	}
 	listed, err := rpc[struct {
-		Items []struct {
-			SessionID string `json:"sessionId"`
-		} `json:"items"`
-	}](client, base, authority, state.Cookie, "session/list", map[string]any{"_request": map[string]any{}})
+		Items []sessionRecord `json:"items"`
+	}](ctx, client, base, authority, state.Cookie, "session/list", rpcArguments{ListRequest: &struct{}{}})
 	if err != nil {
 		return err
 	}
-	found := false
-	for _, item := range listed.Items {
-		found = found || item.SessionID == state.SessionID
-	}
-	if !found {
+	if !slices.ContainsFunc(listed.Items, func(item sessionRecord) bool { return item.SessionID == state.SessionID }) {
 		return errors.New("durable session was not listed")
 	}
-	if err := followSnapshot(connect, authority, state); err != nil {
+	if err := followSnapshot(ctx, connect, authority, state); err != nil {
 		return err
 	}
-	for _, method := range []string{http.MethodHead, http.MethodGet} {
-		request, err := http.NewRequest(method, base+"/api/session.export?sessionId="+url.QueryEscape(state.SessionID), nil)
+	if err := verifyExports(ctx, client, base, state); err != nil {
+		return err
+	}
+	if !resume {
+		encoded, err := json.Marshal(state)
 		if err != nil {
-			return err
+			return fmt.Errorf("encode probe state: %w", err)
+		}
+		if err := os.WriteFile(stateFile, encoded, 0o600); err != nil {
+			return fmt.Errorf("write probe state: %w", err)
+		}
+		if err := os.Chmod(stateFile, 0o600); err != nil {
+			return fmt.Errorf("restrict probe state permissions: %w", err)
+		}
+	}
+	if _, err := fmt.Printf("DSH protocol probe passed (resume=%t)\n", resume); err != nil {
+		return fmt.Errorf("write probe result: %w", err)
+	}
+	return nil
+}
+
+func exchangeCookie(ctx context.Context, client *http.Client, base string) (cookie string, resultErr error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/", nil)
+	if err != nil {
+		return "", fmt.Errorf("build cookie exchange request: %w", err)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return "", fmt.Errorf("cookie exchange: %w", err)
+	}
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("close cookie exchange response: %w", err))
+		}
+	}()
+	if response.StatusCode != http.StatusSeeOther {
+		return "", fmt.Errorf("cookie exchange status = %d", response.StatusCode)
+	}
+	if strings.Contains(response.Header.Get("Location"), "token=") {
+		return "", errors.New("launch token escaped into redirect")
+	}
+	cookies := response.Cookies()
+	if len(cookies) != 1 || !cookies[0].Secure || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteLaxMode {
+		return "", errors.New("unexpected DSH cookie attributes")
+	}
+	return cookies[0].Name + "=" + cookies[0].Value, nil
+}
+
+func verifyExports(ctx context.Context, client *http.Client, base string, state probeState) error {
+	for _, method := range []string{http.MethodHead, http.MethodGet} {
+		request, err := http.NewRequestWithContext(ctx, method, base+"/api/session.export?sessionId="+url.QueryEscape(state.SessionID), nil)
+		if err != nil {
+			return fmt.Errorf("build %s export request: %w", method, err)
 		}
 		request.Header.Set("Cookie", state.Cookie)
 		response, err := client.Do(request)
 		if err != nil {
 			return fmt.Errorf("fetch %s: %w", method, err)
 		}
-		_, _ = io.Copy(io.Discard, response.Body)
-		_ = response.Body.Close()
+		_, readErr := io.Copy(io.Discard, response.Body)
+		closeErr := response.Body.Close()
+		if err := errors.Join(readErr, closeErr); err != nil {
+			return fmt.Errorf("read %s export: %w", method, err)
+		}
 		if response.StatusCode != http.StatusOK {
 			return fmt.Errorf("fetch %s status = %d", method, response.StatusCode)
 		}
 	}
-	if !resume {
-		encoded, err := json.Marshal(state)
-		if err != nil {
-			return err
-		}
-		if err := os.WriteFile(stateFile, encoded, 0o600); err != nil {
-			return err
-		}
-		if err := os.Chmod(stateFile, 0o600); err != nil {
-			return err
-		}
-	}
-	fmt.Printf("DSH protocol probe passed (resume=%t)\n", resume)
 	return nil
 }
 
-func rpc[T any](
-	client *http.Client,
-	base, authority, cookie, method string,
-	args map[string]any,
-) (T, error) {
-	var zero T
-	payload, err := json.Marshal(map[string]any{
-		"type":    "client-request",
-		"rpcId":   "phase1-" + strings.ReplaceAll(method, "/", "-"),
-		"method":  method,
-		"payload": map[string]any{"args": args},
+func rpc[T any](ctx context.Context, client *http.Client, base, authority, cookie, method string, args rpcArguments) (value T, resultErr error) {
+	payload, err := json.Marshal(rpcRequest{
+		Type:    "client-request",
+		RPCID:   "phase1-" + strings.ReplaceAll(method, "/", "-"),
+		Method:  method,
+		Payload: rpcPayload{Args: args},
 	})
 	if err != nil {
-		return zero, err
+		return value, fmt.Errorf("encode %s request: %w", method, err)
 	}
-	request, err := http.NewRequest(http.MethodPost, base+"/api/"+method, bytes.NewReader(payload))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/"+method, bytes.NewReader(payload))
 	if err != nil {
-		return zero, err
+		return value, fmt.Errorf("build %s request: %w", method, err)
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Cookie", cookie)
 	request.Header.Set("Origin", "https://"+authority)
 	response, err := client.Do(request)
 	if err != nil {
-		return zero, fmt.Errorf("%s: %w", method, err)
+		return value, fmt.Errorf("%s: %w", method, err)
 	}
-	defer func() { _ = response.Body.Close() }()
+	defer func() {
+		if err := response.Body.Close(); err != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("close %s response: %w", method, err))
+		}
+	}()
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
-		return zero, fmt.Errorf("%s status = %d: %s", method, response.StatusCode, strings.TrimSpace(string(body)))
+		return value, fmt.Errorf("%s status = %d", method, response.StatusCode)
 	}
 	var body rpcResponse[T]
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
-		return zero, err
+		return value, fmt.Errorf("decode %s response: %w", method, err)
 	}
 	if !body.Result.OK {
-		return zero, fmt.Errorf("%s failed: %s: %s", method, body.Result.Error.Code, body.Result.Error.Message)
+		return value, fmt.Errorf("%s failed: %s", method, body.Result.Error.Code)
 	}
 	return body.Result.Value, nil
 }
 
-func followSnapshot(connect, authority string, state probeState) error {
+func followSnapshot(ctx context.Context, connect, authority string, state probeState) (resultErr error) {
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 		NetDialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -226,41 +282,63 @@ func followSnapshot(connect, authority string, state probeState) error {
 		"Cookie": []string{state.Cookie},
 		"Origin": []string{"https://" + authority},
 	}
-	connection, response, err := dialer.Dial("ws://"+authority+"/api/remote.mux", headers)
+	connection, response, err := dialer.DialContext(ctx, "ws://"+authority+"/api/remote.mux", headers)
 	if err != nil {
 		if response != nil {
-			_ = response.Body.Close()
-			return fmt.Errorf("remote.mux websocket status = %d: %w", response.StatusCode, err)
+			return fmt.Errorf("remote.mux websocket status = %d: %w", response.StatusCode, errors.Join(err, response.Body.Close()))
 		}
 		return fmt.Errorf("remote.mux websocket: %w", err)
 	}
-	defer func() { _ = connection.Close() }()
-	streamID := "phase1-follow"
-	if err := connection.WriteJSON(map[string]any{
-		"type":     "open",
-		"streamId": streamID,
-		"endpoint": "session/follow",
-		"payload": map[string]any{"args": map[string]any{
-			"request": map[string]any{"address": map[string]any{"kind": "session", "sessionId": state.SessionID}},
-		}},
-	}); err != nil {
-		return err
-	}
-	_ = connection.SetReadDeadline(time.Now().Add(15 * time.Second))
-	for {
-		var frame map[string]any
-		if err := connection.ReadJSON(&frame); err != nil {
-			return err
+	closed := make(chan error, 1)
+	stop := context.AfterFunc(ctx, func() { closed <- connection.Close() })
+	defer func() {
+		var err error
+		if stop() {
+			err = connection.Close()
+		} else {
+			err = <-closed
 		}
-		if frame["streamId"] != streamID {
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			resultErr = errors.Join(resultErr, fmt.Errorf("close session/follow connection: %w", err))
+		}
+	}()
+
+	const streamID = "phase1-follow"
+	message := struct {
+		Type     string `json:"type"`
+		StreamID string `json:"streamId"`
+		Endpoint string `json:"endpoint"`
+		Payload  struct {
+			Args struct {
+				Request followRequest `json:"request"`
+			} `json:"args"`
+		} `json:"payload"`
+	}{Type: "open", StreamID: streamID, Endpoint: "session/follow"}
+	message.Payload.Args.Request.Address = sessionAddress{Kind: "session", SessionID: state.SessionID}
+	if err := connection.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return fmt.Errorf("set session/follow write deadline: %w", err)
+	}
+	if err := connection.WriteJSON(message); err != nil {
+		return fmt.Errorf("open session/follow: %w", err)
+	}
+	if err := connection.SetReadDeadline(time.Now().Add(15 * time.Second)); err != nil {
+		return fmt.Errorf("set session/follow read deadline: %w", err)
+	}
+	for {
+		var frame followFrame
+		if err := connection.ReadJSON(&frame); err != nil {
+			return fmt.Errorf("read session/follow: %w", errors.Join(ctx.Err(), err))
+		}
+		if frame.StreamID != streamID {
 			continue
 		}
-		if frame["type"] == "error" || frame["type"] == "end" {
-			return fmt.Errorf("session/follow ended before a snapshot: %#v", frame)
-		}
-		value, _ := frame["value"].(map[string]any)
-		if frame["type"] == "item" && value["type"] == "snapshot" {
-			return nil
+		switch frame.Type {
+		case "error", "end":
+			return fmt.Errorf("session/follow returned %s before a snapshot", frame.Type)
+		case "item":
+			if frame.Value.Type == "snapshot" {
+				return nil
+			}
 		}
 	}
 }
