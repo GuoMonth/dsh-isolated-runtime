@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   standards:
-    name: Node ${{ matrix.node }}
+    name: ${{ matrix.node == '24.22.3' && 'Source standards' || format('Node {0}', matrix.node) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
