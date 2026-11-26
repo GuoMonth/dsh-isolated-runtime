@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/releasing.md) · [Guides](index.md)
 
-Runtime distributes a Linux/amd64 workload image and source release. The platform bundles the private Connector and owns installation. Published RC: [0.5.0-rc.3](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.5.0-rc.3), released 2026-11-18 with platform 0.12.0-rc.2 and DSH 0.2.2-rc.3. Exact sources, image digests, accepted security risk and tested/untested scope are in the [validation report](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.3/validation.md). Source `VERSION` selects the next candidate 0.5.0-rc.4 with DSH 0.2.2-rc.5. Published tags and artifacts remain immutable.
+Runtime distributes a Linux/amd64 workload image and source release, with an optional Connector archive for the recommended Kubernetes deployment. The reference platform image installs the selected archive separately. Published RC: [0.5.0-rc.3](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.5.0-rc.3), released 2026-11-18 with platform 0.12.0-rc.2 and DSH 0.2.2-rc.3. Exact sources, image digests, accepted security risk and tested/untested scope are in the [validation report](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.3/validation.md). Source `VERSION` selects the next candidate 0.5.0-rc.4 with DSH 0.2.2-rc.5. Published tags and artifacts remain immutable.
 
 Runtime version is maintained in `VERSION`. RC/beta releases use `--prerelease --latest=false`. Record separate workload and Connector source identities; an unchanged pinned Connector can be retained after comparison and joint acceptance.
 
@@ -11,10 +11,10 @@ Runtime version is maintained in `VERSION`. RC/beta releases use `--prerelease -
 ```sh
 make verify
 make verify-dsh
-node hack/pack-environment-connector.mjs /absolute/output-directory
+node hack/pack-environment-connector.ts /absolute/output-directory
 ```
 
-Pack from a clean committed source. The Connector includes source.json, SHA256 and npm integrity; its new tarball must be consumed and jointly tested by the platform. Runtime RBAC stays here; the platform packages the checksummed copy.
+Pack from committed Connector inputs. The archive includes `source.json` with its source commit. The adjacent `connector.json` records the repository, commit, archive filename, SHA256 and npm SHA512 integrity. Verify both digests before selecting the archive for the reference image. Record the workload image digest and Connector provenance independently in joint acceptance. The reference installer uses a checksummed copy of the runtime RBAC.
 
 Run the manual `prepare-release.yml` on main. It builds the workload image and uploads candidate/source/digest metadata. Pull that exact image and run runtime/platform acceptance. [DSH compatibility](../../compat/dsh/README.md) describes the exact baseline and native settings behavior.
 

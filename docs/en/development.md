@@ -13,7 +13,7 @@ make verify
 make verify-dsh
 ```
 
-The root pnpm workspace owns Connector development. `images/environment` remains outside that workspace: its npm lockfile describes the official published DSH runtime closure and `make verify-dsh` consumes it with `npm ci`. [Connector packing](../../hack/pack-environment-connector.mjs) builds with the frozen pnpm workspace, then uses `npm pack` for the platform's tarball consumer.
+The root pnpm workspace owns Connector development. `images/environment` remains outside that workspace: its npm lockfile describes the official published DSH runtime closure and `make verify-dsh` consumes it with `npm ci`. [Connector packing](../../hack/pack-environment-connector.ts) builds with the frozen pnpm workspace and uses `npm pack` to produce the optional reference archive and its provenance.
 
 TypeScript and JavaScript use two spaces, single quotes, no statement-ending semicolons and multiline trailing commas. TypeScript relative imports use `.ts`; the compiler rewrites emitted imports. `pnpm fmt` applies pinned Oxlint stylistic fixes and gofmt; `pnpm fmt:check` checks JavaScript/TypeScript without writing. Lines over 140 columns need manual wrapping when no safe fix exists. `make lint` also checks Go formatting, UTF-8, LF, whitespace, JSON, shell, JavaScript and Python syntax and runs the pinned `golangci-lint` with [.golangci.yml](../../.golangci.yml), including `goimports` and the HTTP response body check.
 

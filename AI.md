@@ -1,6 +1,6 @@
 # AI assistant guide (English)
 
-Answer in the user's language. Installation and user operation start in [dsh-multi-tenant](https://github.com/GuoMonth/dsh-multi-tenant); its package bundles this runtime's Connector.
+Answer in the user's language. For the recommended Kubernetes deployment, use [dsh-multi-tenant](https://github.com/GuoMonth/dsh-multi-tenant) for installation and user operations. The reference platform image installs the exact Connector alongside the platform package.
 
 For runtime changes, read [development](docs/en/development.md), [contract](docs/en/contract.md) and [AGENTS.md](AGENTS.md). Runtime owns resource identity and lifecycle; platform owns authorization. Preserve the original binding on unknown results and retain user volumes.
 
