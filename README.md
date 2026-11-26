@@ -6,6 +6,8 @@ The Kubernetes runtime for self-hosted, multi-user [DeepSeek Harness](https://gi
 
 **Install through the platform repository.** Its npm package bundles the Connector, CLI and Helm chart. The published RC combination is runtime **0.5.0-rc.3**, platform **0.12.0-rc.2**, DSH **0.2.2-rc.3**. The [validation report](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.3/validation.md) records exact artifacts, the accepted Picomatch issue and untested model/tool boundaries. No compatibility guarantee; pin the exact versions and artifacts you deploy.
 
+The current source targets runtime **0.5.0-rc.4** and DSH **0.2.2-rc.5**. [DSH compatibility](compat/dsh/README.md)
+
 ## What runtime does
 
 Runtime creates each authorized user's fixed Kubernetes resources, verifies their owner and UIDs, handles explicit stop/start/delete and forwards native DSH traffic. Upstream Agent Sandbox core is the sole Pod/Service controller; the platform owns OIDC and user authorization.

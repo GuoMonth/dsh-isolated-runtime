@@ -2,9 +2,7 @@
 
 [English](../en/development.md) · [指南](index.md)
 
-开发使用 Go 1.27.4，以及 Node 24 系列中不低于 24.11.0 的版本，或 Node 26。[.node-version](../../.node-version) 选择 Node 24；Corepack 读取根 [package.json](../../package.json) 的 `packageManager`。[pnpm-lock.yaml](../../pnpm-lock.yaml) 按官方 [DSH 0.2.2-rc.3](https://github.com/deepseek-ai/deepseek-harness/tree/38a6a5c965aa99ab525161efb7cc5cf1fe62fced) 固定开发工具的精确版本。该工程基线不改变独立维护的[应用版本针](../../compat/dsh/baseline.json)。`go.mod` 为 Make 和 GitHub CI 选择精确 Go 版本；launcher 构建固定对应官方镜像及 digest，源码检查验证二者一致。`dev-run` 是可选包装器，也可使用标准 Go/Node 安装。
-
-发布的应用和 Connector 保留 Node 24.9.0 兼容下限。开发下限更高，因为官方声明构建依赖中的 Babel 包要求 Node 24.11.0。保持严格安装检查，在已构建制品上验证最低兼容版本。
+使用 Go 1.27.4 和 Node 24.22.3 及以上的 24.x 版本，或 26.13.1 及以上版本。[.node-version](../../.node-version) 固定开发用 Node。Corepack 读取根 [package.json](../../package.json) 的 `packageManager)。[pnpm 锁文件](../../pnpm-lock.yaml) 固定工具链。`go.mod` 为 Make、CI 和构建镜像选择 Go 版本。工作负载构建按摘要固定两个工具链镜像。
 
 ```sh
 pnpm install --frozen-lockfile
@@ -17,11 +15,11 @@ make verify-dsh
 
 根 pnpm workspace 负责 Connector 开发。`images/environment` 保留在 workspace 之外，npm 锁文件描述官方已发布 DSH 的运行依赖，`make verify-dsh` 通过 `npm ci` 消费它。[Connector 打包脚本](../../hack/pack-environment-connector.mjs) 使用冻结的 pnpm workspace 构建，再通过 `npm pack` 提供平台消费的 tarball。
 
-TypeScript 和 JavaScript 使用两空格、单引号、无语句末尾分号，多行列表保留尾逗号。TypeScript 相对导入使用 `.ts`，编译器改写产物导入。`pnpm fmt` 应用固定版本 Oxlint 风格修复和 gofmt；`pnpm fmt:check` 只检查 JavaScript/TypeScript，不写入。超过 140 列且无法安全自动修复的行需要手动换行。`make lint` 还检查 Go 格式、UTF-8、LF、空白、JSON、Shell、JavaScript 和 Python 语法。
+TypeScript 和 JavaScript 使用两空格、单引号、无语句末尾分号，多行列表保留尾逗号。TypeScript 相对导入使用 `.ts`，编译器改写产物导入。`pnpm fmt` 应用固定版本 Oxlint 风格修复和 gofmt；`pnpm fmt:check` 只检查 JavaScript/TypeScript，不写入。超过 140 列且无法安全自动修复的行需要手动换行。`make lint` 还检查 Go 格式、UTF-8、LF、空白、JSON、Shell、JavaScript 和 Python 语法，并使用 [.golangci.yml](../../.golangci.yml) 运行固定版本的 `golangci-lint`，执行 `goimports` 和 HTTP 响应体关闭检查。
 
 `pnpm lint` 执行官方严格 TypeScript 规则。[lint-baseline.json](../../hack/lint-baseline.json) 按文件、规则、所属语句和声明及出现次数冻结存量诊断；新增或迁移诊断会失败。`pnpm lint --prune` 只能删除已解决的例外；PR CI 对照受信任的基线提交，拒绝扩大例外。本地 lint 前先获取 `origin/main`；`LINT_BASE_REF` 可以指定受信任的基线 SHA。`pnpm lint:raw` 同时展示未解决的债务，`pnpm test:tooling` 验证门禁的拒绝路径。
 
-`make verify` 执行源码、格式和 lint 检查，构建 Go 和 Connector，运行 Go race、Connector 和工具测试，再执行 vet、文档检查、模块完整性及 `make security`。后者使用固定版本的官方 govulncheck，按当前 Go 漏洞库扫描应用和测试代码；漏洞库不可用时检查失败。`make security` 还通过 `pnpm security` 审计 Node workspace，并审计工作负载 npm 闭包，命中已知公告时失败。PR CI 在 Node 24 上运行完整命令；Node 26 执行 Connector 格式、lint、类型和行为测试及工具测试。Node 24.9 兼容任务先用 Node 24 安装和构建，再用 Node 24.9 执行已编译的 Connector 测试。工作流语法在 Node 24 上检查。集群和发布工作流保持手动执行。`make verify-dsh` 安装精确 DSH 包，以 race detector 验证身份和 launcher 传输；Go 模块变化也触发此 PR 门禁，在 Node 24.9、24 和 26 上运行。
+`make verify` 执行源码、格式和严格类型检查，构建 Go 与 Connector，运行 race 和 Connector 测试、`go vet`、文档检查和安全扫描。CI 在 Node 24.22.3 和 26.13.1 上运行完整门禁，并检查工作流语法。DSH 集成输入变化时，两条任务还会运行 `make verify-dsh`，安装精确 npm 依赖，并用开启竞态检测的 Go 测试验证 launcher 传输，以及 Session 的创建、流式订阅、导出和重启恢复。集群与发布流程保持手动执行。
 
 `make docs-check` 检查路径、锚点、双语配对以及命令和版本一致性。跨仓链接检查使用 `DSH_PLATFORM_DOCS` 和 `DSH_RUNTIME_DOCS` 指定配套 checkout。技术 harness 的 README 使用英文，公开指南提供双语。
 
@@ -34,6 +32,8 @@ TypeScript 和 JavaScript 使用两空格、单引号、无语句末尾分号，
 新 Service 可能存在 endpoints 和 ports 为 null 的受控 EndpointSlice。保留这些空集合的原始形式，等待控制器发布就绪目标前报告 Pending；归属校验及非空端点、端口校验保持严格。
 
 launcher 回收子进程、关闭代理传输并负责已接管连接。管理端口在启动子进程前完成绑定，每条退出路径均等待两个服务及子进程清理完成。`os/exec` 负责输出复制，输出读完后才公布进程结束；`Cmd.WaitDelay` 限制子进程退出后继承管道的等待时间。强制 SIGKILL 不算成功停止环境。
+
+Go 的线协议数据使用具体结构体，阻塞操作传递 context，返回错误时添加操作上下文。每个 goroutine 都需要明确的退出和等待路径。Node 工程脚本使用根目录严格 `tsconfig.json` 和固定版本的 Oxlint。
 
 使用官方 `go fix -diff ./...` 审核适用的现代化改写；`errors.AsType`、`strings.SplitSeq`、原子类型和 `WaitGroup.Go` 明确表达意图。连接排空测试使用 `testing/synctest` 虚拟时钟，避免靠睡眠猜测调度顺序。选择新 API 时保持 JSON 线协议语义。
 

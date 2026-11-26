@@ -56,7 +56,6 @@ type Instance struct {
 	URL string
 
 	server          *http.Server
-	listener        net.Listener
 	process         *os.Process
 	processState    *processState
 	shutdownTimeout time.Duration
@@ -74,7 +73,6 @@ type readiness struct {
 
 type processState struct {
 	done chan struct{}
-	mu   sync.Mutex
 	err  error
 }
 
@@ -207,7 +205,6 @@ func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
 	instance := &Instance{
 		URL:             "http://" + listener.Addr().String(),
 		server:          server,
-		listener:        listener,
 		process:         cmd.Process,
 		processState:    state,
 		shutdownTimeout: cfg.ShutdownTimeout,
@@ -536,17 +533,13 @@ func terminate(process *os.Process, timeout time.Duration, state *processState) 
 }
 
 func (s *processState) complete(wait func() error) {
-	err := wait()
-	s.mu.Lock()
-	s.err = err
-	s.mu.Unlock()
+	// Publish the result before unblocking readers.
+	s.err = wait()
 	close(s.done)
 }
 
 func (s *processState) result() error {
 	<-s.done
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.err
 }
 

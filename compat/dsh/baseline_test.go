@@ -30,8 +30,8 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 		t.Fatal("baseline schema drift")
 	}
 	const (
-		wantVersion = "0.2.2-rc.3"
-		wantCommit  = "38a6a5c965aa99ab525161efb7cc5cf1fe62fced"
+		wantVersion = "0.2.2-rc.5"
+		wantCommit  = "9c2670d3bce5275e0d1610272958121af87787bb"
 	)
 	if baseline.Source.Version != wantVersion || baseline.Source.Commit != wantCommit || Version() != wantVersion || Commit() != wantCommit {
 		t.Fatal("DSH source pin drift")
@@ -44,7 +44,10 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 		t.Fatal(err)
 	}
 	var lock struct {
-		Packages map[string]struct{ Version, Integrity string }
+		Packages map[string]struct {
+			Version, Integrity string
+			HasInstallScript   bool
+		}
 	}
 	if err = json.Unmarshal(lockData, &lock); err != nil {
 		t.Fatal(err)
@@ -74,9 +77,20 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 	if manifest.Dependencies["@deepseek-ai/dsh"] != wantVersion {
 		t.Fatal("workload package.json pin drift")
 	}
-	for name, dependency := range lock.Packages {
-		if strings.HasPrefix(name, "node_modules/@deepseek-ai/dsh-") && !strings.Contains(strings.TrimPrefix(name, "node_modules/"), "/node_modules/") && dependency.Version != wantVersion {
-			t.Errorf("official package closure differs from the DSH pin: %s at %s", name, dependency.Version)
+	lockedScripts := make(map[string]bool)
+	for path, dependency := range lock.Packages {
+		parts := strings.Split(path, "node_modules/")
+		name := parts[len(parts)-1]
+		if (name == "@deepseek-ai/dsh" || strings.HasPrefix(name, "@deepseek-ai/dsh-")) && dependency.Version != wantVersion {
+			t.Errorf("official package closure differs from the DSH pin: %s at %s", path, dependency.Version)
+		}
+		if dependency.HasInstallScript {
+			key := name + "@" + dependency.Version
+			allowed, reviewed := manifest.AllowScripts[key]
+			if !reviewed {
+				t.Errorf("install script needs a review: %s", key)
+			}
+			lockedScripts[key] = allowed
 		}
 	}
 	wantOverrides := map[string]string{
@@ -97,8 +111,15 @@ func TestBaselineIsExactAndComplete(t *testing.T) {
 			}
 		}
 	}
-	if !manifest.AllowScripts["@deepseek-ai/dsh-subprocess-local@"+wantVersion] {
-		t.Fatal("allowScripts must approve the locked subprocess-local install script")
+	wantScripts := map[string]bool{
+		"@deepseek-ai/dsh-subprocess-local@" + wantVersion: true,
+		"@google/genai@2.32.0":                             false,
+		"koffi@3.1.1":                                      true,
+		"node-pty@1.2.0-beta.15":                           true,
+		"protobufjs@7.6.6":                                 false,
+	}
+	if !maps.Equal(manifest.AllowScripts, wantScripts) || !maps.Equal(lockedScripts, wantScripts) {
+		t.Fatal("allowScripts must match the reviewed install scripts in the lockfile")
 	}
 	dockerfile, err := os.ReadFile("../../images/environment/Dockerfile")
 	if err != nil {
