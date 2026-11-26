@@ -13,7 +13,7 @@ make verify
 make verify-dsh
 ```
 
-根 pnpm workspace 负责 Connector 开发。`images/environment` 保留在 workspace 之外，npm 锁文件描述官方已发布 DSH 的运行依赖，`make verify-dsh` 通过 `npm ci` 消费它。[Connector 打包脚本](../../hack/pack-environment-connector.mjs) 使用冻结的 pnpm workspace 构建，再通过 `npm pack` 提供平台消费的 tarball。
+根 pnpm workspace 负责 Connector 开发。`images/environment` 保留在 workspace 之外，npm 锁文件描述官方已发布 DSH 的运行依赖，`make verify-dsh` 通过 `npm ci` 消费它。[Connector 打包脚本](../../hack/pack-environment-connector.ts) 使用冻结的 pnpm workspace 构建，再通过 `npm pack` 生成可选参考归档及其来源记录。
 
 TypeScript 和 JavaScript 使用两空格、单引号、无语句末尾分号，多行列表保留尾逗号。TypeScript 相对导入使用 `.ts`，编译器改写产物导入。`pnpm fmt` 应用固定版本 Oxlint 风格修复和 gofmt；`pnpm fmt:check` 只检查 JavaScript/TypeScript，不写入。超过 140 列且无法安全自动修复的行需要手动换行。`make lint` 还检查 Go 格式、UTF-8、LF、空白、JSON、Shell、JavaScript 和 Python 语法，并使用 [.golangci.yml](../../.golangci.yml) 运行固定版本的 `golangci-lint`，执行 `goimports` 和 HTTP 响应体关闭检查。
 

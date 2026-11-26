@@ -2,13 +2,13 @@
 
 [English](../en/contract.md) · [文档目录](index.md)
 
-内部包 `@dsh/environment-connector-internal` 实现 `createAgentEnvironmentRuntime(options)`，平台打包精确 tarball。类型见 [port.ts](../../packages/environment-connector/src/port.ts)，资源使用唯一的[固定模板](../../packages/environment-connector/src/template.ts)。
+推荐的 Kubernetes 参考镜像单独安装精确的 `@dsh/environment-connector-internal` 归档，平台启动时选定固定适配器。Connector 实现 `createAgentEnvironmentRuntime(options)`，遵循 [port.ts](../../packages/environment-connector/src/port.ts) 的 Kubernetes 资源契约和[固定模板](../../packages/environment-connector/src/template.ts)。[平台参考适配器](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/charts/kubernetes-reference.ts) 将其转换成平台环境契约 v2。
 
 ## 输入与身份
 
 平台授权用户 `(tenantId, principalId)`，生成稳定的 `allocationKey`。管理员配置 Kubernetes server/CA/token 文件、namespace 前缀、域名、镜像 digest、StorageClass/容量、CPU/内存 requests/limits 和平台 namespace。调用方不能提供任意 PodSpec 或资源名称。
 
-runtime 创建带归属标签的 namespace、无 token 的用户 ServiceAccount、网络策略、一个外部 PVC 和上游 Sandbox。同名外来资源会被拒绝。平台保存 `EnvironmentRef`：owner、allocation key、namespace、Sandbox 名称/UID、PVC 名称/UID；连接时核对当次 Pod UID。
+runtime 创建带归属标签的 namespace、无 token 的用户 ServiceAccount、网络策略、一个外部 PVC 和上游 Sandbox。同名外来资源会被拒绝。Connector 接收精确的 `EnvironmentRef`，包含 owner、allocation key、namespace、Sandbox 名称/UID 和 PVC 名称/UID。参考适配器将两个 UID 分别保留为 `instanceId` 和 `storageId`，其余定位信息保存在适配器的 `locator`。连接时核对当次 Pod UID。
 
 策略允许平台 namespace 内带平台标签的 Pod 访问。DNS 使用 kube-system，公网出站排除集群、私网和 metadata 地址。Kubernetes RBAC 将 namespace 创建权授予可信平台，但不能按名称前缀限制该权限。[runtime 角色](../../config/runtime/cluster-role.yaml)不能读取 Secret、写 Pod 或删除 PVC/namespace。
 
