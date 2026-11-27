@@ -2,7 +2,7 @@
 
 [简体中文](../zh-CN/releasing.md) · [Guides](index.md)
 
-Runtime distributes a Linux/amd64 workload image and source release, with an optional Connector archive for the recommended Kubernetes deployment. The reference platform image installs the selected archive separately. Published RC: [0.5.0-rc.3](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.5.0-rc.3), released 2026-11-18 with platform 0.12.0-rc.2 and DSH 0.2.2-rc.3. Exact sources, image digests, accepted security risk and tested/untested scope are in the [validation report](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.3/validation.md). Source `VERSION` selects the next candidate 0.5.0-rc.4 with DSH 0.2.2-rc.5. Published tags and artifacts remain immutable.
+Runtime distributes a Linux/amd64 workload image and source release, with an optional Connector archive for the recommended Kubernetes deployment. The reference platform image installs the selected archive separately. Source `VERSION` selects runtime candidate 0.5.0 with official DSH 0.2.2-rc.5, paired with platform 0.12.0. The previous [0.5.0-rc.4 testing report](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.4/TESTING.md) records the exact artifacts and observed outcomes for the RC.
 
 Runtime version is maintained in `VERSION`. RC/beta releases use `--prerelease --latest=false`. Record separate workload and Connector source identities; an unchanged pinned Connector can be retained after comparison and joint acceptance.
 

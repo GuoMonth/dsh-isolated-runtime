@@ -2,7 +2,7 @@
 
 [English](../en/releasing.md) · [文档目录](index.md)
 
-runtime 分发 Linux/amd64 运行镜像和源码版本，并为推荐的 Kubernetes 参考部署提供可选 Connector 归档。参考平台镜像单独安装选定的归档。[0.5.0-rc.3](https://github.com/GuoMonth/dsh-isolated-runtime/releases/tag/v0.5.0-rc.3) 已于 2026-11-18 发布，配套平台 0.12.0-rc.2、DSH 0.2.2-rc.3。精确源码、镜像摘要、已接受安全风险和已测/未测范围见[验证报告](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.3/validation.md)。源码 `VERSION` 选择下一候选 0.5.0-rc.4，DSH 固定为 0.2.2-rc.5，已发布标签和制品保持原样。
+runtime 分发 Linux/amd64 运行镜像和源码版本，并为推荐的 Kubernetes 参考部署提供可选 Connector 归档。参考平台镜像单独安装选定的归档。源码 `VERSION` 选择 runtime 候选版 0.5.0，使用官方 DSH 0.2.2-rc.5，配套平台 0.12.0。[0.5.0-rc.4 测试报告](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.4/TESTING.zh-CN.md)记录此前 RC 的精确制品和实测结果。
 
 runtime 版本在 `VERSION` 维护。RC/beta 发行使用 `--prerelease --latest=false`。运行镜像和 Connector 分别记录源码来源；实现未变时，可在比对与联合验收后沿用已有精确 Connector。
 
