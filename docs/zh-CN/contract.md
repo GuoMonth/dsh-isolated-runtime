@@ -18,6 +18,8 @@ PVC 挂载到 `/var/lib/dsh/data`：`workspace/` 是工作目录，`home/` 是 H
 
 `connect` 只接受已核对 owner、资源、模板和端点的 Ready 实例。context signal 管理整个连接生命周期：取消后拒绝继续转发，并关闭 HTTP 流和 WebSocket。launcher 保留原生 token/cookie 和 authority 校验，转发 DSH 流量时保持模型及工具协议。
 
+launcher 配置环境的公开 HTTPS 地址，并通过私有子进程管道取得回环监听地址和启动令牌。Connector 通过现有已授权的环境连接接收原生 MCP OAuth 回调路径上的跨站顶层 GET 导航。DSH 负责回调校验和服务令牌。
+
 ## 查询与修改
 
 | 操作 | 行为 |

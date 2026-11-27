@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && rm -rf /var/lib/apt/lists/*
 COPY --from=dsh /opt/dsh /opt/dsh
 COPY --from=launcher /out/environment-launcher /usr/local/bin/environment-launcher
-COPY images/environment/environment.patch.yml /etc/dsh/environment.patch.yml
+COPY images/environment/environment.patch.yml images/environment/launcher-ready.mjs /etc/dsh/
 ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.source="https://github.com/GuoMonth/dsh-isolated-runtime" \
       org.opencontainers.image.revision=$SOURCE_REVISION \

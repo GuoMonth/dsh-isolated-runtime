@@ -3,3 +3,5 @@
 - id: workspace-controller
   config:
     documentsDirectory: !!js process.cwd()
+- insert:
+    - name: ./launcher-ready.mjs

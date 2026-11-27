@@ -24,13 +24,14 @@ func TestRealDSHBrowserExchange(t *testing.T) {
 	}
 	var logs lockedBuffer
 	instance, err := Start(Config{
-		DSHCommand:      []string{"node", cli},
-		PatchFiles:      []string{patch},
-		WorkingDir:      t.TempDir(),
-		Environment:     append(os.Environ(), "DSH_HOME="+t.TempDir(), "DSH_TELEMETRY_DISABLED=1"),
-		PublicAuthority: "cell.test",
-		ReadyTimeout:    90 * time.Second,
-		LogWriter:       &logs,
+		DSHCommand:         []string{"node", cli},
+		PatchFiles:         []string{patch},
+		WorkingDir:         t.TempDir(),
+		Environment:        append(os.Environ(), "DSH_HOME="+t.TempDir(), "DSH_TELEMETRY_DISABLED=1"),
+		PublicAuthority:    "cell.test",
+		AdvertisePublicURL: true,
+		ReadyTimeout:       90 * time.Second,
+		LogWriter:          &logs,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -40,6 +41,9 @@ func TestRealDSHBrowserExchange(t *testing.T) {
 		defer cancel()
 		if closeErr := instance.Close(ctx); closeErr != nil {
 			t.Errorf("close real DSH: %v", closeErr)
+		}
+		if !strings.Contains(logs.String(), "dsh web: https://cell.test/") {
+			t.Error("DSH did not advertise the configured HTTPS origin")
 		}
 	})
 
@@ -57,7 +61,7 @@ func TestRealDSHBrowserExchange(t *testing.T) {
 	}
 	defer func() { _ = exchange.Body.Close() }()
 	if exchange.StatusCode != http.StatusSeeOther {
-		t.Fatalf("token exchange status = %d", exchange.StatusCode)
+		t.Fatalf("token exchange status = %d; stdout/stderr:\n%s", exchange.StatusCode, logs.String())
 	}
 	if strings.Contains(exchange.Header.Get("Location"), "token=") {
 		t.Fatal("launch token escaped into the public redirect")

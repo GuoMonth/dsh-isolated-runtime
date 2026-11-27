@@ -45,10 +45,12 @@ type Config struct {
 	WorkingDir      string
 	Environment     []string
 	PublicAuthority string
-	ListenAddress   string
-	ReadyTimeout    time.Duration
-	ShutdownTimeout time.Duration
-	LogWriter       io.Writer
+	// AdvertisePublicURL uses the deployment overlay to report readiness over an inherited pipe.
+	AdvertisePublicURL bool
+	ListenAddress      string
+	ReadyTimeout       time.Duration
+	ShutdownTimeout    time.Duration
+	LogWriter          io.Writer
 }
 
 // Instance is a running DSH child and its environment-local access endpoint.
@@ -116,10 +118,39 @@ func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
 		args = append(args, "--patch", patch)
 	}
 	args = append(args, "--no-open", "--port", "0", "--trusted-host", cfg.PublicAuthority)
+	if cfg.AdvertisePublicURL {
+		args = append(args, "--public-url", "https://"+cfg.PublicAuthority+"/")
+	}
 	cmd := exec.Command(cfg.DSHCommand[0], args...)
 	cmd.Dir = cfg.WorkingDir
 	if cfg.Environment != nil {
 		cmd.Env = append([]string(nil), cfg.Environment...)
+	}
+	ready := make(chan readiness, 1)
+	var readReady sync.WaitGroup
+	var readyWriter *os.File
+	if cfg.AdvertisePublicURL {
+		reader, writer, err := os.Pipe()
+		if err != nil {
+			return nil, fmt.Errorf("launcher: create DSH readiness pipe: %w", err)
+		}
+		readyWriter = writer
+		defer func() {
+			_ = reader.Close()
+			readReady.Wait()
+		}()
+		cmd.ExtraFiles = []*os.File{writer}
+		cmd.Env = append(cmd.Environ(), "DSH_LAUNCHER_READY_FD=3")
+		readReady.Go(func() {
+			defer close(ready)
+			line, err := bufio.NewReaderSize(reader, 256).ReadSlice('\n')
+			if err != nil {
+				return
+			}
+			if observed, err := parseReadyURL(string(line[:len(line)-1])); err == nil {
+				ready <- observed
+			}
+		})
 	}
 	stdout, stdoutWriter := io.Pipe()
 	stderr, stderrWriter := io.Pipe()
@@ -128,16 +159,19 @@ func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
 	// Let os/exec own and join its output copying. WaitDelay also bounds pipes
 	// inherited by descendants after the DSH process itself has exited.
 	cmd.WaitDelay = cfg.ShutdownTimeout
-	if err := cmd.Start(); err != nil {
+	startErr := cmd.Start()
+	if readyWriter != nil {
+		_ = readyWriter.Close()
+	}
+	if startErr != nil {
 		_ = stdout.Close()
 		_ = stdoutWriter.Close()
 		_ = stderr.Close()
 		_ = stderrWriter.Close()
-		return nil, fmt.Errorf("launcher: start DSH: %w", err)
+		return nil, fmt.Errorf("launcher: start DSH: %w", startErr)
 	}
 
 	state := &processState{done: make(chan struct{})}
-	ready := make(chan readiness, 1)
 	var readyOnce sync.Once
 	var logMu sync.Mutex
 	scan := func(reader *io.PipeReader) {
@@ -147,7 +181,7 @@ func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
 		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 		for scanner.Scan() {
 			line := scanner.Text()
-			if match := readyURLPattern.FindStringSubmatch(line); len(match) == 2 {
+			if match := readyURLPattern.FindStringSubmatch(line); len(match) == 2 && !cfg.AdvertisePublicURL {
 				if observed, parseErr := parseReadyURL(match[1]); parseErr == nil {
 					readyOnce.Do(func() { ready <- observed })
 				}
@@ -171,8 +205,12 @@ func StartContext(ctx context.Context, cfg Config) (*Instance, error) {
 	timer := time.NewTimer(cfg.ReadyTimeout)
 	defer timer.Stop()
 	var observed readiness
+	var reported bool
 	select {
-	case observed = <-ready:
+	case observed, reported = <-ready:
+		if !reported {
+			return nil, errors.Join(errors.New("launcher: invalid DSH readiness report"), terminate(cmd.Process, cfg.ShutdownTimeout, state))
+		}
 	case <-ctx.Done():
 		return nil, errors.Join(ctx.Err(), terminate(cmd.Process, cfg.ShutdownTimeout, state))
 	case <-state.done:

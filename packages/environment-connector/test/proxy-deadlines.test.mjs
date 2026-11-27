@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createServer, get } from 'node:http'
+import { createServer, get, request as httpRequest } from 'node:http'
 import { connect } from 'node:net'
 import { once } from 'node:events'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -172,3 +172,43 @@ test(
     await closed
   },
 )
+
+test('only a top-level GET to the native MCP OAuth callback can cross sites', async (t) => {
+  const callback = '/mcp/oauth/callback/' + 'a'.repeat(64)
+  const query = '?code=fixture-code&state=fixture-state'
+  const observed = []
+  const { port, controller } = await fixture(t, (req, res) => {
+    observed.push({ url: req.url, authority: req.headers.host })
+    res.writeHead(204).end()
+  })
+  const navigation = {
+    host: new URL(origin).host,
+    'sec-fetch-site': 'cross-site',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-dest': 'document',
+  }
+  const response = await new Promise((resolve, reject) => {
+    httpRequest({ hostname: '127.0.0.1', port, path: callback + query, headers: navigation }, resolve)
+      .on('error', reject)
+      .end()
+  })
+  response.resume()
+  await once(response, 'end')
+  assert.equal(response.statusCode, 204)
+  assert.deepEqual(observed, [{ url: callback + query, authority: new URL(origin).host }])
+
+  for (const [path, method, headers] of [
+    ['/api/settings', 'GET', navigation],
+    [callback + '/more', 'GET', navigation],
+    [callback, 'POST', navigation],
+    [callback, 'GET', { ...navigation, 'sec-fetch-mode': 'cors' }],
+    [callback, 'GET', { ...navigation, 'sec-fetch-dest': 'iframe' }],
+    [callback, 'GET', { ...navigation, host: 'other.environments.test' }],
+    [callback, 'GET', { ...navigation, origin: 'https://issuer.example.test' }],
+  ]) {
+    const transport = connector(origin, { signal: controller.signal, correlationId: 'cross-site' }, async () => {
+      assert.fail('rejected requests must not resolve the workload')
+    })
+    await assert.rejects(transport.forward({ url: path, method, headers }, {}), error => error.failure?.code === 'AccessRejected')
+  }
+})

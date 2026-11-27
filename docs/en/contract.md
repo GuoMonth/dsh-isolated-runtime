@@ -18,6 +18,8 @@ The PVC mounts at `/var/lib/dsh/data`: `workspace/` is the working directory, `h
 
 `connect` accepts a Ready instance after owner, resource, template and endpoint verification. The context signal owns the connection lifetime: abort rejects further forwarding and closes HTTP streams/WebSockets. The launcher preserves native token/cookie and authority checks. DSH application traffic is forwarded without changing model/tool protocols.
 
+The launcher advertises the environment HTTPS origin and receives the loopback listener and launch token over a private child-process pipe. The Connector admits cross-site top-level GET navigations to the native MCP OAuth callback path through the existing authorized environment connection. DSH owns callback validation and provider tokens.
+
 ## Queries and mutations
 
 | Operation | Behavior |

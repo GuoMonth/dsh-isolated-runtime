@@ -156,12 +156,18 @@ export function connector(
     consumed = true
     context.signal.throwIfAborted()
     const external = new URL(origin)
+    const callbackNavigation =
+      !websocket &&
+      request.method === 'GET' &&
+      request.headers['sec-fetch-mode'] === 'navigate' &&
+      request.headers['sec-fetch-dest'] === 'document' &&
+      /^\/mcp\/oauth\/callback\/[a-f0-9]{64}(?:\?|$)/.test(request.url ?? '')
     if (
       !request.url?.startsWith('/') ||
       request.url.startsWith('//') ||
       /[\r\n]/.test(request.url) ||
       request.headers.host !== external.host ||
-      request.headers['sec-fetch-site'] === 'cross-site' ||
+      (request.headers['sec-fetch-site'] === 'cross-site' && !callbackNavigation) ||
       (request.headers.origin !== undefined &&
         request.headers.origin !== origin) ||
       ((websocket || !['GET', 'HEAD'].includes(request.method ?? '')) &&

@@ -52,15 +52,16 @@ func run() error {
 
 	return serveEnvironment(runCtx, launcher.Config{
 		// Launch the supported official web profile with plain Node.
-		DSHCommand:      []string{"/usr/local/bin/node", "/opt/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"},
-		PatchFiles:      []string{"/etc/dsh/environment.patch.yml"},
-		WorkingDir:      "/var/lib/dsh/data/workspace",
-		Environment:     os.Environ(),
-		PublicAuthority: authority,
-		ListenAddress:   ":8080",
-		ReadyTimeout:    readyTimeout,
-		ShutdownTimeout: shutdownTimeout,
-		LogWriter:       os.Stdout,
+		DSHCommand:         []string{"/usr/local/bin/node", "/opt/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js"},
+		PatchFiles:         []string{"/etc/dsh/environment.patch.yml"},
+		WorkingDir:         "/var/lib/dsh/data/workspace",
+		Environment:        os.Environ(),
+		PublicAuthority:    authority,
+		AdvertisePublicURL: true,
+		ListenAddress:      ":8080",
+		ReadyTimeout:       readyTimeout,
+		ShutdownTimeout:    shutdownTimeout,
+		LogWriter:          os.Stdout,
 	}, ":8081")
 }
 
