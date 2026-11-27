@@ -6,7 +6,7 @@
 
 推荐的 [Kubernetes 参考部署](https://github.com/GuoMonth/dsh-multi-tenant/blob/main/docs/zh-CN/installation.md) 在参考平台镜像中单独安装精确 Connector。平台提供 CLI 和 Helm Chart。已发布 RC 组合为 runtime **0.5.0-rc.3**、平台 **0.12.0-rc.2**、DSH **0.2.2-rc.3**。[验证报告](https://github.com/GuoMonth/dsh-isolated-runtime/releases/download/v0.5.0-rc.3/validation.md)记录精确制品、已接受的 Picomatch 问题及模型/工具未测边界。不做兼容性承诺，部署时固定精确版本和制品。
 
-当前源码以 runtime **0.5.0-rc.4** 和 DSH **0.2.2-rc.5** 为目标。[DSH 兼容说明](compat/dsh/README.zh-CN.md)
+当前源码以 runtime **0.5.0** 和 DSH **0.2.2-rc.5** 为目标。[DSH 兼容说明](compat/dsh/README.zh-CN.md)
 
 ## runtime 做什么
 
